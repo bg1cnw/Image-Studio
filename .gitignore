@@ -1,0 +1,46 @@
+# Build artifacts
+/bin/
+/image-studio/build/bin/
+/image-studio/build/darwin/build/
+/image-studio/build/windows/build/
+/image-studio/frontend/dist/
+/image-studio/frontend/node_modules/
+
+# Wails-generated TS bindings (regenerated on every `wails build` / `wails dev`)
+/image-studio/frontend/wailsjs/
+
+# Generated images, raw SSE dumps, imported sources
+# (raw SSE files include request headers — may leak API keys)
+/images/
+/image-studio/build/bin/data/
+*.exe
+*.exe~
+
+# Go
+*.test
+*.out
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# Claude / Cursor local config (not for public repo)
+.claude/
+.cursor/
+
+# Local env overrides
+.env
+.env.local
+*.local
+
+# Frontend (wails-generated hash files)
+package-lock.json.md5
+package.json.md5

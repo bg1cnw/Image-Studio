@@ -1,0 +1,99 @@
+/* Theme tokens + reset + globals. Loaded first; everything else depends on
+ * these CSS variables. Switch theme by setting `data-theme="light"` on <html>. */
+
+* { box-sizing: border-box; }
+
+:root {
+  /* Muted dark — neutral charcoal with a hint of blue. */
+  --bg: #14161c;
+  --bg-2: #181a22;
+  --panel: #1c1e26;
+  --panel-2: #181a22;
+  --surface: #20232c;
+  --surface-2: #24272f;
+  --border: #2a2d36;
+  --border-2: #353841;
+  --text: #e5e7ed;
+  --text-muted: #9ba1ad;
+  --text-dim: #6b7280;
+  --accent: #6366f1;
+  --accent-2: #818cf8;
+  --accent-soft: #232639;
+  --pink: #818cf8;
+  --pink-soft: #232639;
+  --gradient-primary: var(--accent);
+  --gradient-primary-hover: var(--accent-2);
+  --gradient-card: transparent;
+  --danger: #dc6464;
+  --danger-soft: #2a1d22;
+  --success: #4ade80;
+  --canvas-bg: #181a22;
+  --canvas-tile: #20232c;
+  --font-scale: 1;
+
+  --on-accent-soft: #e5e7ed;
+  --btn-secondary-bg: #24272f;
+  --btn-secondary-bg-hover: #2d313c;
+  --tool-hover-bg: #24272f;
+  --tool-hover-text: #e5e7ed;
+  --error-text: #f0a8a8;
+  --error-border: #5a3137;
+  --shadow-card: none;
+  --shadow-card-hover: none;
+}
+:root[data-theme="light"] {
+  --bg: #f7f8fa;
+  --bg-2: #f0f2f5;
+  --panel: #ffffff;
+  --panel-2: #fafbfc;
+  --surface: #f4f5f8;
+  --surface-2: #eceef2;
+  --border: #e3e5ea;
+  --border-2: #d2d5dc;
+  --text: #1f2330;
+  --text-muted: #5c6373;
+  --text-dim: #8a8f9c;
+  --accent: #4f46e5;
+  --accent-2: #6366f1;
+  --accent-soft: #ecedfa;
+  --pink: #6366f1;
+  --pink-soft: #ecedfa;
+  --gradient-primary: var(--accent);
+  --gradient-primary-hover: var(--accent-2);
+  --gradient-card: transparent;
+  --danger: #c44545;
+  --danger-soft: #fde9e9;
+  --success: #16a34a;
+  --canvas-bg: #f0f2f5;
+  --canvas-tile: #dfe2e7;
+  --on-accent-soft: var(--accent);
+  --btn-secondary-bg: #f0f2f5;
+  --btn-secondary-bg-hover: #e3e6eb;
+  --tool-hover-bg: var(--accent-soft);
+  --tool-hover-text: var(--accent);
+  --error-text: #a82a2a;
+  --error-border: var(--danger);
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  font-size: calc(13px * var(--font-scale));
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+button, input, textarea, select { font-family: inherit; }
+
+/* Global scrollbar tweak. */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-2); filter: brightness(1.2); }

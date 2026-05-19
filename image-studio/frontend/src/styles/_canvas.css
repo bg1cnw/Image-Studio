@@ -1,0 +1,193 @@
+/* Middle column: canvas shell, toolbar, source strip, stage host,
+ * empty state, status bar. */
+
+/* The canvas-shell uses flex (not grid) because grid items have an implicit
+ * min-width: auto that lets their content (the Konva canvas) expand the track,
+ * which previously caused a runaway feedback loop with the ResizeObserver. */
+.canvas-shell {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+}
+.canvas-shell > .toolbar,
+.canvas-shell > .statusbar { flex: 0 0 auto; }
+.canvas-shell > .stage-host { flex: 1 1 0; min-width: 0; min-height: 0; }
+
+/* Toolbar above the canvas. */
+.toolbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-2);
+}
+.toolbar .sep { width: 1px; background: var(--border); height: 22px; margin: 0 4px; }
+.toolbar .right { margin-left: auto; display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--text-muted); }
+.toolbar input[type=range] { width: 110px; }
+
+/* Source thumbnail strip (drag-orderable reference images). */
+.source-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  flex: 0 0 auto;
+}
+.source-strip-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.source-thumb {
+  position: relative;
+  width: 56px; height: 56px;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  display: flex; align-items: center; justify-content: center;
+  cursor: grab;
+  overflow: hidden;
+  flex: 0 0 auto;
+  user-select: none;
+  transition: border-color 120ms;
+}
+.source-thumb:active { cursor: grabbing; }
+.source-thumb.over { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(99,102,241,0.3); }
+.source-thumb img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.source-thumb-idx {
+  position: absolute;
+  left: 3px; top: 2px;
+  background: rgba(0,0,0,0.65);
+  color: #fff;
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  pointer-events: none;
+}
+.source-thumb-del {
+  position: absolute;
+  right: 2px; top: 2px;
+  width: 18px; height: 18px;
+  background: rgba(0,0,0,0.7);
+  border: 0; color: #fff;
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms;
+  display: flex; align-items: center; justify-content: center;
+}
+.source-thumb:hover .source-thumb-del { opacity: 1; }
+.source-thumb-placeholder {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.source-thumb.add {
+  cursor: pointer;
+  border-style: dashed;
+  color: var(--text-muted);
+  font-size: 24px;
+}
+.source-thumb.add:hover { color: var(--accent); border-color: var(--accent); }
+
+/* Konva stage host (checkered background). */
+.stage-host {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  background:
+    linear-gradient(45deg, var(--canvas-tile) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--canvas-tile) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--canvas-tile) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--canvas-tile) 75%);
+  background-size: 24px 24px;
+  background-position: 0 0, 0 12px, 12px -12px, 12px 0;
+  background-color: var(--panel-2);
+}
+
+/* Minimal empty state shown when no currentImage. */
+.empty-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--canvas-bg);
+}
+.empty-stage-inner {
+  text-align: center;
+  max-width: 360px;
+  padding: 32px;
+}
+.empty-stage-icon {
+  font-size: 48px;
+  opacity: 0.5;
+  margin-bottom: 12px;
+}
+.empty-stage-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text);
+  margin: 0 0 6px;
+}
+.empty-stage-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0 0 16px;
+}
+.empty-stage-link {
+  display: inline-block;
+  font-size: 12px;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.empty-stage-link:hover { border-color: var(--accent); }
+
+/* Status bar pinned to bottom of canvas-shell. */
+.statusbar {
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--panel-2);
+  font-size: 12px;
+  color: var(--text-muted);
+  min-height: 38px;
+}
+.statusbar .progress-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--surface);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+.statusbar .progress-bar::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 30%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  animation: slide 1.5s infinite ease-in-out;
+}
+@keyframes slide {
+  0%   { transform: translateX(-100%); }
+  50%  { transform: translateX(120%); }
+  100% { transform: translateX(120%); }
+}

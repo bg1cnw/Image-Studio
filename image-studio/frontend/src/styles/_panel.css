@@ -1,0 +1,142 @@
+/* Left-side ControlPanel: prompt, params, generate, settings collapsible. */
+
+.panel {
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: 18px 20px 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.panel h1 {
+  font-size: 13px;
+  margin: 0 0 4px;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  font-weight: 600;
+}
+.panel section { display: flex; flex-direction: column; gap: 8px; }
+.panel label.head {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+  font-weight: 500;
+}
+.panel .head-row { display: flex; align-items: center; justify-content: space-between; }
+.panel .head-link {
+  font-size: 11px; color: var(--text-muted);
+  cursor: pointer;
+}
+.panel .head-link:hover { color: var(--accent); }
+
+.panel-head { display: flex; align-items: center; justify-content: space-between; }
+
+/* Prompt input with template button below it (not floating, doesn't squeeze
+ * the textarea). The popover is anchored to .prompt-wrap so it stays inside
+ * the panel rather than escaping the window. */
+.prompt-counter { font-size: 10px; color: var(--text-dim); }
+.prompt-wrap { position: relative; }
+.prompt-wrap > .textarea { min-height: 110px; }
+.prompt-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+.prompt-action-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 120ms;
+}
+.prompt-action-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* Aspect ratio picker (rectangles + ratio label). */
+.aspect-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+.aspect-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 2px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: all 120ms;
+}
+.aspect-btn:hover { border-color: var(--accent); }
+.aspect-btn.active { border-color: var(--accent); background: var(--accent-soft); }
+.aspect-icon {
+  border: 1.5px solid var(--text-muted);
+  border-radius: 2px;
+  display: block;
+}
+.aspect-btn.active .aspect-icon { border-color: var(--accent); }
+.aspect-label { font-size: 10px; color: var(--text-muted); }
+.aspect-btn.active .aspect-label { color: var(--accent); font-weight: 500; }
+
+/* Generate button at the bottom of the panel. */
+.generate-wrap {
+  margin-top: auto;
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.generate-btn {
+  width: 100%;
+  padding: 12px;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+.generate-sub {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+/* API Key inline hint shown below the input. */
+.key-hint {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: var(--accent-soft);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.key-hint strong { color: var(--accent); }
+
+/* Settings collapsible block. */
+.settings-block { margin-top: 4px; border-top: 1px solid var(--border); padding-top: 12px; }
+.settings-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%;
+  background: transparent; border: 0; color: var(--text-muted);
+  font-size: 12px; cursor: pointer;
+  padding: 4px 0;
+}
+.settings-toggle:hover { color: var(--text); }
+.settings-body { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
+.settings-row { display: flex; flex-direction: column; gap: 6px; }
