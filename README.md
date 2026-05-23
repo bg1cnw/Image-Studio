@@ -79,6 +79,7 @@
 | **Windows x64** | `image-studio-windows-amd64.exe` | ~29 MB | 双击运行;需 [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)(Win10+ 大部分已预装) |
 | **macOS** (universal) | `image-studio-macos-universal.zip` | ~32 MB | 解压后 `xattr -dr com.apple.quarantine image-studio.app` 去 Gatekeeper 隔离,或右键 → 打开 |
 | **Linux x64** | `image-studio-linux-amd64.tar.gz` | ~16 MB | `tar -xzf` 解压 → `chmod +x image-studio` → 运行;需 `libgtk-3-0 libwebkit2gtk-4.1-0`(桌面 Ubuntu 22.04+ / 24.04 默认装好) |
+| **Android Pad 前端包** | `image-studio-android-pad-frontend.tar.gz` | 前端静态资源 | 供 Android 平板壳层集成,运行时按 Android 处理,但界面视觉复用 macOS 风格 |
 
 > Wails v2 不支持跨平台编译,以上三个产物分别在各自原生平台上 build。代码本身跨平台,有问题欢迎 issue。
 
@@ -112,11 +113,15 @@ npm run dev
 npm run dev:macos
 npm run dev:windows
 npm run dev:linux
+npm run dev:android
+npm run dev:android-pad
 
 # 强制按某个平台主题打包前端静态资源
 npm run build:macos
 npm run build:windows
 npm run build:linux
+npm run build:android
+npm run build:android-pad
 ```
 
 这些命令只切换主题层(`VITE_TARGET_PLATFORM`),不会修改业务逻辑和数据流。
@@ -127,6 +132,7 @@ npm run build:linux
 - **macOS**:保留现有 Apple 风格,使用 SF 系排版、较大圆角、玻璃态工具栏
 - **Windows**:单独的 Fluent 风格主题,使用 Segoe 系排版、较紧凑控件、较小圆角、Mica 风格分层表面
 - **Linux / 其他**:走通用主题分支,避免强行伪装成某个平台
+- **Android Pad**:`android-pad` 目标保留 Android 运行时语义,但前端视觉直接复用 macOS / Apple 风格,适合平板壳层接入时先统一 UI
 
 运行时前端会自动给根节点注入 `data-platform` / `data-ui-family`,CSS token 和组件壳层按这两个属性切换,因此平台主题可以继续扩展,而不需要动生成、画布、历史等主逻辑。
 

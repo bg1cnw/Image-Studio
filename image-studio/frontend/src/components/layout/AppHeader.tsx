@@ -2,7 +2,7 @@ import { Github, Monitor, Moon, Plus, Sun } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
 import { OpenExternalURL } from "../../../wailsjs/go/backend/Service";
 import { HitokotoStrip } from "./HitokotoStrip";
-import { isMac, isWindows } from "../../lib/platform";
+import { isWindows, usesAppleUI } from "../../lib/platform";
 
 const REPO_URL = "https://github.com/RoseKhlifa/Image-Studio";
 
@@ -13,7 +13,7 @@ export function AppHeader() {
   return (
     <header
       className={`drag-region sticky top-0 z-40 flex items-center gap-3 border-b border-[var(--border)] bg-[var(--toolbar)] backdrop-blur-2xl ${
-        isMac
+        usesAppleUI
           ? "min-h-[58px] pl-[92px] pr-5 pb-2 pt-3"
           : isWindows
             ? "min-h-[48px] px-3"

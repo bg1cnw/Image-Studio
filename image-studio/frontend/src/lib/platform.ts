@@ -1,7 +1,8 @@
 export type UIPlatform = "macos" | "windows" | "linux" | "ios" | "android" | "web";
+export type UITargetPlatform = UIPlatform | "android-pad";
 export type UIFamily = "apple" | "fluent" | "generic";
 
-function fromOverride(raw?: string): UIPlatform | null {
+function fromOverride(raw?: string): UITargetPlatform | null {
   switch ((raw ?? "").trim().toLowerCase()) {
     case "mac":
     case "macos":
@@ -17,6 +18,12 @@ function fromOverride(raw?: string): UIPlatform | null {
       return "ios";
     case "android":
       return "android";
+    case "android-pad":
+    case "android_tablet":
+    case "android-tablet":
+    case "tablet":
+    case "pad":
+      return "android-pad";
     case "web":
       return "web";
     default:
@@ -24,7 +31,7 @@ function fromOverride(raw?: string): UIPlatform | null {
   }
 }
 
-function detectPlatform(): UIPlatform {
+function detectTargetPlatform(): UITargetPlatform {
   const override = fromOverride(import.meta.env.VITE_TARGET_PLATFORM);
   if (override) return override;
   if (typeof navigator === "undefined") return "web";
@@ -42,8 +49,14 @@ function detectPlatform(): UIPlatform {
   return "web";
 }
 
-function familyForPlatform(value: UIPlatform): UIFamily {
+function normalizeRuntimePlatform(value: UITargetPlatform): UIPlatform {
+  if (value === "android-pad") return "android";
+  return value;
+}
+
+function familyForTarget(value: UITargetPlatform): UIFamily {
   switch (value) {
+    case "android-pad":
     case "macos":
     case "ios":
       return "apple";
@@ -54,13 +67,17 @@ function familyForPlatform(value: UIPlatform): UIFamily {
   }
 }
 
-export const platform = detectPlatform();
-export const uiFamily = familyForPlatform(platform);
+export const targetPlatform = detectTargetPlatform();
+export const platform = normalizeRuntimePlatform(targetPlatform);
+export const uiFamily = familyForTarget(targetPlatform);
+export const isAndroidPad = targetPlatform === "android-pad";
+export const usesAppleUI = uiFamily === "apple";
 export const isMac = platform === "macos" || platform === "ios";
 export const isWindows = platform === "windows";
 
 export function applyPlatformAttributes(root: HTMLElement = document.documentElement) {
   root.dataset.platform = platform;
+  root.dataset.targetPlatform = targetPlatform;
   root.dataset.uiFamily = uiFamily;
 }
 
@@ -81,6 +98,7 @@ export function platformOutputRootLabel() {
 }
 
 export function platformRuntimeLabel() {
+  if (isAndroidPad) return "Android Pad WebView / macOS-style frontend";
   if (isMac) return "Wails v2 / WKWebView";
   if (isWindows) return "Wails v2 / WebView2";
   return "Wails v2 / WebKitGTK";

@@ -7,6 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, "..");
 const command = process.argv[2] ?? "dev";
 const explicitMode = process.argv[3] ?? "";
+const supportedModes = new Set(["macos", "windows", "linux", "android", "android-pad"]);
 
 function mapHostPlatform(value) {
   switch (value) {
@@ -37,6 +38,9 @@ function run(binRelativePath, args, env) {
 }
 
 const mode = explicitMode || process.env.VITE_TARGET_PLATFORM || mapHostPlatform(os.platform());
+if (!supportedModes.has(mode)) {
+  throw new Error(`Unsupported target platform: ${mode}. Expected one of ${Array.from(supportedModes).join(", ")}`);
+}
 const env = { ...process.env, VITE_TARGET_PLATFORM: mode };
 
 if (command === "build") {
