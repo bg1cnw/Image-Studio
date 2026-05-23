@@ -260,6 +260,9 @@ export function UpstreamConfigModal({
                   className={`focus-ring w-full border border-black/[0.08] bg-[var(--surface)] px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 dark:border-white/[0.08] dark:text-zinc-100 dark:placeholder:text-zinc-500 font-mono-token ${isWindows ? "rounded-[10px]" : "rounded-[14px]"}`}
                 />
                 {baseURLError && <Hint>{baseURLError}</Hint>}
+                <Hint>
+                  只填中转站的站点根地址。应用会按当前 API 形态自动拼接 <code className="font-mono-token">/v1/responses</code>(Responses)或 <code className="font-mono-token">/v1/images/generations</code> / <code className="font-mono-token">/v1/images/edits</code>(Images),<strong>不要</strong>把这些路径手动贴进来。
+                </Hint>
               </Field>
 
               <Field label={<>API Key <Req /></>}>

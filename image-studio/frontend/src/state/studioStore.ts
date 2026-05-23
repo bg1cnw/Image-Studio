@@ -430,6 +430,20 @@ interface StudioState {
   upstreamModalOpen: boolean;
   openUpstreamConfig: () => void;
   closeUpstreamConfig: () => void;
+
+  // 首次成功生图后向用户索 GitHub Star 的引导弹窗。launchOneJob 在 result
+  // 事件里检测 localStorage `gptcodex.starPrompted` 标志 —— 未设过 + 这次是
+  // 首次成功 → 延迟 2s 置 true,展示后(无论用户点 star 还是关闭)再写入标志,
+  // 之后再也不弹。
+  starPromptOpen: boolean;
+  // 触发来源 —— 决定弹窗顶部用「庆祝首张图」文案还是「中性致谢」文案。
+  //   "auto"   = 首次成功生图自动弹(launchOneJob 设置)
+  //   "manual" = 用户点头部 Star 按钮主动呼起
+  starPromptSource: "auto" | "manual";
+  // 手动唤起(头部按钮)。绕过 localStorage 标志,用户主动想看就让看;关闭
+  // 时 dismissStarPrompt 仍会写标志,「再也不弹自动版」的语义不变。
+  openStarPrompt: () => void;
+  dismissStarPrompt: () => void;
   newWorkspace: (name?: string) => void;
   switchWorkspace: (id: string) => void;
   closeWorkspace: (id: string) => void;
@@ -638,6 +652,13 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   upstreamModalOpen: false,
   openUpstreamConfig: () => set({ upstreamModalOpen: true }),
   closeUpstreamConfig: () => set({ upstreamModalOpen: false }),
+  starPromptOpen: false,
+  starPromptSource: "auto",
+  openStarPrompt: () => set({ starPromptOpen: true, starPromptSource: "manual" }),
+  dismissStarPrompt: () => {
+    set({ starPromptOpen: false });
+    try { localStorage.setItem("gptcodex.starPrompted", "1"); } catch {}
+  },
   workspaces: [],
   activeWorkspaceId: "",
   styleTag: "",
@@ -2267,6 +2288,20 @@ async function launchOneJob(
           6000,
           { label: "查看详情", onClick: () => store.getState().openResultDetail(fullItem) },
         );
+        // 首次成功生图 → 延迟 2s 弹 GitHub Star 引导。localStorage 标志一旦
+        // 写入就再也不弹(无论用户点 star 还是关闭)。延迟是为了让用户先看
+        // 到图,然后再被礼貌打扰。
+        try {
+          if (localStorage.getItem("gptcodex.starPrompted") !== "1"
+              && !store.getState().starPromptOpen) {
+            setTimeout(() => {
+              // 二次检查:期间可能用户用别的渠道关掉过弹窗
+              if (localStorage.getItem("gptcodex.starPrompted") !== "1") {
+                store.setState({ starPromptOpen: true, starPromptSource: "auto" });
+              }
+            }, 2000);
+          }
+        } catch { /* localStorage 不可用 → 静默跳过 */ }
         removeFromRunning();
       } catch (err: any) {
         const patch: WorkspacePatch = {

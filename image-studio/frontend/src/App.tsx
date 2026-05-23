@@ -15,6 +15,9 @@ import { isMac } from "./lib/platform";
 const UpstreamConfigModal = lazy(() => import("./components/panel/UpstreamConfigModal").then((m) => ({ default: m.UpstreamConfigModal })));
 const ResultDetailDrawer = lazy(() => import("./components/panel/ResultDetailDrawer").then((m) => ({ default: m.ResultDetailDrawer })));
 const SettingsPanel = lazy(() => import("./components/panel/SettingsPanel").then((m) => ({ default: m.SettingsPanel })));
+// StarPromptModal 只在「第一次成功生图」后挂载一次,长尾用户根本不会触发 ——
+// lazy 进一步避免它进入 critical bundle。
+const StarPromptModal = lazy(() => import("./components/common/StarPromptModal").then((m) => ({ default: m.StarPromptModal })));
 
 function App() {
   const bootstrap = useStudioStore((s) => s.bootstrap);
@@ -150,7 +153,20 @@ function App() {
       <Suspense fallback={null}>
         <ResultDetailDrawer />
       </Suspense>
+      <StarPromptGate />
     </div>
+  );
+}
+
+// Star prompt 弹窗只在 store.starPromptOpen=true 时才挂载 Suspense + lazy 模块。
+// 拆出来跟 UpstreamConfigGate 一样,避免顶层 App 因为一个布尔 state 重渲整棵树。
+function StarPromptGate() {
+  const open = useStudioStore((s) => s.starPromptOpen);
+  if (!open) return null;
+  return (
+    <Suspense fallback={null}>
+      <StarPromptModal open={open} />
+    </Suspense>
   );
 }
 

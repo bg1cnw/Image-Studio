@@ -284,11 +284,19 @@ async function withFullCount(): Promise<number> {
 export async function loadAllHistory(): Promise<HistoryItem[]> {
   await migrateLegacyHistoryIfNeeded();
   const { store, tx } = await openHistoryTx("readonly");
-  const items = await cursorAsPromise<HistoryRecord>(store.openCursor(null, "prev"), {
-    accept: () => true,
-  });
+  // ★ 必须走 createdAt index,不是默认 primary key —— primary key 是 uuid
+  // 字符串,逆序排列等于随机,会让历史侧栏顺序看起来抽象。createdAt index
+  // direction="prev" 才是真正的「由近及远(新→旧)」。
+  const items = await cursorAsPromise<HistoryRecord>(
+    store.index("createdAt").openCursor(null, "prev"),
+    { accept: () => true },
+  );
   await txDone(tx);
-  return items.map(({ searchText, searchTokens, ...item }) => item);
+  // 双保险:即便老数据 createdAt 字段缺失被丢到末尾,这里再用 JS sort 一道
+  // 兜底,保证 UI 拿到的永远是新→旧顺序。
+  const out = items.map(({ searchText, searchTokens, ...item }) => item);
+  out.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+  return out;
 }
 
 export async function loadHistoryByFilters(opts: {

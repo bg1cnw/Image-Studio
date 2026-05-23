@@ -290,7 +290,11 @@ function HistoryTile({
   onDelete: (id: string) => void | Promise<void>;
   onOpenMenu: (x: number, y: number) => void;
 }) {
-  const previewURL = useBlobURL(item.previewBlob ?? item.imageBlob ?? null, item.previewOnly ? item.imageB64 : null);
+  // 优先用 blob(previewBlob / imageBlob);没有 blob 时把 imageB64 也喂给
+  // useBlobURL,让它在内部 base64ToBlob → createObjectURL,出来同样是 blob URL。
+  // 不要走「src=data:image/png;base64,...」那条大 data URL fallback —— 解析慢,
+  // 配上 loading=lazy 会出现「鼠标 hover 才加载」的奇怪行为。
+  const previewURL = useBlobURL(item.previewBlob ?? item.imageBlob ?? null, item.imageB64 ?? null);
   return (
     <div
       title={item.prompt}
@@ -318,7 +322,11 @@ function HistoryTile({
       <img
         src={previewURL ?? `data:image/png;base64,${item.imageB64}`}
         alt={item.prompt}
-        loading="lazy"
+        // 之前用 loading="lazy" + 大尺寸 base64 data URL,Chromium 的可见性
+        // observer 在滚动侧栏 + aspect-square 容器里经常判错,鼠标 hover 触发
+        // paint 后才补加载。历史缩略图是 ~30KB 预览,数量也就 cap 120,直接
+        // eager 加载没问题,体验比 lazy 一致得多。
+        loading="eager"
         decoding="async"
         className="h-full w-full object-cover"
       />

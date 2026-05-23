@@ -612,7 +612,11 @@ function BatchGridTile({
   active: boolean;
   onSelect: (item: HistoryItem) => void | Promise<void>;
 }) {
-  const previewURL = useBlobURL(item.previewBlob ?? item.imageBlob ?? null, item.previewOnly ? item.imageB64 : null);
+  // 批量网格里每张图能撑到 400×400+ 像素,不能用 192px 的 previewBlob(那是
+  // 给侧栏小缩略图准备的,放大到这种尺寸会糊得很明显)。优先 imageBlob(全分),
+  // 没 blob 时把 imageB64 喂给 useBlobURL 让它内部转 blob URL —— 避免落到
+  // 大 data URL fallback。
+  const previewURL = useBlobURL(item.imageBlob ?? item.previewBlob ?? null, item.imageB64 ?? null);
   return (
     <button
       type="button"
@@ -623,6 +627,8 @@ function BatchGridTile({
       <img
         src={previewURL ?? `data:image/png;base64,${item.imageB64}`}
         alt={item.prompt || `batch result ${index + 1}`}
+        loading="eager"
+        decoding="async"
         draggable={false}
       />
       <span className="batch-grid-index">{index + 1}</span>

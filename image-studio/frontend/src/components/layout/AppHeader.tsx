@@ -1,4 +1,4 @@
-import { Github, Monitor, Moon, Plus, Settings, Sun } from "lucide-react";
+import { Github, Monitor, Moon, Plus, Settings, Star, Sun } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
 import { OpenExternalURL } from "../../../wailsjs/go/backend/Service";
 import { HitokotoStrip } from "./HitokotoStrip";
@@ -7,7 +7,7 @@ import { isWindows, usesAppleUI } from "../../lib/platform";
 const REPO_URL = "https://github.com/RoseKhlifa/Image-Studio";
 
 export function AppHeader({ onOpenSettings }: { onOpenSettings: () => void }) {
-  const { fullscreen, theme, setTheme, pushToast, workspaces, newWorkspace } = useStudioStore();
+  const { fullscreen, theme, setTheme, pushToast, workspaces, newWorkspace, openStarPrompt } = useStudioStore();
   if (fullscreen) return null;
 
   return (
@@ -82,6 +82,14 @@ export function AppHeader({ onOpenSettings }: { onOpenSettings: () => void }) {
           title="GitHub"
         >
           <Github className="h-4 w-4" />
+        </HeaderIconBtn>
+        {/* 给项目点个 star —— 跟自动弹窗共用同一份 modal,手动点不写「再也别弹」标志。
+            图标用 amber 调色让它在一排灰色 icon 里轻微凸出,提示这是"鼓励作者"的入口。 */}
+        <HeaderIconBtn
+          onClick={openStarPrompt}
+          title="给项目点个 Star"
+        >
+          <Star className="h-4 w-4 text-amber-500 dark:text-amber-400" fill="currentColor" strokeWidth={1.5} />
         </HeaderIconBtn>
         <HeaderIconBtn
           onClick={onOpenSettings}
