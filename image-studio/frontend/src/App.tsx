@@ -86,8 +86,17 @@ function App() {
       e.preventDefault();
       depth = 0;
       setDragHover(false);
-      const file = e.dataTransfer?.files?.[0];
-      if (file) importImageFile(file);
+      // ★ 之前只取 files[0],拖多张时只读第一张。改成遍历所有文件,
+      //   importImageFile 内部会逐张去重 + 追加到 sources 末尾。
+      //   串行 await 而不是 Promise.all 是为了避免后端文件名冲突,
+      //   也保证 sources 顺序跟用户拖入顺序一致。
+      const files = e.dataTransfer?.files;
+      if (!files || files.length === 0) return;
+      void (async () => {
+        for (const f of Array.from(files)) {
+          await importImageFile(f);
+        }
+      })();
     };
     const onPaste = (e: ClipboardEvent) => {
       const target = e.target as HTMLElement | null;

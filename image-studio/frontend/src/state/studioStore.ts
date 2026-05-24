@@ -885,8 +885,15 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         set({ mode: "edit", errorMessage: null, errorRawPath: null });
         return;
       }
+      // OpenImageDialog 现在直接把文件 b64 一起读出来返回(不走 managed-roots
+      // 检查 —— 用户主动经 OS 对话框挑的路径默认信任)。之前我们尝试调
+      // ReadImageAsBase64(res.path),但那个 binding 会被 ensureManagedReadablePath
+      // 拒绝(只允许读 imports/ + images/ 子目录),桌面 / D 盘的文件读不出来,
+      // SourceStrip 拿不到 blob/b64 就退化到「扩展名占位」UI。
+      const imageB64 = res.imageB64 ?? "";
+      const imageBlob = imageB64 ? base64ToBlob(imageB64) : null;
       set({
-        sources: [...existing, { path: res.path, name: baseName, size: res.size }],
+        sources: [...existing, { path: res.path, name: baseName, size: res.size, imageB64, imageBlob }],
         mode: "edit",
         errorMessage: null,
         errorRawPath: null,
@@ -1109,7 +1116,13 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       resultGridOpen: false,
       sources: alreadyIn
         ? existing
-        : [...existing, { path: localItem.savedPath, name: baseName, size: 0 }],
+        : [...existing, {
+            path: localItem.savedPath,
+            name: baseName,
+            size: 0,
+            imageBlob: localItem.imageBlob ?? null,  // ★ 历史项的全图 blob 直接复用,
+            imageB64: localItem.imageB64,             //    SourceStrip 缩略图就有得渲染了
+          }],
     });
   },
 
@@ -2004,7 +2017,13 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         mode: "edit",
         sources: alreadyIn
           ? existingSources
-          : [...existingSources, { path: result.path, name: file.name, size: file.size, imageB64: b64 }],
+          : [...existingSources, {
+              path: result.path,
+              name: file.name,
+              size: file.size,
+              imageBlob: fullBlob,   // ★ 把 blob 也带上,SourceStrip 优先用 blob 渲染缩略图,
+              imageB64: b64,         //    b64 留着兜底(submit 时还要它做 mask 等)。
+            }],
         errorMessage: null,
         errorRawPath: null,
       });

@@ -92,10 +92,11 @@ export namespace backend {
 	    textModelID: string;
 	    imagePaths: string[];
 	    imagePath: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new PromptOptimizeOptions(source);
 	    }
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.apiKey = source["apiKey"];
@@ -110,6 +111,7 @@ export namespace backend {
 	export class SelectFileResponse {
 	    path: string;
 	    size: number;
+	    imageB64?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SelectFileResponse(source);
@@ -119,6 +121,9 @@ export namespace backend {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.path = source["path"];
 	        this.size = source["size"];
+	        this.imageB64 = source["imageB64"];
 	    }
 	}
+
 }
+

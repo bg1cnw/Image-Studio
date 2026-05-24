@@ -94,10 +94,15 @@ type ErrorPayload struct {
 	RawPath string `json:"rawPath,omitempty"`
 }
 
-// SelectFileResponse is returned by OpenImageDialog.
+// SelectFileResponse is returned by OpenImageDialog. ImageB64 carries the raw
+// file bytes base64-encoded so the frontend can hydrate the source thumbnail
+// without going through the managed-roots ReadImageAsBase64 guard(用户通过 OS
+// 对话框主动选的路径默认就是信任的,没必要再绕一圈管控目录)。文件超过
+// 50MB 时 ImageB64 留空,前端落到扩展名占位。
 type SelectFileResponse struct {
-	Path string `json:"path"`
-	Size int64  `json:"size"`
+	Path     string `json:"path"`
+	Size     int64  `json:"size"`
+	ImageB64 string `json:"imageB64,omitempty"`
 }
 
 // ImportedImage describes a freshly imported (drag-dropped or pasted) image.

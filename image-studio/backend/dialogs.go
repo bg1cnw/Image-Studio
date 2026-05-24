@@ -13,7 +13,18 @@ import (
 )
 
 // OpenImageDialog shows a file picker filtered to supported image types and
-// returns the selected absolute path along with its byte size.
+// returns the selected absolute path + size + raw bytes (base64)。
+//
+// 之所以把 b64 也读出来:前端 SourceStrip 用它直接渲染缩略图,不必再调
+// ReadImageAsBase64(那条路径强制 managed-roots,而文件选择器返回的是用户
+// 桌面 / D 盘任意路径,会被拒)。用户主动经 OS 对话框挑的路径默认就是信任
+// 来源,这里直接读没问题。
+//
+// 文件 > 50MB 时只回 path/size,b64 留空 —— 一来太大走 JSON bridge 太重,
+// 二来 client.MaxInputImageBytes 本身也不接受这么大的源图,前端 sourceStrip
+// 会自动落到扩展名占位 UI。
+const maxDialogReadBytes int64 = 50 * 1024 * 1024
+
 func (s *Service) OpenImageDialog() (SelectFileResponse, error) {
 	path, err := runtime.OpenFileDialog(s.ctx, runtime.OpenDialogOptions{
 		Title: "选择源图片",
@@ -32,7 +43,14 @@ func (s *Service) OpenImageDialog() (SelectFileResponse, error) {
 	if err != nil {
 		return SelectFileResponse{}, err
 	}
-	return SelectFileResponse{Path: path, Size: info.Size()}, nil
+	resp := SelectFileResponse{Path: path, Size: info.Size()}
+	if info.Size() > 0 && info.Size() <= maxDialogReadBytes {
+		if data, rerr := os.ReadFile(path); rerr == nil {
+			resp.ImageB64 = base64.StdEncoding.EncodeToString(data)
+		}
+		// 读不出来不致命,前端会落到扩展名占位
+	}
+	return resp, nil
 }
 
 // SaveImageAs prompts the user for a destination and writes the base64 PNG to disk.
