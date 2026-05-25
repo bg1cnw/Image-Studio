@@ -195,6 +195,63 @@
   --surface-elevated-dark: var(--lg-bg);
 }
 
+input,
+textarea,
+select,
+button {
+  font: inherit;
+}
+
+textarea,
+select,
+input[type="text"],
+input[type="number"],
+input[type="password"] {
+  -webkit-appearance: none;
+  appearance: none;
+  border: 1px solid rgb(0 0 0 / 0.08);
+  border-radius: 14px;
+  background: var(--surface);
+  color: rgb(24 24 27);
+  line-height: 1.45;
+}
+
+:root.dark textarea,
+:root.dark select,
+:root.dark input[type="text"],
+:root.dark input[type="number"],
+:root.dark input[type="password"] {
+  border-color: rgb(255 255 255 / 0.08);
+  color: rgb(244 244 245);
+}
+
+textarea:focus,
+select:focus,
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="password"]:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 55%, white 45%);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+select {
+  min-height: 40px;
+  padding-right: 2rem;
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgb(113 113 122) 50%),
+    linear-gradient(135deg, rgb(113 113 122) 50%, transparent 50%);
+  background-position:
+    calc(100% - 16px) calc(50% - 1px),
+    calc(100% - 11px) calc(50% - 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+textarea {
+  min-width: 0;
+}
+
 /* Windows / Fluent design tokens: Segoe typography, subtler rounding,
    higher border contrast, and layered materials inspired by Mica surfaces. */
 :root[data-ui-family="fluent"] {

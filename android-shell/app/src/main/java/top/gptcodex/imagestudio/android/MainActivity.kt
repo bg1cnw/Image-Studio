@@ -52,8 +52,8 @@ class MainActivity : AppCompatActivity() {
             allowFileAccess = true
             allowContentAccess = true
             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-            useWideViewPort = true
-            loadWithOverviewMode = true
+            useWideViewPort = false
+            loadWithOverviewMode = false
             mediaPlaybackRequiresUserGesture = false
         }
         WebView.setWebContentsDebuggingEnabled(true)

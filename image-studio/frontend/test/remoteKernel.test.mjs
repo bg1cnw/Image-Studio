@@ -267,3 +267,79 @@ test("probeUpstreamConnection rejects non-2xx with summarized message", async ()
     );
   });
 });
+
+test("Android shell remote kernel can use native HTTP bridge to bypass browser fetch", async () => {
+  await withPatchedGlobals(async () => {
+    globalThis.window.AndroidImageStudio = {
+      invoke(requestId, method, payloadJson) {
+        const args = JSON.parse(payloadJson);
+        queueMicrotask(() => {
+          if (method === "HttpRequestText") {
+            const payload = args[0];
+            if (payload.url.endsWith("/v1/models")) {
+              window.__imageStudioNativeResolve?.(requestId, {
+                status: 200,
+                body: '{"data":[{"id":"gpt-5.5"}]}',
+                contentType: "application/json",
+              });
+              return;
+            }
+            if (payload.url.endsWith("/v1/responses")) {
+              window.__imageStudioNativeResolve?.(requestId, {
+                status: 200,
+                body: 'data: {"type":"response.output_item.done","item":{"type":"image_generation_call","result":"YW5kcm9pZA==","revised_prompt":"native bridge"}}\n',
+                contentType: "text/event-stream",
+              });
+              return;
+            }
+          }
+          if (method === "CancelHttpRequest") {
+            window.__imageStudioNativeResolve?.(requestId, null);
+            return;
+          }
+          window.__imageStudioNativeReject?.(requestId, `unsupported ${method}`);
+        });
+      },
+    };
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: {
+        userAgent: "Mozilla/5.0 (Linux; Android 16; Pixel)",
+        platform: "Linux armv8l",
+        userAgentData: { platform: "Android" },
+      },
+    });
+    globalThis.fetch = async () => {
+      throw new Error("browser fetch should not be used in Android native HTTP mode");
+    };
+  }, async () => {
+    const kernel = await loadRemoteKernel();
+    await kernel.probeUpstreamConnection("https://upstream.example", "key");
+    const result = await kernel.runRemoteImageJob(
+      {
+        payload: {
+          apiKey: "key",
+          mode: "generate",
+          prompt: "cat",
+          size: "1024x1024",
+          quality: "low",
+          outputFormat: "png",
+          imagePaths: [],
+          imagePath: "",
+          maskB64: "",
+          seed: 0,
+          negativePrompt: "",
+          baseURL: "https://upstream.example",
+          textModelID: "gpt-5.5",
+          imageModelID: "gpt-image-2",
+          transport: "auto",
+          apiMode: "responses",
+          noPromptRevision: false,
+        },
+      },
+      { signal: new AbortController().signal },
+    );
+    assert.equal(result.imageB64, "YW5kcm9pZA==");
+    assert.equal(result.revisedPrompt, "native bridge");
+  });
+});

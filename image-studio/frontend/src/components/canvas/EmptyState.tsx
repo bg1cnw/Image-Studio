@@ -1,12 +1,13 @@
 import { ImageIcon, Upload } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
-import { isAndroidPhone, isWindows, usesAppleUI } from "../../lib/platform";
+import { usePlatform } from "../../lib/platformContext";
 
 // EmptyState 中间的提示卡。背景动效不在这里实现 —— 它是 stage-host 自带的
 // 棋盘格 + CSS keyframes 在 _canvas.css 里。这里只负责中央内容。
 export function EmptyState() {
   const importImageFile = useStudioStore((s) => s.importImageFile);
   const mode = useStudioStore((s) => s.mode);
+  const { isAndroidPhone, isWindows, usesAppleUI } = usePlatform();
 
   function onFilePick(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -31,7 +32,7 @@ export function EmptyState() {
         <label className={`platform-action-btn inline-flex cursor-pointer items-center gap-1.5 border border-black/[0.08] bg-white/70 text-zinc-700 transition-colors hover:border-[color:var(--accent)]/35 hover:text-[var(--accent)] dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-zinc-300 ${isAndroidPhone ? "px-4 py-2 text-[12px] rounded-full" : `px-4 py-2.5 text-sm ${isWindows ? "rounded-[10px]" : "rounded-full"}`}`}>
           <Upload className="w-3.5 h-3.5" />
           选择本地图片
-          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={onFilePick} className="hidden" />
+          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={onFilePick} className="hidden" style={{ display: "none" }} />
         </label>
       </div>
     </div>

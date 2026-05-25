@@ -1,18 +1,12 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import type { ReactElement } from "react";
-import { History, Image as ImageIcon, SlidersHorizontal } from "lucide-react";
 import { AppHeader } from "./components/layout/AppHeader";
 import { WorkspaceBar } from "./components/layout/WorkspaceBar";
 import { FooterBar } from "./components/layout/FooterBar";
-import { ControlPanel } from "./components/panel/ControlPanel";
-import { CanvasStage } from "./components/canvas/CanvasStage";
-import { Toolbar } from "./components/canvas/Toolbar";
-import { SourceStrip } from "./components/canvas/SourceStrip";
-import { StatusBar } from "./components/canvas/StatusBar";
-import { HistoryRail } from "./components/history/HistoryRail";
 import { ToastContainer } from "./components/common/ToastContainer";
 import { useStudioStore } from "./state/studioStore";
-import { isAndroidPhone, isAndroidPad, isMac } from "./lib/platform";
+import { usePlatform } from "./lib/platformContext";
+import { AndroidShell } from "./platform-shells/android/AndroidShell";
+import { DesktopShell } from "./platform-shells/desktop/DesktopShell";
 
 const UpstreamConfigModal = lazy(() => import("./components/panel/UpstreamConfigModal").then((m) => ({ default: m.UpstreamConfigModal })));
 const ResultDetailDrawer = lazy(() => import("./components/panel/ResultDetailDrawer").then((m) => ({ default: m.ResultDetailDrawer })));
@@ -26,8 +20,17 @@ function App() {
   const importImageFile = useStudioStore((s) => s.importImageFile);
   const fullscreen = useStudioStore((s) => s.fullscreen);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const { isAndroid, isAndroidPhone, isAndroidPad, isMac } = usePlatform();
   const [androidView, setAndroidView] = useState<"compose" | "canvas" | "history">(isAndroidPhone ? "compose" : "canvas");
   useEffect(() => { bootstrap(); }, [bootstrap]);
+
+  useEffect(() => {
+    if (!isAndroid) return;
+    setAndroidView((cur) => {
+      if (isAndroidPad) return cur === "compose" ? "compose" : "canvas";
+      return cur === "history" ? "history" : "compose";
+    });
+  }, [isAndroid, isAndroidPad]);
 
   // Global app-level shortcuts. Canvas-scoped shortcuts (undo/redo, tool
   // switching, Esc) stay in CanvasStage so they don't fire when no image is up.
@@ -133,32 +136,27 @@ function App() {
 
       <AppHeader onOpenSettings={() => setSettingsOpen(true)} />
       <WorkspaceBar />
-      <div
-        className={`studio ${fullscreen ? "fullscreen" : ""} ${isAndroidPhone ? "android-phone" : ""} ${isAndroidPad ? "android-pad" : ""}`}
-        data-android-view={androidView}
-      >
-        {isAndroidPad && !fullscreen && <AndroidRail active={androidView} onChange={setAndroidView} />}
-        <ControlPanel />
-        <div className="canvas-shell">
-          <Toolbar />
-          <SourceStrip />
-          <CanvasStage />
-          <StatusBar />
-        </div>
-        <HistoryRail />
-        <ToastContainer />
-        {dragHover && (
-          <div className="drop-overlay">
-            <div className="drop-message">
-              <div style={{ fontSize: 48, marginBottom: 12 }}>📥</div>
-              松开鼠标导入图片到画板
-              <div style={{ fontSize: 12, opacity: 0.6, marginTop: 8 }}>支持 PNG / JPG / WebP,最大 50MB</div>
-            </div>
+      {isAndroid ? (
+        <AndroidShell
+          fullscreen={fullscreen}
+          isPad={isAndroidPad}
+          androidView={androidView}
+          onChangeView={setAndroidView}
+        />
+      ) : (
+        <DesktopShell fullscreen={fullscreen} />
+      )}
+      <ToastContainer />
+      {dragHover && (
+        <div className="drop-overlay">
+          <div className="drop-message">
+            <div style={{ fontSize: 48, marginBottom: 12 }}>📥</div>
+            松开鼠标导入图片到画板
+            <div style={{ fontSize: 12, opacity: 0.6, marginTop: 8 }}>支持 PNG / JPG / WebP,最大 50MB</div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
       <FooterBar />
-      {isAndroidPhone && !fullscreen && <AndroidBottomNav active={androidView} onChange={setAndroidView} />}
       <UpstreamConfigGate />
       <Suspense fallback={null}>
         <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
@@ -172,6 +170,7 @@ function App() {
 // Star prompt 弹窗只在 store.starPromptOpen=true 时才挂载 Suspense + lazy 模块。
 // 拆出来跟 UpstreamConfigGate 一样,避免顶层 App 因为一个布尔 state 重渲整棵树。
 function StarPromptGate() {
+  const { isMac } = usePlatform();
   if (isMac) return null;
   const open = useStudioStore((s) => s.starPromptOpen);
   if (!open) return null;
@@ -203,57 +202,6 @@ function UpstreamConfigGate() {
     <Suspense fallback={null}>
       <UpstreamConfigModal open={open} onClose={close} />
     </Suspense>
-  );
-}
-
-function AndroidRail({
-  active,
-  onChange,
-}: {
-  active: "compose" | "canvas" | "history";
-  onChange: (value: "compose" | "canvas" | "history") => void;
-}) {
-  return (
-    <nav className="android-rail" aria-label="Android Pad navigation">
-      <AndroidNavButton icon={<SlidersHorizontal />} label="参数" active={active === "compose"} onClick={() => onChange("compose")} />
-      <AndroidNavButton icon={<ImageIcon />} label="画布" active={active === "canvas"} onClick={() => onChange("canvas")} />
-      <AndroidNavButton icon={<History />} label="历史" active={active === "history"} onClick={() => onChange("history")} />
-    </nav>
-  );
-}
-
-function AndroidBottomNav({
-  active,
-  onChange,
-}: {
-  active: "compose" | "canvas" | "history";
-  onChange: (value: "compose" | "canvas" | "history") => void;
-}) {
-  return (
-    <nav className="android-bottom-nav" aria-label="Android navigation">
-      <AndroidNavButton icon={<SlidersHorizontal />} label="参数" active={active === "compose"} onClick={() => onChange("compose")} />
-      <AndroidNavButton icon={<ImageIcon />} label="画布" active={active === "canvas"} onClick={() => onChange("canvas")} />
-      <AndroidNavButton icon={<History />} label="历史" active={active === "history"} onClick={() => onChange("history")} />
-    </nav>
-  );
-}
-
-function AndroidNavButton({
-  icon,
-  label,
-  active,
-  onClick,
-}: {
-  icon: ReactElement;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button type="button" className={`android-nav-button ${active ? "active" : ""}`} onClick={onClick} aria-current={active ? "page" : undefined}>
-      <span className="android-nav-icon">{icon}</span>
-      <span className="android-nav-label">{label}</span>
-    </button>
   );
 }
 

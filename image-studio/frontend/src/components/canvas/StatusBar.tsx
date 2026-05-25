@@ -1,6 +1,6 @@
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
-import { isAndroidPhone, isMac, isWindows, usesAppleUI } from "../../lib/platform";
+import { usePlatform } from "../../lib/platformContext";
 
 function fmtBytes(b: number): string {
   if (b < 1024) return `${b} B`;
@@ -10,6 +10,7 @@ function fmtBytes(b: number): string {
 
 export function StatusBar() {
   const { isRunning, progress, currentImage, lastLogLine, viewZoom, recentDurations, jobsTotal, jobsCompleted, runningJobs } = useStudioStore();
+  const { isAndroidPhone, isMac, isWindows, usesAppleUI } = usePlatform();
   const zoomLabel = currentImage ? `${Math.round(viewZoom * 100)}%` : "";
   const avg = recentDurations.length > 0
     ? recentDurations.reduce((a, b) => a + b, 0) / recentDurations.length

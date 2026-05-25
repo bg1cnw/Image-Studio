@@ -3,7 +3,7 @@ import { Copy } from "lucide-react";
 import { Modal } from "../common/Modal";
 import { ReadTextFile } from "../../lib/runtimeHost";
 import { useStudioStore } from "../../state/studioStore";
-import { isWindows } from "../../lib/platform";
+import { usePlatform } from "../../lib/platformContext";
 
 const MAX_PREVIEW = 200_000; // chars
 
@@ -12,6 +12,7 @@ export function RawResponseModal({ path, onClose }: { path: string; onClose: () 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const pushToast = useStudioStore((s) => s.pushToast);
+  const { isWindows } = usePlatform();
 
   useEffect(() => {
     setLoading(true);

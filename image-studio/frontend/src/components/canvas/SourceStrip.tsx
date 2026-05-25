@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
 import { useBlobURL } from "../../lib/images";
-import { isWindows, usesAppleUI } from "../../lib/platform";
+import { usePlatform } from "../../lib/platformContext";
 
 export function SourceStrip() {
   const sources = useStudioStore((s) => s.sources);
@@ -10,6 +10,7 @@ export function SourceStrip() {
   const reorderSources = useStudioStore((s) => s.reorderSources);
   const mode = useStudioStore((s) => s.mode);
   const selectSourceImage = useStudioStore((s) => s.selectSourceImage);
+  const { isWindows, usesAppleUI } = usePlatform();
 
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
@@ -18,8 +19,8 @@ export function SourceStrip() {
   if (sources.length === 0) return null;
 
   return (
-    <div className={`flex items-center gap-2 overflow-x-auto border-b border-[var(--border)] bg-[var(--toolbar)] px-3 py-2 backdrop-blur-2xl ${usesAppleUI ? "liquid-glass-bar" : ""}`}>
-      <span className="text-[11px] text-zinc-500 shrink-0">参考图 {sources.length} 张:</span>
+    <div className={`source-strip flex items-center gap-2 overflow-x-auto border-b border-[var(--border)] bg-[var(--toolbar)] px-3 py-2 backdrop-blur-2xl ${usesAppleUI ? "liquid-glass-bar" : ""}`}>
+      <span className="source-strip-label text-[11px] text-zinc-500 shrink-0">参考图 {sources.length} 张:</span>
       {sources.map((s, i) => (
         <SourceTile
           key={s.path}
@@ -36,7 +37,7 @@ export function SourceStrip() {
       <button
         onClick={selectSourceImage}
         title="添加参考图"
-        className={`flex h-12 w-12 shrink-0 items-center justify-center border border-dashed border-zinc-300 text-zinc-500 transition-colors hover:border-[color:var(--accent)]/35 hover:text-[var(--accent)] dark:border-zinc-700 ${isWindows ? "rounded-[10px]" : "rounded-[14px]"}`}
+        className={`source-thumb add flex h-12 w-12 shrink-0 items-center justify-center border border-dashed border-zinc-300 text-zinc-500 transition-colors hover:border-[color:var(--accent)]/35 hover:text-[var(--accent)] dark:border-zinc-700 ${isWindows ? "rounded-[10px]" : "rounded-[14px]"}`}
       >
         <Plus className="w-4 h-4" />
       </button>
@@ -64,6 +65,7 @@ function SourceTile({
   removeSource: (index: number) => void;
 }) {
   const previewURL = useBlobURL(source.imageBlob ?? null, source.imageB64 ?? null);
+  const { isWindows } = usePlatform();
   return (
     <div
       draggable
@@ -78,7 +80,7 @@ function SourceTile({
       }}
       onDragEnd={() => { setDragFrom(null); setOverIdx(null); }}
       title={`${index + 1}. ${source.name}\n${source.path}`}
-      className={`relative group h-12 w-12 shrink-0 cursor-grab overflow-hidden border transition-all ${
+      className={`source-thumb relative group h-12 w-12 shrink-0 cursor-grab overflow-hidden border transition-all ${
         overIdx === index
           ? "scale-105 border-[color:var(--accent)] shadow-[0_0_0_1px_var(--accent)]"
           : "border-black/[0.06] hover:border-[color:var(--accent)]/30 dark:border-white/[0.06]"

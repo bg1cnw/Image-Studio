@@ -7,6 +7,10 @@ import {
   registerVirtualText,
   sourceToDataURL,
 } from "./virtualHostStore.ts";
+import {
+  hasAndroidInvokeBridge,
+  invokeAndroidNative,
+} from "./androidNativeInvoke.ts";
 
 export type KernelImageSource = {
   path?: string;
@@ -84,6 +88,12 @@ export class RemoteKernelError extends Error {
   }
 }
 
+type NativeTextResponse = {
+  status: number;
+  body: string;
+  contentType?: string;
+};
+
 type ExtractedImageResult = {
   imageB64: string;
   revisedPrompt: string;
@@ -128,6 +138,78 @@ function normalizeTextModel(modelID: string): string {
 
 function normalizeImageModel(modelID: string): string {
   return modelID.trim() || "gpt-image-2";
+}
+
+function shouldUseAndroidNativeHTTP(): boolean {
+  return typeof window !== "undefined" && hasAndroidInvokeBridge();
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
+
+async function encodeRequestBody(
+  body: BodyInit | null | undefined,
+  headers?: Record<string, string>,
+): Promise<{ bodyBase64: string; contentType: string }> {
+  if (!body) {
+    return { bodyBase64: "", contentType: headers?.["Content-Type"] || headers?.["content-type"] || "" };
+  }
+  if (typeof body === "string") {
+    const bytes = new TextEncoder().encode(body);
+    return {
+      bodyBase64: bytesToBase64(bytes),
+      contentType: headers?.["Content-Type"] || headers?.["content-type"] || "",
+    };
+  }
+  const request = new Request("https://native-request.invalid", {
+    method: "POST",
+    headers,
+    body,
+  });
+  const buffer = await request.arrayBuffer();
+  return {
+    bodyBase64: bytesToBase64(new Uint8Array(buffer)),
+    contentType: request.headers.get("content-type") || headers?.["Content-Type"] || headers?.["content-type"] || "",
+  };
+}
+
+async function nativeHttpRequestText(
+  url: string,
+  method: string,
+  headers: Record<string, string>,
+  body: BodyInit | null | undefined,
+  signal?: AbortSignal,
+): Promise<NativeTextResponse> {
+  const requestKey = `native-http-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  const encoded = await encodeRequestBody(body, headers);
+  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+  let aborted = false;
+  const onAbort = () => {
+    aborted = true;
+    void invokeAndroidNative<void>("CancelHttpRequest", requestKey).catch(() => undefined);
+  };
+  signal?.addEventListener("abort", onAbort, { once: true });
+  try {
+    const response = await invokeAndroidNative<NativeTextResponse>("HttpRequestText", {
+      requestKey,
+      url,
+      method,
+      headers,
+      bodyBase64: encoded.bodyBase64,
+      contentType: encoded.contentType,
+    });
+    if (aborted) throw new DOMException("Aborted", "AbortError");
+    return response;
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
+  }
 }
 
 function buildResponsesPayload(
@@ -471,6 +553,39 @@ async function requestResponsesOnce(
     callbacks.onProgress?.(lastStage, nowSeconds(startedAt), bytesReceived);
   }, STATUS_INTERVAL_MS);
   try {
+    if (shouldUseAndroidNativeHTTP()) {
+      const response = await nativeHttpRequestText(
+        url,
+        "POST",
+        {
+          Authorization: `Bearer ${request.payload.apiKey}`,
+          "Content-Type": "application/json",
+          Accept: "text/event-stream, application/json",
+        },
+        body,
+        callbacks.signal,
+      );
+      raw = response.body || "";
+      const lines = raw.split(/\r?\n/);
+      for (const line of lines) {
+        bytesReceived += line.length;
+        const summary = summarizeSSELine(line);
+        if (summary) {
+          lastStage = summary;
+          callbacks.onLog?.(summary);
+          callbacks.onProgress?.(lastStage, nowSeconds(startedAt), bytesReceived);
+        }
+      }
+      const rawPath = registerRawText("responses", attempt, raw);
+      if (response.status < 200 || response.status >= 300) {
+        throw new RemoteKernelError(describeProblem(raw), rawPath);
+      }
+      const result = extractImageResult(raw);
+      if (!result) {
+        throw new RemoteKernelError(describeProblem(raw), rawPath);
+      }
+      return { ...result, rawPath, prompt: request.payload.prompt, mode: request.payload.mode };
+    }
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -652,6 +767,22 @@ async function requestImagesOnce(
     callbacks.onProgress?.("等待 Images API 返回(无 SSE 保活)", nowSeconds(startedAt), 0);
   }, STATUS_INTERVAL_MS);
   try {
+    if (shouldUseAndroidNativeHTTP()) {
+      const response = await nativeHttpRequestText(
+        built.url,
+        "POST",
+        {
+          Authorization: `Bearer ${request.payload.apiKey}`,
+          Accept: "application/json",
+          ...(built.headers ?? {}),
+        },
+        built.body,
+        callbacks.signal,
+      );
+      const rawPath = registerRawText("images", attempt, response.body);
+      const result = parseImagesResponse(response.body, response.status);
+      return { ...result, rawPath, prompt: request.payload.prompt, mode: request.payload.mode };
+    }
     const response = await fetch(built.url, {
       method: "POST",
       headers: {
@@ -765,17 +896,32 @@ export async function optimizePromptRemote(
     const dataURL = await sourceToDataURL(source);
     if (dataURL) sourceDataURLs.push(dataURL);
   }
-  const response = await fetch(`${normalizeBaseURL(input.baseURL)}/v1/responses`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${input.apiKey}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(buildPromptOptimizePayload(input, sourceDataURLs)),
-    signal,
-  });
-  const raw = await response.text();
+  const url = `${normalizeBaseURL(input.baseURL)}/v1/responses`;
+  const headers = {
+    Authorization: `Bearer ${input.apiKey}`,
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
+  const body = JSON.stringify(buildPromptOptimizePayload(input, sourceDataURLs));
+  const response = shouldUseAndroidNativeHTTP()
+    ? await nativeHttpRequestText(url, "POST", headers, body, signal)
+    : {
+        status: 0,
+        body: "",
+      };
+  const raw = shouldUseAndroidNativeHTTP()
+    ? response.body
+    : await (async () => {
+        const webResponse = await fetch(url, {
+          method: "POST",
+          headers,
+          body,
+          signal,
+        });
+        const text = await webResponse.text();
+        response.status = webResponse.status;
+        return text;
+      })();
   if (response.status < 200 || response.status >= 300) {
     throw new RemoteKernelError(`上游返回 ${response.status}:${extractResponseErrorMessage(raw)}`);
   }
@@ -791,6 +937,21 @@ export async function probeUpstreamConnection(
   apiKey: string,
   signal?: AbortSignal,
 ): Promise<void> {
+  if (shouldUseAndroidNativeHTTP()) {
+    const response = await nativeHttpRequestText(
+      `${normalizeBaseURL(baseURL)}/v1/models`,
+      "GET",
+      {
+        Authorization: `Bearer ${apiKey.trim()}`,
+      },
+      null,
+      signal,
+    );
+    if (response.status < 200 || response.status >= 300) {
+      throw new RemoteKernelError(`${response.status}${response.body ? ` ${response.body.slice(0, 160)}` : ""}`);
+    }
+    return;
+  }
   const response = await fetch(`${normalizeBaseURL(baseURL)}/v1/models`, {
     method: "GET",
     headers: {

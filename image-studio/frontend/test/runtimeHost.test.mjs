@@ -308,3 +308,48 @@ test("runtimeHost can use Android invoke host capabilities directly", async () =
     assert.equal(await runtimeHost.ImportHistoryFromFile(), '{"items":[]}');
   });
 });
+
+test("runtimeHost Android invoke hooks coexist with shim-installed global callbacks", async () => {
+  await withPatchedGlobals(async () => {
+    const shimSeen = [];
+    globalThis.window.__imageStudioNativeResolve = (requestId, payload) => {
+      shimSeen.push({ kind: "resolve", requestId, payload });
+    };
+    globalThis.window.__imageStudioNativeReject = (requestId, message) => {
+      shimSeen.push({ kind: "reject", requestId, message });
+    };
+    globalThis.window.AndroidImageStudio = {
+      invoke(requestId, method, payloadJson) {
+        const args = JSON.parse(payloadJson);
+        queueMicrotask(() => {
+          if (method === "GetStoredAPIKey") {
+            window.__imageStudioNativeResolve?.(requestId, `echo:${args[0]}`);
+            return;
+          }
+          if (method === "SetStoredAPIKey") {
+            window.__imageStudioNativeResolve?.(requestId, null);
+            window.__imageStudioNativeResolve?.("shim-owned-request", { method, payloadJson });
+            return;
+          }
+          window.__imageStudioNativeResolve?.(requestId, null);
+        });
+      },
+    };
+    globalThis.__shimSeen = shimSeen;
+  }, async () => {
+    const runtimeHost = await loadRuntimeHost();
+    const value = await runtimeHost.GetStoredAPIKey("profile:android");
+    assert.equal(value, "echo:profile:android");
+    await runtimeHost.SetStoredAPIKey("profile:android", "sk-value");
+    assert.deepEqual(globalThis.__shimSeen, [
+      {
+        kind: "resolve",
+        requestId: "shim-owned-request",
+        payload: {
+          method: "SetStoredAPIKey",
+          payloadJson: JSON.stringify(["profile:android", "sk-value"]),
+        },
+      },
+    ]);
+  });
+});

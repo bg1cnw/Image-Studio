@@ -10,9 +10,10 @@ import {
 import type { KernelRuntimeMode, TransportKind } from "../../types/domain";
 import { Modal } from "../common/Modal";
 import { rememberTrustedOutputRoot } from "../../lib/storage";
-import { isWindows, platformOutputRootLabel, platformRuntimeLabel, undoShortcutLabel } from "../../lib/platform";
+import { platformOutputRootLabel, platformRuntimeLabel } from "../../lib/platform";
 import { androidSaveHint, androidTarget, openExternalURLForPlatform, openOutputLocationForPlatform } from "../../lib/androidBridge";
 import { appVersion } from "../../lib/version";
+import { usePlatform } from "../../lib/platformContext";
 
 const REPO_URL = "https://github.com/RoseKhlifa/Image-Studio";
 const ISSUES_URL = "https://github.com/RoseKhlifa/Image-Studio/issues";
@@ -20,6 +21,7 @@ const MIT_URL = "https://opensource.org/licenses/MIT";
 
 function PresetsRow() {
   const { presets, savePreset, applyPreset, deletePreset } = useStudioStore();
+  const { isWindows } = usePlatform();
   function onSave() {
     const name = prompt("预设名:");
     if (name) savePreset(name);
@@ -68,6 +70,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
 
   const [outputDir, setOutputDir] = useState("");
   const [aboutOpen, setAboutOpen] = useState(false);
+  const { isWindows } = usePlatform();
 
   useEffect(() => {
     if (!open) return;
@@ -360,6 +363,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
 }
 
 function Row({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
+  const { isWindows } = usePlatform();
   return (
     <div className={`platform-card border border-black/[0.05] bg-white/72 px-4 py-3.5 shadow-[var(--shadow-card)] dark:border-white/[0.06] dark:bg-[rgb(29_32_40_/_0.88)] ${isWindows ? "rounded-[12px]" : "rounded-[18px]"}`}>
       <label className="mb-2 block text-[11px] font-semibold tracking-[0.04em] text-zinc-700 dark:text-zinc-200">{label}</label>
@@ -373,6 +377,7 @@ function SegBtn({ active, onClick, children }: {
   onClick: () => void;
   children: React.ReactNode;
 }) {
+  const { isWindows } = usePlatform();
   return (
     <button
       onClick={onClick}

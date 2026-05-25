@@ -44,9 +44,9 @@ const steps = [
     cwd: root,
   },
   {
-    label: "android phone debug assemble",
+    label: "android debug assemble",
     cmd: "./gradlew",
-    args: [":app:assemblePhoneDebug"],
+    args: [":app:assembleDebug"],
     cwd: `${root}/android-shell`,
     env: {
       GRADLE_USER_HOME: `${root}/.tmp/gradle-home-arm64`,

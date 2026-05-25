@@ -1,6 +1,6 @@
 import { ReactNode, useEffect } from "react";
 import { X } from "lucide-react";
-import { isAndroidPhone, isWindows, usesAppleUI } from "../../lib/platform";
+import { usePlatform } from "../../lib/platformContext";
 
 // 居中 modal:点击背景 / Esc 关闭。
 export function Modal({
@@ -12,6 +12,7 @@ export function Modal({
   children: ReactNode;
   width?: number;
 }) {
+  const { isAndroidPhone, isWindows, usesAppleUI } = usePlatform();
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {

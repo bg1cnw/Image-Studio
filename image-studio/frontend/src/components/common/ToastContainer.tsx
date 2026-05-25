@@ -1,7 +1,7 @@
 import { AlertTriangle, CheckCircle2, Info, X, XCircle } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
 import type { Toast } from "../../types/domain";
-import { isWindows, usesAppleUI } from "../../lib/platform";
+import { usePlatform } from "../../lib/platformContext";
 
 export function ToastContainer() {
   const toasts = useStudioStore((s) => s.toasts);
@@ -42,6 +42,7 @@ function ToneIcon({ kind }: { kind: Toast["kind"] }) {
 }
 
 function ToastItem({ t, onClose }: { t: Toast; onClose: () => void }) {
+  const { isWindows, usesAppleUI } = usePlatform();
   return (
     <div
       className={`flex items-center gap-2 border px-3 py-2 backdrop-blur-2xl shadow-[var(--shadow-card-hover)] animate-[toast-in_180ms_ease-out] ${toneClasses(t.kind)} ${usesAppleUI ? "liquid-glass-panel" : ""} ${isWindows ? "rounded-[10px]" : "rounded-[18px]"}`}

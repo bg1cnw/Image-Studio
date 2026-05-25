@@ -2,10 +2,11 @@ import { ClipboardCopy, Folder, RotateCw, Save, Sparkles } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
 import type { HistoryItem, SizeValue } from "../../types/domain";
 import { SaveImageAs, OpenOutputDir } from "../../lib/runtimeHost";
-import { isWindows, submitShortcutLabel } from "../../lib/platform";
+import { submitShortcutLabel } from "../../lib/platform";
 import { useBlobURL } from "../../lib/images";
 import { androidSaveHint, androidTarget, openOutputLocationForPlatform, saveImageForPlatform } from "../../lib/androidBridge";
 import { Modal } from "../common/Modal";
+import { usePlatform } from "../../lib/platformContext";
 
 const ASPECT_LABEL: Record<SizeValue, string> = {
   auto: "auto",
@@ -28,6 +29,7 @@ export function ResultDetailDrawer() {
   const close = useStudioStore((s) => s.closeResultDetail);
   const setField = useStudioStore((s) => s.setField);
   const pushToast = useStudioStore((s) => s.pushToast);
+  const { isWindows } = usePlatform();
 
   if (!item) return null;
   const detail = item;
@@ -152,6 +154,7 @@ function Section({ title, hint, children }: {
   hint?: string;
   children: React.ReactNode;
 }) {
+  const { isWindows } = usePlatform();
   return (
     <section className={`platform-card border border-black/[0.05] bg-white/72 p-4 shadow-[var(--shadow-card)] dark:border-white/[0.06] dark:bg-white/[0.03] ${isWindows ? "rounded-[12px]" : "rounded-[18px]"}`}>
       <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">{title}</h3>
@@ -175,6 +178,7 @@ function PromptBlock({ children, muted, highlight }: {
   muted?: boolean;
   highlight?: boolean;
 }) {
+  const { isWindows } = usePlatform();
   return (
     <p className={`mb-2 whitespace-pre-wrap break-words px-3 py-2 text-xs leading-relaxed ${
       highlight
@@ -193,6 +197,7 @@ function Btn({ children, onClick, primary }: {
   onClick: () => void;
   primary?: boolean;
 }) {
+  const { isWindows } = usePlatform();
   return (
     <button
       type="button"

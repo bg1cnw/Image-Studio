@@ -3,8 +3,8 @@ import { Stage, Layer, Image as KonvaImage, Line, Rect, Arrow, Text, Group } fro
 import Konva from "konva";
 import { useStudioStore } from "../../state/studioStore";
 import { Annotation, HistoryItem } from "../../types/domain";
-import { isMac } from "../../lib/platform";
 import { blobToObjectURL, useBlobURL } from "../../lib/images";
+import { usePlatform } from "../../lib/platformContext";
 
 async function copyImageToClipboard(b64: string): Promise<boolean> {
   try {
@@ -71,6 +71,7 @@ export function CanvasStage() {
     batchResults, resultGridOpen, selectBatchResult, closeResultGrid,
     canvasViewResetTick,
   } = useStudioStore();
+  const { isMac } = usePlatform();
   const showingResultGrid = resultGridOpen && batchResults.length > 1;
 
   // Hold-space-for-pan: while space is held, override tool to "pan".

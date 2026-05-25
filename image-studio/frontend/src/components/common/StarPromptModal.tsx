@@ -1,8 +1,8 @@
 import { Github, Heart, Sparkles, Star } from "lucide-react";
 import { Modal } from "./Modal";
 import { OpenExternalURL } from "../../lib/runtimeHost";
-import { isWindows, usesAppleUI } from "../../lib/platform";
 import { useStudioStore } from "../../state/studioStore";
+import { usePlatform } from "../../lib/platformContext";
 
 const REPO_URL = "https://github.com/RoseKhlifa/Image-Studio";
 
@@ -14,6 +14,7 @@ export function StarPromptModal({ open }: { open: boolean }) {
   const dismiss = useStudioStore((s) => s.dismissStarPrompt);
   const pushToast = useStudioStore((s) => s.pushToast);
   const source = useStudioStore((s) => s.starPromptSource);
+  const { isWindows, usesAppleUI } = usePlatform();
   // 自动弹(用户刚完成首张图)用庆祝调,手动呼起(头部按钮)用中性致谢调 ——
   // 头部按钮可能在任何时候被点,「第一张图」这句话就不准确了。
   const title = source === "auto" ? "第一张图诞生了 🎉" : "支持一下 Image Studio";

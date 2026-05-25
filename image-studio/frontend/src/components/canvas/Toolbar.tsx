@@ -5,7 +5,8 @@ import {
 } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
 import { ANNOTATION_COLORS } from "../../types/domain";
-import { fullscreenShortcutLabel, isAndroidPhone, isMac, isWindows, redoShortcutLabel, undoShortcutLabel, usesAppleUI } from "../../lib/platform";
+import { fullscreenShortcutLabel, redoShortcutLabel, undoShortcutLabel } from "../../lib/platform";
+import { usePlatform } from "../../lib/platformContext";
 
 export function Toolbar() {
   const {
@@ -21,6 +22,7 @@ export function Toolbar() {
     openResultDetail,
   } = useStudioStore();
   const selRect = annotations.find((a) => a.id === selectedAnnotationId && a.kind === "rect");
+  const { isAndroidPhone, isMac, isWindows, usesAppleUI } = usePlatform();
   const hasImage = !!currentImage;
   const showBatchGridToggle = batchResults.length > 1;
   if (isMac && !hasImage && !showBatchGridToggle) return null;
@@ -209,6 +211,7 @@ function ToolBtn({ active, disabled, onClick, title, children }: {
   title?: string;
   children: React.ReactNode;
 }) {
+  const { isWindows } = usePlatform();
   return (
     <button
       type="button"

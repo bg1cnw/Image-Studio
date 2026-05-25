@@ -102,26 +102,9 @@ android {
         targetSdk = 34
         versionCode = appVersionCode.get()
         versionName = appVersionName.get()
+        manifestPlaceholders["appLabel"] = "Image Studio Android"
+        buildConfigField("String", "TARGET_PLATFORM", "\"android\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    }
-
-    flavorDimensions += "device"
-
-    productFlavors {
-        create("phone") {
-            dimension = "device"
-            applicationIdSuffix = ".phone"
-            versionNameSuffix = "-phone"
-            manifestPlaceholders["appLabel"] = "Image Studio Phone"
-            buildConfigField("String", "TARGET_PLATFORM", "\"android\"")
-        }
-        create("pad") {
-            dimension = "device"
-            applicationIdSuffix = ".pad"
-            versionNameSuffix = "-pad"
-            manifestPlaceholders["appLabel"] = "Image Studio Pad"
-            buildConfigField("String", "TARGET_PLATFORM", "\"android-pad\"")
-        }
     }
 
     buildTypes {
@@ -159,14 +142,10 @@ android {
 
 androidComponents {
     onVariants(selector().all()) { variant ->
-        val flavorName = variant.productFlavors.firstOrNull()?.second ?: return@onVariants
-        val mode = if (flavorName == "pad") "android-pad" else "android"
-        val capFlavor = flavorName.replaceFirstChar { it.uppercaseChar() }
-        val capBuild = variant.buildType?.replaceFirstChar { it.uppercaseChar() } ?: "Release"
-        val frontendTaskName = "sync${capFlavor}${capBuild}FrontendAssets"
+        val mode = "android"
+        val frontendTaskName = "sync${variant.name.replaceFirstChar { it.uppercaseChar() }}FrontendAssets"
         val frontendDist = frontendRoot.resolve("dist")
         val sharedAssetsDir = layout.projectDirectory.dir("src/main/assets/web")
-        val assetsDir = layout.projectDirectory.dir("src/$flavorName/assets/web")
         val generatedAssetsDir = layout.buildDirectory.dir("generated/frontendAssets/${variant.name}/web")
         val variantCapName = variant.name.replaceFirstChar { it.uppercaseChar() }
 
@@ -190,7 +169,6 @@ androidComponents {
                     commandLine("npm", "run", "build:$mode")
                 }
                 delete(sharedAssetsDir)
-                delete(assetsDir)
                 delete(outputDir)
                 copy {
                     from(frontendDist)

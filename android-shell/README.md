@@ -1,9 +1,8 @@
 # Android Shell
 
-This module packages the existing React frontend into two Android APK flavors:
-
-- `phone`: builds the `android` frontend target and packages it as `app-phone-release.apk`
-- `pad`: builds the `android-pad` frontend target and packages it as `app-pad-release.apk`
+This module packages the existing React frontend into a single Android APK.
+The frontend always builds the `android` target, and the app switches between
+phone and pad shells at runtime based on the current window size / orientation.
 
 The shell is a minimal WebView wrapper. During Gradle asset merging it runs the
 frontend build for the matching target and copies `image-studio/frontend/dist/`
@@ -20,6 +19,5 @@ Local build:
 
 ```bash
 cd android-shell
-./gradlew assemblePhoneRelease
-./gradlew assemblePadRelease
+./gradlew assembleRelease
 ```

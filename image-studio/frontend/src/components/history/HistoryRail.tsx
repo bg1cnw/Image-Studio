@@ -5,7 +5,7 @@ import type { HistoryItem, Mode } from "../../types/domain";
 import { ContextMenu, MenuItem } from "../common/ContextMenu";
 import { RawResponseModal } from "./RawResponseModal";
 import { useBlobURL } from "../../lib/images";
-import { isAndroidPhone, isMac, isWindows, usesAndroidUI, usesAppleUI } from "../../lib/platform";
+import { usePlatform } from "../../lib/platformContext";
 
 type ModeFilter = "all" | Mode;
 type DateFilter = "all" | "today" | "week";
@@ -37,6 +37,7 @@ export function HistoryRail() {
   const [dateF, setDateF] = useState<DateFilter>("all");
   const [menu, setMenu] = useState<{ x: number; y: number; h: HistoryItem } | null>(null);
   const [rawPath, setRawPath] = useState<string | null>(null);
+  const { isAndroidPhone, isMac, isWindows, usesAndroidUI, usesAppleUI } = usePlatform();
   // 防快速连点产生竞态:每次点击递增 epoch,后台 materialize 全图 resolve
   // 时跟当前 epoch 比对,过时的就丢弃。之前的写法是先 await 再 setField,
   // 慢的请求会在用户已经点了另一张图之后把画布盖回去。
@@ -306,6 +307,7 @@ function HistoryTile({
   onDelete: (id: string) => void | Promise<void>;
   onOpenMenu: (x: number, y: number) => void;
 }) {
+  const { isWindows } = usePlatform();
   // 优先用 blob(previewBlob / imageBlob);没有 blob 时把 imageB64 也喂给
   // useBlobURL,让它在内部 base64ToBlob → createObjectURL,出来同样是 blob URL。
   // 不要走「src=data:image/png;base64,...」那条大 data URL fallback —— 解析慢,

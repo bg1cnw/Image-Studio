@@ -6,6 +6,10 @@ import {
   optimizePromptRemote,
 } from "./remoteKernel.ts";
 import {
+  hasAndroidInvokeBridge,
+  invokeAndroidNative,
+} from "./androidNativeInvoke.ts";
+import {
   cropVirtualImage,
   flipVirtualImage,
   isVirtualPath,
@@ -94,7 +98,6 @@ type BrowserWindow = Window & {
 const browserKeyPrefix = "image-studio.browser-key.";
 const localEventListeners = new Map<string, Set<(...args: any[]) => void>>();
 const remoteJobControllers = new Map<string, AbortController>();
-const androidNativeCalls = new Map<string, { resolve: (payload: unknown) => void; reject: (message: unknown) => void }>();
 let forcedKernelRuntimeMode: KernelRuntimeMode = "auto";
 
 function getService(): ServiceBinding | null {
@@ -112,33 +115,12 @@ function getAndroidBridge() {
   return (window as BrowserWindow).AndroidImageStudio ?? null;
 }
 
-function ensureAndroidInvokeHooks() {
-  if (typeof window === "undefined") return;
-  const browserWindow = window as BrowserWindow;
-  if (typeof browserWindow.__imageStudioNativeResolve !== "function") {
-    browserWindow.__imageStudioNativeResolve = (requestId, payload) => {
-      const entry = androidNativeCalls.get(requestId);
-      if (!entry) return;
-      androidNativeCalls.delete(requestId);
-      entry.resolve(payload);
-    };
-  }
-  if (typeof browserWindow.__imageStudioNativeReject !== "function") {
-    browserWindow.__imageStudioNativeReject = (requestId, message) => {
-      const entry = androidNativeCalls.get(requestId);
-      if (!entry) return;
-      androidNativeCalls.delete(requestId);
-      entry.reject(new Error(typeof message === "string" ? message : String(message)));
-    };
-  }
-}
-
 function hasServiceMethod(name: string): boolean {
   return typeof getService()?.[name] === "function";
 }
 
 function canInvokeAndroidMethod(_name: string): boolean {
-  return typeof getAndroidBridge()?.invoke === "function";
+  return hasAndroidInvokeBridge();
 }
 
 function unsupportedMessage(method: string): string {
@@ -165,23 +147,11 @@ function invokeService<T>(method: string, ...args: unknown[]): Promise<T> {
 }
 
 function invokeAndroid<T>(method: string, ...args: unknown[]): Promise<T> {
-  const bridge = getAndroidBridge();
-  if (!bridge?.invoke) {
-    return Promise.reject(new Error(unsupportedMessage(method)));
-  }
-  ensureAndroidInvokeHooks();
-  return new Promise<T>((resolve, reject) => {
-    const requestId = `${method}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-    androidNativeCalls.set(requestId, {
-      resolve: (payload) => resolve(payload as T),
-      reject,
-    });
-    try {
-      bridge.invoke?.(requestId, method, JSON.stringify(args));
-    } catch (error) {
-      androidNativeCalls.delete(requestId);
-      reject(error);
+  return invokeAndroidNative<T>(method, ...args).catch((error) => {
+    if (String((error as any)?.message || "").includes("当前 Android shell 未提供")) {
+      return Promise.reject(new Error(unsupportedMessage(method)));
     }
+    return Promise.reject(error);
   });
 }
 

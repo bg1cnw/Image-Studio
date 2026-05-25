@@ -15,9 +15,13 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.concurrent.ConcurrentHashMap
 import java.util.Locale
+import kotlin.concurrent.thread
 
 class AndroidImageStudioBridge(
     private val context: Context,
@@ -29,6 +33,7 @@ class AndroidImageStudioBridge(
     private val outputDirKey = "output_dir"
     private var pendingOpenImageRequestId: String? = null
     private var pendingImportHistoryRequestId: String? = null
+    private val httpRequests = ConcurrentHashMap<String, HttpURLConnection>()
 
     companion object {
         private const val maxDialogReadBytes: Long = 50L * 1024L * 1024L
@@ -89,9 +94,19 @@ class AndroidImageStudioBridge(
                 }
                 "ExportHistoryToFile" -> exportHistory(args.optString(0))
                 "SaveImageAs" -> saveImage(args.optString(0), args.optString(1))
+                "HttpRequestText" -> {
+                    val payload = args.optJSONObject(0) ?: throw IllegalArgumentException("缺少 HTTP 请求参数")
+                    runHttpRequestText(requestId, payload)
+                }
+                "CancelHttpRequest" -> {
+                    cancelHttpRequest(args.optString(0))
+                    null
+                }
                 else -> throw UnsupportedOperationException("$method is not implemented in Android shell yet")
             }
             resolve(requestId, result)
+        } catch (_: EarlyResolve) {
+            return
         } catch (error: Exception) {
             reject(requestId, error.message ?: error.javaClass.simpleName)
         }
@@ -191,6 +206,60 @@ class AndroidImageStudioBridge(
         file.parentFile?.mkdirs()
         file.writeBytes(Base64.decode(imageB64, Base64.DEFAULT))
         return file.absolutePath
+    }
+
+    private fun runHttpRequestText(requestId: String, payload: JSONObject): Nothing {
+        val requestKey = payload.optString("requestKey").ifBlank { requestId }
+        val url = payload.optString("url").trim()
+        val method = payload.optString("method", "GET").trim().uppercase(Locale.US)
+        val headersJson = payload.optJSONObject("headers")
+        val bodyBase64 = payload.optString("bodyBase64")
+        val contentType = payload.optString("contentType")
+        thread(name = "image-studio-http-$requestKey") {
+            try {
+                val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+                    requestMethod = method
+                    instanceFollowRedirects = true
+                    connectTimeout = 30_000
+                    readTimeout = 180_000
+                    doInput = true
+                }
+                httpRequests[requestKey] = connection
+                if (headersJson != null) {
+                    val keys = headersJson.keys()
+                    while (keys.hasNext()) {
+                        val key = keys.next()
+                        connection.setRequestProperty(key, headersJson.optString(key))
+                    }
+                }
+                if (contentType.isNotBlank() && connection.getRequestProperty("Content-Type").isNullOrBlank()) {
+                    connection.setRequestProperty("Content-Type", contentType)
+                }
+                val requestBytes = if (bodyBase64.isBlank()) ByteArray(0) else Base64.decode(bodyBase64, Base64.DEFAULT)
+                if (requestBytes.isNotEmpty()) {
+                    connection.doOutput = true
+                    connection.outputStream.use { it.write(requestBytes) }
+                }
+                val status = connection.responseCode
+                val stream = if (status >= 400) connection.errorStream else connection.inputStream
+                val body = stream?.bufferedReader()?.use { it.readText() } ?: ""
+                val result = mapOf(
+                    "status" to status,
+                    "body" to body,
+                    "contentType" to (connection.contentType ?: ""),
+                )
+                resolve(requestId, result)
+            } catch (error: Exception) {
+                reject(requestId, error.message ?: error.javaClass.simpleName)
+            } finally {
+                httpRequests.remove(requestKey)?.disconnect()
+            }
+        }
+        throw EarlyResolve()
+    }
+
+    private fun cancelHttpRequest(requestKey: String) {
+        httpRequests.remove(requestKey)?.disconnect()
     }
 
     fun onOpenImageDialogResult(uri: Uri?) {
@@ -346,4 +415,6 @@ class AndroidImageStudioBridge(
             )
         }
     }
+
+    private class EarlyResolve : RuntimeException()
 }

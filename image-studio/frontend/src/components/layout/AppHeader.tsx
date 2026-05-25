@@ -2,13 +2,14 @@ import { Github, Monitor, Moon, Plus, Settings, Star, Sun } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
 import { OpenExternalURL } from "../../lib/runtimeHost";
 import { HitokotoStrip } from "./HitokotoStrip";
-import { isAndroidPhone, isMac, isWindows, usesAndroidUI, usesAppleUI } from "../../lib/platform";
+import { usePlatform } from "../../lib/platformContext";
 import { openExternalURLForPlatform } from "../../lib/androidBridge";
 
 const REPO_URL = "https://github.com/RoseKhlifa/Image-Studio";
 
 export function AppHeader({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { fullscreen, theme, setTheme, pushToast, workspaces, newWorkspace, openStarPrompt } = useStudioStore();
+  const { isAndroid, isAndroidPhone, isAndroidPad, isMac, isWindows, usesAndroidUI, usesAppleUI } = usePlatform();
   if (fullscreen) return null;
 
   return (
@@ -17,7 +18,7 @@ export function AppHeader({ onOpenSettings }: { onOpenSettings: () => void }) {
         usesAppleUI ? "liquid-glass-bar" : ""
       } ${
         usesAndroidUI
-          ? "min-h-[64px] px-4"
+          ? "min-h-[64px] px-4 pt-[calc(env(safe-area-inset-top,0px)+6px)] pb-2"
           :
         usesAppleUI
           ? "min-h-[58px] pl-[92px] pr-5 pb-2 pt-3"
@@ -31,6 +32,8 @@ export function AppHeader({ onOpenSettings }: { onOpenSettings: () => void }) {
           className={`text-zinc-900 dark:text-zinc-100 ${
             isAndroidPhone
               ? "text-[12px] font-semibold tracking-[0]"
+              : isAndroidPad
+              ? "text-[15px] font-semibold tracking-[0]"
               : isWindows
               ? "font-[600] text-[14px] tracking-[0]"
               : "text-[13px] font-semibold tracking-[-0.01em]"
@@ -39,7 +42,7 @@ export function AppHeader({ onOpenSettings }: { onOpenSettings: () => void }) {
         >
           Image Studio
         </div>
-        {!isAndroidPhone && !isMac && (
+        {!isAndroid && !isMac && (
           <div className={`flex min-w-0 items-center text-zinc-500 dark:text-zinc-400 ${isWindows ? "mt-0 text-[10px]" : "mt-0.5 text-[11px]"}`}>
             <HitokotoStrip />
           </div>
@@ -47,7 +50,7 @@ export function AppHeader({ onOpenSettings }: { onOpenSettings: () => void }) {
       </div>
 
       <div className={`no-drag ml-auto flex items-center ${isWindows ? "gap-1" : "gap-1.5"}`}>
-        {!isAndroidPhone && <HeaderIconBtn
+        {!isAndroid && <HeaderIconBtn
           onClick={() => newWorkspace()}
           title={workspaces.length > 1 ? `${workspaces.length} 个标签 · 新建` : "新建标签"}
         >
@@ -58,7 +61,7 @@ export function AppHeader({ onOpenSettings }: { onOpenSettings: () => void }) {
             </span>
           )}
         </HeaderIconBtn>}
-        {!isAndroidPhone && <div className={`platform-seg flex items-center p-0.5 ring-1 ${
+        {!isAndroid && <div className={`platform-seg flex items-center p-0.5 ring-1 ${
           isWindows
             ? "bg-white/66 ring-black/[0.08] dark:bg-white/[0.04] dark:ring-white/[0.08]"
             : "rounded-full bg-black/[0.04] ring-black/[0.05] dark:bg-white/[0.06] dark:ring-white/[0.06]"
@@ -85,13 +88,13 @@ export function AppHeader({ onOpenSettings }: { onOpenSettings: () => void }) {
             <Moon className="h-3.5 w-3.5" />
           </HeaderToggleBtn>
         </div>}
-        {!isAndroidPhone && !isMac && <HeaderIconBtn
+        {!isAndroid && !isMac && <HeaderIconBtn
           onClick={() => openExternalURLForPlatform(REPO_URL, OpenExternalURL).catch(() => pushToast("无法打开浏览器", "error"))}
           title="GitHub"
         >
           <Github className="h-4 w-4" />
         </HeaderIconBtn>}
-        {!isAndroidPhone && !isMac && <HeaderIconBtn
+        {!isAndroid && !isMac && <HeaderIconBtn
           onClick={openStarPrompt}
           title="给项目点个 Star"
         >
@@ -113,6 +116,7 @@ function HeaderIconBtn({ children, onClick, title }: {
   onClick: () => void;
   title: string;
 }) {
+  const { isWindows } = usePlatform();
   return (
     <button
       type="button"
@@ -133,6 +137,7 @@ function HeaderToggleBtn({ active, children, onClick, title }: {
   onClick: () => void;
   title: string;
 }) {
+  const { isWindows } = usePlatform();
   return (
     <button
       type="button"

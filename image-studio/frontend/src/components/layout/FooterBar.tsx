@@ -1,15 +1,16 @@
 import { Folder, Github, MessageSquare } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
 import { OpenExternalURL, OpenOutputDir } from "../../lib/runtimeHost";
-import { isAndroid, isMac, isWindows, usesAppleUI } from "../../lib/platform";
 import { androidTarget, openExternalURLForPlatform, openOutputLocationForPlatform } from "../../lib/androidBridge";
 import { appVersion } from "../../lib/version";
+import { usePlatform } from "../../lib/platformContext";
 
 const REPO_URL = "https://github.com/RoseKhlifa/Image-Studio";
 const ISSUES_URL = "https://github.com/RoseKhlifa/Image-Studio/issues";
 
 export function FooterBar() {
   const { fullscreen, history, runningJobs, isRunning, workspaces, pushToast } = useStudioStore();
+  const { isAndroid, isMac, isWindows, usesAppleUI } = usePlatform();
   if (fullscreen) return null;
   if (isAndroid) return null;
   if (isMac) return null;
@@ -83,6 +84,7 @@ export function FooterBar() {
 }
 
 function FooterBtn({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+  const { isWindows } = usePlatform();
   return (
     <button
       type="button"

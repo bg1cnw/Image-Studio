@@ -140,21 +140,9 @@ jobs:
           retention-days: 14
 
   build-android-apk:
-    name: Build ${{ matrix.id }} apk
+    name: Build android apk
     runs-on: ubuntu-24.04
     needs: prepare-version
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - id: phone
-            gradle_task: assemblePhoneRelease
-            artifact_name: image-studio-android-phone-release.apk
-            artifact_path: android-shell/app/build/outputs/apk/phone/release/app-phone-release.apk
-          - id: pad
-            gradle_task: assemblePadRelease
-            artifact_name: image-studio-android-pad-release.apk
-            artifact_path: android-shell/app/build/outputs/apk/pad/release/app-pad-release.apk
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -197,7 +185,7 @@ jobs:
         with:
           gradle-version: "8.7"
 
-      - name: Build ${{ matrix.id }} apk
+      - name: Build android apk
         env:
           ANDROID_USER_HOME: ${{ github.workspace }}/.tmp/android-home/.android
           ANDROID_SDK_HOME: ${{ github.workspace }}/.tmp/android-home
@@ -206,7 +194,7 @@ jobs:
           IMAGE_STUDIO_ANDROID_VERSION_CODE: ${{ needs.prepare-version.outputs.android_version_code }}
           VITE_APP_VERSION: ${{ needs.prepare-version.outputs.app_version }}
         run: |
-          gradle -p android-shell --no-daemon ${{ matrix.gradle_task }}
+          gradle -p android-shell --no-daemon assembleRelease
 
       - name: Verify signed apk
         env:
@@ -214,13 +202,13 @@ jobs:
           ANDROID_SDK_HOME: ${{ github.workspace }}/.tmp/android-home
           HOME: ${{ github.workspace }}/.tmp/android-home
         run: |
-          "$ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner" verify -v "${{ matrix.artifact_path }}"
+          "$ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner" verify -v "android-shell/app/build/outputs/apk/release/app-release.apk"
 
       - name: Upload apk artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.artifact_path }}
+          name: image-studio-android-release.apk
+          path: android-shell/app/build/outputs/apk/release/app-release.apk
           retention-days: 14
 
   publish-release:

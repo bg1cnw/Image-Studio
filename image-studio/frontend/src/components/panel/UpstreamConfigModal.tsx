@@ -5,9 +5,9 @@ import { useStudioStore } from "../../state/studioStore";
 import { GetStoredAPIKey } from "../../lib/runtimeHost";
 import { validateBaseURL } from "../../lib/security";
 import { keyringUserFor } from "../../lib/profiles";
-import { isAndroidPhone, isWindows, usesAppleUI } from "../../lib/platform";
 import type { APIMode, UpstreamProfile } from "../../types/domain";
 import { FAQModal } from "./FAQModal";
+import { usePlatform } from "../../lib/platformContext";
 
 // v0.1.6 多 profile 配置 modal。左侧 profile 列表 + 右侧编辑表单。
 // 列表点击 = 切 active(立即生效);右侧改字段 = 编辑当前选中,点保存才落盘。
@@ -18,6 +18,7 @@ export function UpstreamConfigModal({
   open: boolean;
   onClose: () => void;
 }) {
+  const { isAndroidPhone, isWindows, usesAppleUI } = usePlatform();
   const {
     profiles, activeProfileId,
     createProfile, updateProfile, deleteProfile, duplicateProfile, setActiveProfile,
@@ -124,6 +125,7 @@ export function UpstreamConfigModal({
     if (draft.id !== activeProfileId) {
       await setActiveProfile(draft.id);
     }
+    onClose();
     setTimeout(() => { void testAPIKey(); }, 0);
   }
 

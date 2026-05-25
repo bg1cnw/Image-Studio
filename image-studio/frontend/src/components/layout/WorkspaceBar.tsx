@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
-import { isAndroidPhone, isWindows, usesAppleUI } from "../../lib/platform";
+import { usePlatform } from "../../lib/platformContext";
 
 // Browser-tab style strip. 每个 tab = 独立 workspace,历史栏共享。
 // 单 workspace 时不显示。
 export function WorkspaceBar() {
   const { workspaces, activeWorkspaceId, newWorkspace, switchWorkspace, closeWorkspace, renameWorkspace, fullscreen } = useStudioStore();
+  const { isAndroidPhone, isWindows, usesAppleUI } = usePlatform();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
 

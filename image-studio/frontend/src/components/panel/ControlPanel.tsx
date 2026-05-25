@@ -5,7 +5,8 @@ import {
 import { useStudioStore } from "../../state/studioStore";
 import { OpenFile } from "../../lib/runtimeHost";
 import { SizeValue, QualityValue, Mode, OutputFormatValue, OUTPUT_FORMAT_OPTIONS } from "../../types/domain";
-import { isAndroid, isAndroidPhone, isMac, isWindows, submitShortcutLabel, usesAndroidUI, usesAppleUI } from "../../lib/platform";
+import { submitShortcutLabel } from "../../lib/platform";
+import { usePlatform } from "../../lib/platformContext";
 
 const PromptPopover = lazy(() => import("./PromptPopover").then((m) => ({ default: m.PromptPopover })));
 
@@ -51,6 +52,7 @@ export function ControlPanel() {
   const [promptPopover, setPromptPopover] = useState(false);
   const [mobileStyleOpen, setMobileStyleOpen] = useState(false);
   const [macComposeOpen, setMacComposeOpen] = useState(false);
+  const { isAndroid, isAndroidPhone, isMac, isWindows, usesAndroidUI, usesAppleUI } = usePlatform();
 
   const promptLen = prompt.length;
   // 优化按钮只要有任一可用的 Responses profile 或当前 active 已配置就启用。
@@ -68,7 +70,7 @@ export function ControlPanel() {
   const compactMacCompose = isMac;
 
   return (
-    <div className={`control-panel flex w-[336px] shrink-0 flex-col gap-4 overflow-y-auto border-r border-[var(--border)] bg-[var(--sidebar)] px-4 py-4 backdrop-blur-2xl ${usesAppleUI ? "liquid-sidebar" : ""} ${usesAndroidUI && !isAndroidPhone ? "android-surface-pane" : ""} ${isWindows ? "pt-3" : ""}`}>
+    <div className={`control-panel flex ${isAndroidPhone ? "w-full shrink grow flex-col" : "w-[336px] shrink-0 flex-col"} gap-4 overflow-y-auto border-r border-[var(--border)] bg-[var(--sidebar)] px-4 py-4 backdrop-blur-2xl ${usesAppleUI ? "liquid-sidebar" : ""} ${usesAndroidUI && !isAndroidPhone ? "android-surface-pane" : ""} ${isWindows ? "pt-3" : ""}`}>
       {!compactPhoneSetup && !compactPhoneConfigured ? (
         <section className="platform-card px-4 py-3">
           <div className="flex items-start justify-between gap-3">
@@ -734,6 +736,7 @@ function Section({
   trailing?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const { isAndroidPhone, isWindows } = usePlatform();
   return (
     <section className={`platform-card border border-black/[0.05] bg-white/70 shadow-[var(--shadow-card)] dark:border-white/[0.06] dark:bg-white/[0.03] ${isAndroidPhone ? "p-3" : "p-4"} ${isWindows ? "rounded-[12px]" : "rounded-[18px]"}`}>
       <div className={`flex items-center justify-between ${isAndroidPhone ? "mb-1" : "mb-1.5"}`}>
@@ -746,6 +749,7 @@ function Section({
 }
 
 function Seg({ children }: { children: React.ReactNode }) {
+  const { isWindows } = usePlatform();
   return (
     <div className={`platform-seg flex gap-1 bg-black/[0.04] p-0.5 ring-1 ring-black/[0.05] dark:bg-white/[0.06] dark:ring-white/[0.06] ${isWindows ? "rounded-[10px]" : "rounded-full"}`}>
       {children}
@@ -758,6 +762,7 @@ function SegItem({ active, onClick, children }: {
   onClick: () => void;
   children: React.ReactNode;
 }) {
+  const { isWindows } = usePlatform();
   return (
     <button
       type="button"

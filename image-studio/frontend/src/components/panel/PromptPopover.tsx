@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
-import { isWindows, usesAppleUI } from "../../lib/platform";
+import { usePlatform } from "../../lib/platformContext";
 
 const PROMPT_TEMPLATES: { label: string; text: string }[] = [
   { label: "写实摄影", text: "photorealistic, professional photography, 35mm, natural lighting, sharp focus, high detail" },
@@ -17,6 +17,7 @@ const PROMPT_TEMPLATES: { label: string; text: string }[] = [
 export function PromptPopover({ onClose, onPick }: { onClose: () => void; onPick: (text: string) => void }) {
   const history = useStudioStore((s) => s.promptHistory);
   const [tab, setTab] = useState<"templates" | "history">("templates");
+  const { isWindows, usesAppleUI } = usePlatform();
 
   return (
     <div

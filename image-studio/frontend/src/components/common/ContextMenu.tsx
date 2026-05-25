@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { isWindows, usesAppleUI } from "../../lib/platform";
+import { usePlatform } from "../../lib/platformContext";
 
 export interface MenuItem {
   label: string;
@@ -18,6 +18,7 @@ export function ContextMenu({
   items: MenuItem[];
   onClose: () => void;
 }) {
+  const { isWindows, usesAppleUI } = usePlatform();
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {

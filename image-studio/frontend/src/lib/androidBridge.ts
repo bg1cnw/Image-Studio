@@ -1,4 +1,4 @@
-import { isAndroid, isAndroidPad, isAndroidPhone } from "./platform";
+import { readRuntimePlatformState } from "./platform";
 
 export type AndroidBridge = {
   invoke?: (requestId: string, method: string, payloadJson: string) => void;
@@ -56,9 +56,15 @@ function ensurePngName(name: string): string {
 }
 
 export const androidTarget = {
-  isAndroid,
-  isPad: isAndroidPad,
-  isPhone: isAndroidPhone,
+  get isAndroid() {
+    return readRuntimePlatformState().isAndroid;
+  },
+  get isPad() {
+    return readRuntimePlatformState().isAndroidPad;
+  },
+  get isPhone() {
+    return readRuntimePlatformState().isAndroidPhone;
+  },
 };
 
 export function hasAndroidBridge(): boolean {
@@ -71,7 +77,8 @@ export async function saveImageForPlatform(
   desktopSave: (imageB64: string, suggestedName: string) => Promise<string>,
 ): Promise<string> {
   const filename = ensurePngName(suggestedName);
-  if (!isAndroid) return desktopSave(imageB64, filename);
+  const platform = readRuntimePlatformState();
+  if (!platform.isAndroid) return desktopSave(imageB64, filename);
 
   const b = bridge();
   if (b?.saveImage) {
@@ -99,7 +106,8 @@ export async function saveImageForPlatform(
 export async function openOutputLocationForPlatform(
   desktopOpen: () => Promise<void>,
 ): Promise<void> {
-  if (!isAndroid) {
+  const platform = readRuntimePlatformState();
+  if (!platform.isAndroid) {
     await desktopOpen();
     return;
   }
@@ -108,14 +116,14 @@ export async function openOutputLocationForPlatform(
     await b.openOutputDir();
     return;
   }
-  throw new Error(isAndroidPad ? "Android Pad 壳层未提供打开图片目录接口" : "手机版请从系统下载或分享记录里查看保存图片");
+  throw new Error(platform.isAndroidPad ? "Android Pad 壳层未提供打开图片目录接口" : "手机版请从系统下载或分享记录里查看保存图片");
 }
 
 export async function exportHistoryForPlatform(
   jsonContent: string,
   desktopExport: (jsonContent: string) => Promise<string>,
 ): Promise<string> {
-  if (!isAndroid) return desktopExport(jsonContent);
+  if (!readRuntimePlatformState().isAndroid) return desktopExport(jsonContent);
   const suggested = `image-studio-history-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
   const b = bridge();
   if (b?.exportHistory) {
@@ -137,7 +145,7 @@ export async function openExternalURLForPlatform(
   url: string,
   desktopOpen: (url: string) => Promise<void>,
 ): Promise<void> {
-  if (!isAndroid) {
+  if (!readRuntimePlatformState().isAndroid) {
     await desktopOpen(url);
     return;
   }
@@ -148,14 +156,15 @@ export async function openExternalURLForPlatform(
 export async function importHistoryForPlatform(
   desktopImport: () => Promise<string>,
 ): Promise<string> {
-  if (!isAndroid) return desktopImport();
+  if (!readRuntimePlatformState().isAndroid) return desktopImport();
   const b = bridge();
   if (b?.importHistory) return String((await b.importHistory()) || "");
   return "";
 }
 
 export function androidSaveHint(): string {
-  if (isAndroidPad) return "Pad 版默认保存到壳层暴露的 Pictures/应用相册;无壳层时会下载或调系统分享面板。";
-  if (isAndroidPhone) return "手机版不弹桌面另存为窗口;保存会走系统下载、分享面板或壳层 MediaStore。";
+  const platform = readRuntimePlatformState();
+  if (platform.isAndroidPad) return "Pad 版默认保存到壳层暴露的 Pictures/应用相册;无壳层时会下载或调系统分享面板。";
+  if (platform.isAndroidPhone) return "手机版不弹桌面另存为窗口;保存会走系统下载、分享面板或壳层 MediaStore。";
   return "";
 }
