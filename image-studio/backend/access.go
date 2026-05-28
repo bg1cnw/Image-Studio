@@ -91,8 +91,12 @@ func (s *Service) allowedRoots(kind managedPathKind) []string {
 		if dir, err := importsDir(); err == nil {
 			roots = append(roots, dir)
 		}
+		roots = append(roots, platformLegacyImportDirs()...)
 	}
 	if root, err := defaultOutputDir(); err == nil {
+		roots = appendManagedOutputRoot(roots, root, kind)
+	}
+	for _, root := range platformLegacyOutputRoots() {
 		roots = appendManagedOutputRoot(roots, root, kind)
 	}
 	if root := s.currentOutputRootSnapshot(); root != "" {

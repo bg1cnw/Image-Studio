@@ -8,9 +8,9 @@ import (
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
+	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	wailsmac "github.com/wailsapp/wails/v2/pkg/options/mac"
 	wailswindows "github.com/wailsapp/wails/v2/pkg/options/windows"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 )
 
 //go:embed all:frontend/dist
@@ -43,11 +43,25 @@ func main() {
 		}
 	}
 	if runtime.GOOS == "windows" {
+		webviewUserDataPath, err := backend.WindowsWebviewUserDataPath()
+		if err != nil {
+			println("Error:", err.Error())
+			return
+		}
+		legacyWebviewUserDataPaths, err := backend.WindowsLegacyWebviewUserDataPaths()
+		if err != nil {
+			println("Error:", err.Error())
+			return
+		}
+		if err := backend.MigrateWindowsWebviewDataDirs(webviewUserDataPath, legacyWebviewUserDataPaths); err != nil {
+			println("Warning:", err.Error())
+		}
 		appOptions.Windows = &wailswindows.Options{
 			Theme:                wailswindows.SystemDefault,
 			BackdropType:         wailswindows.Mica,
 			WebviewIsTransparent: false,
 			WindowIsTranslucent:  true,
+			WebviewUserDataPath:  webviewUserDataPath,
 			CustomTheme: &wailswindows.ThemeSettings{
 				DarkModeTitleBar:           wailswindows.RGB(32, 32, 32),
 				DarkModeTitleBarInactive:   wailswindows.RGB(38, 38, 38),

@@ -280,7 +280,7 @@ export function platformOutputRootLabel() {
   if (state.isAndroidPad) return "应用图片目录 / MediaStore Pictures";
   if (state.isAndroidPhone) return "系统下载 / 分享面板";
   if (state.isMac) return "~/Pictures/Image Studio";
-  if (state.isWindows) return "%APPDATA%\\image-studio";
+  if (state.isWindows) return "%USERPROFILE%\\Documents\\Image Studio";
   return "~/Pictures/Image Studio";
 }
 
