@@ -3,16 +3,25 @@
 package backend
 
 import (
+	"bytes"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
 
 const windowsWebviewMigrationMarker = ".migrated-to-image-studio-documents"
+
+var imageStudioStorageNeedles = [][]byte{
+	[]byte("image-studio"),
+	[]byte("historyFull"),
+	[]byte("gptcodex."),
+	[]byte("gptcodex:"),
+}
 
 func MigrateWindowsWebviewDataDir(dst, legacy string) error {
 	return MigrateWindowsWebviewDataDirs(dst, []string{legacy})
@@ -27,12 +36,21 @@ func MigrateWindowsWebviewDataDirs(dst string, legacyPaths []string) error {
 	if err != nil {
 		return err
 	}
-	if dirExists(dstAbs) {
-		return nil
-	}
 	candidates := windowsWebviewMigrationCandidates(dstAbs, legacyPaths)
 	if len(candidates) == 0 {
 		return nil
+	}
+	if dirExists(dstAbs) {
+		dstScore := imageStudioWebviewProfileScore(dstAbs)
+		if dstScore >= candidates[0].score {
+			return nil
+		}
+		if dstScore > 0 {
+			return nil
+		}
+		if err := moveAsideEmptyWebviewProfile(dstAbs); err != nil {
+			return err
+		}
 	}
 	legacyAbs := candidates[0].path
 	if err := os.MkdirAll(filepath.Dir(dstAbs), secureDirMode); err != nil {
@@ -73,7 +91,7 @@ func windowsWebviewMigrationCandidates(dstAbs string, legacyPaths []string) []wi
 		if !dirExists(legacyAbs) {
 			continue
 		}
-		score := webviewProfileScore(legacyAbs)
+		score := imageStudioWebviewProfileScore(legacyAbs)
 		if score <= 0 {
 			continue
 		}
@@ -94,25 +112,53 @@ func dirExists(path string) bool {
 	return err == nil && info.IsDir()
 }
 
-func webviewProfileScore(path string) int64 {
-	var score int64
+func imageStudioWebviewProfileScore(path string) int64 {
+	var total int64
+	var matched int64
 	for _, rel := range []string{"IndexedDB", "Local Storage"} {
-		score += dirSize(filepath.Join(path, rel))
+		scanned, hit := storageDirScore(filepath.Join(path, rel))
+		total += scanned
+		matched += hit
 	}
-	for _, rel := range []string{"Preferences", filepath.Join("Default", "Preferences")} {
-		if info, err := os.Stat(filepath.Join(path, rel)); err == nil && !info.IsDir() {
-			score += info.Size()
-		}
-	}
-	if score > 0 {
-		return score
-	}
-	for _, rel := range []string{"Default", "Network"} {
-		if _, err := os.Stat(filepath.Join(path, rel)); err == nil {
-			return 1
-		}
+	if matched > 0 {
+		return total + matched
 	}
 	return 0
+}
+
+func moveAsideEmptyWebviewProfile(path string) error {
+	if !dirExists(path) {
+		return nil
+	}
+	if !isEmptyOrDisposableWebviewProfile(path) {
+		return os.ErrExist
+	}
+	target := path + ".empty-before-documents-migration"
+	for i := 1; dirExists(target); i++ {
+		target = path + ".empty-before-documents-migration-" + strconv.Itoa(i)
+	}
+	return os.Rename(path, target)
+}
+
+func isEmptyOrDisposableWebviewProfile(path string) bool {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		full := filepath.Join(path, name)
+		if name == "Crashpad" || name == "BrowserMetrics" || name == "DevToolsActivePort" {
+			continue
+		}
+		if name == "Network" || name == "Default" || name == "ShaderCache" || name == "GrShaderCache" {
+			if dirSize(full) == 0 {
+				continue
+			}
+		}
+		return false
+	}
+	return true
 }
 
 func dirSize(path string) int64 {
@@ -129,6 +175,39 @@ func dirSize(path string) int64 {
 		return nil
 	})
 	return size
+}
+
+func storageDirScore(path string) (int64, int64) {
+	var total int64
+	var matched int64
+	_ = filepath.WalkDir(path, func(walkPath string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil || entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return nil
+		}
+		total += info.Size()
+		if fileContainsAny(walkPath, imageStudioStorageNeedles) {
+			matched += info.Size()
+		}
+		return nil
+	})
+	return total, matched
+}
+
+func fileContainsAny(path string, needles [][]byte) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	for _, needle := range needles {
+		if bytes.Contains(data, needle) {
+			return true
+		}
+	}
+	return false
 }
 
 func copyDir(src, dst string) error {

@@ -76,14 +76,42 @@ func WindowsLegacyWebviewUserDataPaths() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	paths := []string{filepath.Join(cfg, windowsDefaultExecutableName)}
+	paths := make([]string, 0, 16)
+	add := func(path string) { paths = appendUniquePath(paths, path) }
+	add(filepath.Join(cfg, windowsDefaultExecutableName))
 	if exe, err := os.Executable(); err == nil {
 		name := strings.TrimSpace(filepath.Base(exe))
 		if name != "" && !strings.EqualFold(name, windowsDefaultExecutableName) {
-			paths = append(paths, filepath.Join(cfg, name))
+			add(filepath.Join(cfg, name))
+		}
+	}
+	entries, err := os.ReadDir(cfg)
+	if err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			name := strings.TrimSpace(entry.Name())
+			if !strings.HasSuffix(strings.ToLower(name), ".exe") {
+				continue
+			}
+			add(filepath.Join(cfg, name))
 		}
 	}
 	return paths, nil
+}
+
+func appendUniquePath(paths []string, path string) []string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return paths
+	}
+	for _, existing := range paths {
+		if strings.EqualFold(filepath.Clean(existing), filepath.Clean(path)) {
+			return paths
+		}
+	}
+	return append(paths, path)
 }
 
 func windowsPersistentDataRoot() (string, error) {
