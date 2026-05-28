@@ -7,6 +7,7 @@ import {
 } from "./remoteKernel.ts";
 import { normalizeRequestPolicy } from "../../../../../shared/kernel/requestModel.js";
 import {
+  canUseWebGLImageTransforms,
   cropVirtualImage,
   flipVirtualImage,
   isVirtualPath,
@@ -16,6 +17,7 @@ import {
   readVirtualText,
   registerVirtualImage,
   registerVirtualText,
+  releaseVirtualPath,
   rotateVirtualImage,
 } from "../../lib/virtualHostStore.ts";
 import {
@@ -137,7 +139,7 @@ async function startRemoteJob(options: GenerateOptionsLike): Promise<JobStartedL
       const result = await runRemoteImageJob({ payload: {
         ...options,
         requestPolicy: normalizeRequestPolicy(options.requestPolicy),
-      } }, {
+      }, sourceImages: options.sourceImages }, {
         signal: controller.signal,
         onLog: (line) => emitLocalEvent(`log:${jobId}`, line),
         onProgress: (stage, elapsed, bytes) => emitLocalEvent(`progress:${jobId}`, { stage, elapsed, bytes }),
@@ -172,6 +174,27 @@ async function startRemoteJob(options: GenerateOptionsLike): Promise<JobStartedL
   return { jobId };
 }
 
+function withoutRuntimeSourceImages(options: GenerateOptionsLike): GenerateOptionsLike {
+  const { sourceImages: _sourceImages, ...payload } = options;
+  return payload;
+}
+
+async function runPersistedVirtualTransform(
+  path: string,
+  transform: (virtualPath: string) => Promise<{ path: string; imageB64?: string; mimeType?: string; name?: string; acceleration?: string }>,
+): Promise<ImageTransformResultLike> {
+  const imported = await materializeReadablePathAsVirtual(path);
+  let resultPath: string | null = null;
+  try {
+    const result = await transform(imported.path);
+    resultPath = result.path;
+    return await persistVirtualTransformResult(result, fileNameFromPath(path));
+  } finally {
+    releaseVirtualPath(imported.path);
+    if (resultPath && resultPath !== imported.path) releaseVirtualPath(resultPath);
+  }
+}
+
 export function detectHostKind(): HostKind {
   if (targetPlatform === "android" || targetPlatform === "android-pad") {
     return canInvokeAndroidMethod("GetOutputDir") || hasServiceMethod("GetOutputDir") ? "android-shell" : "browser";
@@ -193,14 +216,29 @@ export function getHostCapabilities(): HostCapabilities {
   const localGenerationCapable = kind === "wails-desktop" && hasServiceMethod("Generate") && hasServiceMethod("Edit");
   const localPromptOptimizeCapable = kind === "wails-desktop" && hasServiceMethod("OptimizePrompt");
   const localModeEnabled = getForcedKernelRuntimeMode() !== "remote";
+  const hasDesktopNativeTransforms = kind === "wails-desktop"
+    && hasServiceMethod("RotateImage")
+    && hasServiceMethod("FlipImage")
+    && hasServiceMethod("CropImage");
+  const webGLTransforms = canUseWebGLImageTransforms();
+  const imageTransformAcceleration = supportsDesktopNativeGPUTransforms()
+    ? "gpu-metal"
+    : webGLTransforms
+      ? "gpu-webgl"
+      : hasDesktopNativeTransforms
+        ? "native"
+        : kind === "android-shell" || kind === "browser"
+          ? "cpu-canvas"
+          : "none";
   return {
     localGeneration: localGenerationCapable && localModeEnabled,
     promptOptimization: localPromptOptimizeCapable && localModeEnabled,
     nativeFileDialogs: kind === "wails-desktop" || canInvokeAndroidMethod("OpenImageDialog"),
     nativeImageTransforms:
-      (kind === "wails-desktop" && hasServiceMethod("RotateImage") && hasServiceMethod("FlipImage") && hasServiceMethod("CropImage"))
+      hasDesktopNativeTransforms
       || kind === "android-shell"
       || kind === "browser",
+    imageTransformAcceleration,
     nativeHistoryFileIO: kind === "wails-desktop" || canInvokeAndroidMethod("ImportHistoryFromFile"),
     nativeOutputDirectoryPicker: hasServiceMethod("ChooseOutputDir") && kind !== "android-shell",
     secureCredentialStore: kind === "wails-desktop",
@@ -241,7 +279,7 @@ export function Generate(options: GenerateOptionsLike): Promise<JobStartedLike> 
     return Promise.reject(new Error("当前宿主不支持强制本地内核"));
   }
   if (getHostCapabilities().localGeneration) {
-    return invokeService<JobStartedLike>(unsupportedMessage, "Generate", options);
+    return invokeService<JobStartedLike>(unsupportedMessage, "Generate", withoutRuntimeSourceImages(options));
   }
   return startRemoteJob({ ...options, mode: "generate" });
 }
@@ -251,7 +289,7 @@ export function Edit(options: GenerateOptionsLike): Promise<JobStartedLike> {
     return Promise.reject(new Error("当前宿主不支持强制本地内核"));
   }
   if (getHostCapabilities().localGeneration) {
-    return invokeService<JobStartedLike>(unsupportedMessage, "Edit", options);
+    return invokeService<JobStartedLike>(unsupportedMessage, "Edit", withoutRuntimeSourceImages(options));
   }
   return startRemoteJob({ ...options, mode: "edit" });
 }
@@ -374,10 +412,7 @@ export function RotateImage(path: string, degrees: number): Promise<ImageTransfo
   if (supportsDesktopNativeGPUTransforms()) {
     return invokeService<ImageTransformResultLike>(unsupportedMessage, "RotateImage", path, degrees);
   }
-  return materializeReadablePathAsVirtual(path).then(async (imported) => {
-    const result = await rotateVirtualImage(imported.path, degrees);
-    return persistVirtualTransformResult(result, fileNameFromPath(path));
-  });
+  return runPersistedVirtualTransform(path, (virtualPath) => rotateVirtualImage(virtualPath, degrees));
 }
 
 export function FlipImage(path: string, horizontal: boolean): Promise<ImageTransformResultLike> {
@@ -387,10 +422,7 @@ export function FlipImage(path: string, horizontal: boolean): Promise<ImageTrans
   if (supportsDesktopNativeGPUTransforms()) {
     return invokeService<ImageTransformResultLike>(unsupportedMessage, "FlipImage", path, horizontal);
   }
-  return materializeReadablePathAsVirtual(path).then(async (imported) => {
-    const result = await flipVirtualImage(imported.path, horizontal);
-    return persistVirtualTransformResult(result, fileNameFromPath(path));
-  });
+  return runPersistedVirtualTransform(path, (virtualPath) => flipVirtualImage(virtualPath, horizontal));
 }
 
 export function CropImage(path: string, x: number, y: number, width: number, height: number): Promise<ImageTransformResultLike> {
@@ -400,10 +432,7 @@ export function CropImage(path: string, x: number, y: number, width: number, hei
   if (supportsDesktopNativeGPUTransforms()) {
     return invokeService<ImageTransformResultLike>(unsupportedMessage, "CropImage", path, x, y, width, height);
   }
-  return materializeReadablePathAsVirtual(path).then(async (imported) => {
-    const result = await cropVirtualImage(imported.path, x, y, width, height);
-    return persistVirtualTransformResult(result, fileNameFromPath(path));
-  });
+  return runPersistedVirtualTransform(path, (virtualPath) => cropVirtualImage(virtualPath, x, y, width, height));
 }
 
 export function ReadImageAsBase64(path: string): Promise<string> {

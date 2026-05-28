@@ -114,6 +114,7 @@ export function AndroidCanvasWorkspace() {
       if (!res?.path || !res.imageB64) return;
       const name = res.path.split(/[\\/]/).pop() ?? `import-${Date.now()}.png`;
       const imageBlob = base64ToBlob(res.imageB64);
+      const previewBlob = res.previewB64 ? base64ToBlob(res.previewB64, "image/jpeg") : imageBlob;
       const imported: HistoryItem = {
         id: genId(),
         imageB64: res.imageB64,
@@ -132,7 +133,7 @@ export function AndroidCanvasWorkspace() {
       if (!alreadyIn) {
         setField("sources", [
           ...useStudioStore.getState().sources,
-          { path: res.path, name, size: res.size ?? 0, imageB64: res.imageB64, imageBlob },
+          { path: res.path, name, size: res.size ?? 0, imageB64: res.imageB64, imageBlob: previewBlob },
         ]);
       }
       pushToast("已导入到画布", "success");

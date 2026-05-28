@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { blobToObjectURL } from "../../lib/images";
+import { useBlobURL } from "../../lib/images";
 
 export function CompareOverlay({
   aBlob, aB64, bBlob, bB64, split, onSplit,
@@ -13,6 +13,8 @@ export function CompareOverlay({
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
+  const aURL = useBlobURL(aBlob, aBlob ? null : aB64);
+  const bURL = useBlobURL(bBlob, bBlob ? null : bB64);
 
   useEffect(() => {
     const move = (e: MouseEvent) => {
@@ -34,7 +36,7 @@ export function CompareOverlay({
   return (
     <div ref={wrapRef} style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
       <img
-        src={aBlob ? blobToObjectURL(aBlob) : `data:image/png;base64,${aB64}`}
+        src={aURL ?? ""}
         draggable={false}
         style={{
           position: "absolute", inset: 0, width: "100%", height: "100%",
@@ -43,7 +45,7 @@ export function CompareOverlay({
         }}
       />
       <img
-        src={bBlob ? blobToObjectURL(bBlob) : `data:image/png;base64,${bB64}`}
+        src={bURL ?? ""}
         draggable={false}
         style={{
           position: "absolute", inset: 0, width: "100%", height: "100%",

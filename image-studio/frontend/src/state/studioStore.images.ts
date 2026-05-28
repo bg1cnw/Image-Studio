@@ -35,7 +35,8 @@ export function createImageActions(store: StateAdapter) {
           return;
         }
         const imageB64 = res.imageB64 ?? "";
-        const imageBlob = imageB64 ? base64ToBlob(imageB64) : null;
+        const previewB64 = res.previewB64 || imageB64;
+        const imageBlob = previewB64 ? base64ToBlob(previewB64) : null;
         store.setState({
           sources: [...existing, { path: res.path, name: baseName, size: res.size, imageB64, imageBlob }],
           mode: "edit",
@@ -183,7 +184,7 @@ export function createImageActions(store: StateAdapter) {
                 path: result.path,
                 name: file.name,
                 size: file.size,
-                imageBlob: fullBlob,
+                imageBlob: previewBlob,
                 imageB64: b64,
               }],
           errorMessage: null,

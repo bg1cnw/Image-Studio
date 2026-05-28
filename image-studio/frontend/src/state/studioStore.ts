@@ -112,6 +112,10 @@ import { createProfileActions } from "./studioStore.profiles";
 import { createWorkspaceActions } from "./studioStore.workspaces";
 import { createImageActions } from "./studioStore.images";
 
+type RuntimeGenerateOptions = backend.GenerateOptions & {
+  sourceImages?: SourceImage[];
+};
+
 async function writeBase64ToTempFile(b64: string, _name: string): Promise<string> {
   // Backend doesn't currently expose a "write temp file from b64" binding,
   // but reuseAsSource needs a path for edit mode. Workaround: use SaveImageAs
@@ -475,6 +479,11 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       noPromptRevision: s.noPromptRevision,
       concurrencyLimit,
     };
+    const remotePayload: RuntimeGenerateOptions = {
+      ...basePayload,
+      sourceImages: s.mode === "edit" ? s.sources : undefined,
+    };
+    const persistedPayload = basePayload;
 
     if (s.prompt.trim()) {
       const ph = [s.prompt, ...get().promptHistory.filter((p) => p !== s.prompt)].slice(0, 50);
@@ -482,13 +491,13 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       try { localStorage.setItem("gptcodex.promptHistory", JSON.stringify(ph)); } catch {}
     }
     set({
-      lastPayload: basePayload,
-      workspaces: patchWorkspaceRuntime(get().workspaces, workspaceId, { lastPayload: basePayload }),
+      lastPayload: persistedPayload,
+      workspaces: patchWorkspaceRuntime(get().workspaces, workspaceId, { lastPayload: persistedPayload }),
     });
 
     for (let i = 0; i < batchCount; i++) {
       const jobSeed = s.seed ? s.seed + i : 0;
-      const p: backend.GenerateOptions = { ...basePayload, seed: jobSeed };
+      const p: RuntimeGenerateOptions = { ...remotePayload, seed: jobSeed };
       void launchOneJob(s.mode, p, {
         workspaceId,
         apiMode: s.apiMode,
@@ -650,7 +659,6 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       const v = localStorage.getItem("gptcodex.outputFormat");
       if (v === "png" || v === "jpeg" || v === "webp") outputFormat = v;
     } catch {}
-
     // ---- v0.1.6 profile 列表加载 / 迁移 -----------------------------------
     // 1) 优先读新格式 gptcodex.profiles。
     // 2) 缺失时尝试从老 gptcodex.{responses,images}.* + 老 keyring 项合成 0-2
@@ -1079,7 +1087,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
 // so per-job result writes still see the originating context.
 async function launchOneJob(
   mode: string,
-  payload: backend.GenerateOptions,
+  payload: RuntimeGenerateOptions,
   snapshot: {
     workspaceId: string;
     apiMode: APIModeValue;

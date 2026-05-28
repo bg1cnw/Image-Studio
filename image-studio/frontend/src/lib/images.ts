@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export function base64ToBlob(b64: string, mimeType = "image/png"): Blob {
   const bin = atob(b64);
@@ -20,6 +20,28 @@ export async function blobToBase64(blob: Blob): Promise<string> {
 
 export function blobToObjectURL(blob: Blob): string {
   return URL.createObjectURL(blob);
+}
+
+const objectURLCache = new WeakMap<Blob, { url: string; refs: number }>();
+
+export function acquireBlobObjectURL(blob: Blob): string {
+  const cached = objectURLCache.get(blob);
+  if (cached) {
+    cached.refs += 1;
+    return cached.url;
+  }
+  const url = URL.createObjectURL(blob);
+  objectURLCache.set(blob, { url, refs: 1 });
+  return url;
+}
+
+export function releaseBlobObjectURL(blob: Blob): void {
+  const cached = objectURLCache.get(blob);
+  if (!cached) return;
+  cached.refs -= 1;
+  if (cached.refs > 0) return;
+  URL.revokeObjectURL(cached.url);
+  objectURLCache.delete(blob);
 }
 
 export function detectImageMimeTypeFromBase64(b64: string): string | null {
@@ -90,28 +112,31 @@ export function dataURLFromBase64(
 }
 
 export function useBlobURL(blob?: Blob | null, fallbackB64?: string | null): string | null {
+  const stableFallbackBlob = useMemo(() => {
+    if (blob || !fallbackB64) return null;
+    try {
+      return base64ToBlob(fallbackB64);
+    } catch {
+      return null;
+    }
+  }, [blob, fallbackB64]);
   const [url, setUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (blob) {
-      const objectURL = URL.createObjectURL(blob);
+      const objectURL = acquireBlobObjectURL(blob);
       setUrl(objectURL);
-      return () => URL.revokeObjectURL(objectURL);
+      return () => releaseBlobObjectURL(blob);
     }
 
-    if (fallbackB64) {
-      try {
-        const objectURL = URL.createObjectURL(base64ToBlob(fallbackB64));
-        setUrl(objectURL);
-        return () => URL.revokeObjectURL(objectURL);
-      } catch {
-        setUrl(null);
-        return;
-      }
+    if (stableFallbackBlob) {
+      const objectURL = acquireBlobObjectURL(stableFallbackBlob);
+      setUrl(objectURL);
+      return () => releaseBlobObjectURL(stableFallbackBlob);
     }
 
     setUrl(null);
-  }, [blob, fallbackB64]);
+  }, [blob, stableFallbackBlob]);
 
   return url;
 }

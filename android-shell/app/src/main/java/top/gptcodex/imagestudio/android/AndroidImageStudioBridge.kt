@@ -29,6 +29,10 @@ import java.util.Date
 import java.util.concurrent.ConcurrentHashMap
 import java.util.Locale
 import kotlin.concurrent.thread
+import kotlin.math.max
+import kotlin.math.roundToInt
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 
 class AndroidImageStudioBridge(
     private val context: Context,
@@ -44,6 +48,7 @@ class AndroidImageStudioBridge(
 
     companion object {
         private const val maxDialogReadBytes: Long = 50L * 1024L * 1024L
+        private const val maxPreviewEdge = 384
     }
 
     @JavascriptInterface
@@ -361,6 +366,7 @@ class AndroidImageStudioBridge(
                     "path" to copied.file.absolutePath,
                     "size" to copied.size,
                     "imageB64" to copied.imageB64,
+                    "previewB64" to copied.previewB64,
                 ),
             )
         } catch (error: Exception) {
@@ -413,6 +419,7 @@ class AndroidImageStudioBridge(
         val file: File,
         val size: Long,
         val imageB64: String,
+        val previewB64: String,
     )
 
     private fun copyUriToImports(uri: Uri, suggestedName: String): CopiedImport {
@@ -439,7 +446,38 @@ class AndroidImageStudioBridge(
         } else {
             ""
         }
-        return CopiedImport(target, total, imageB64)
+        return CopiedImport(target, total, imageB64, createPreviewB64(target))
+    }
+
+    private fun createPreviewB64(file: File): String {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return ""
+        val maxEdge = max(bounds.outWidth, bounds.outHeight)
+        var sample = 1
+        while (maxEdge / sample > maxPreviewEdge * 2) sample *= 2
+        val decode = BitmapFactory.Options().apply { inSampleSize = sample }
+        val decoded = BitmapFactory.decodeFile(file.absolutePath, decode) ?: return ""
+        val scaled = try {
+            val scale = minOf(1f, maxPreviewEdge.toFloat() / max(decoded.width, decoded.height).toFloat())
+            if (scale >= 0.999f) decoded
+            else Bitmap.createScaledBitmap(
+                decoded,
+                max(1, (decoded.width * scale).roundToInt()),
+                max(1, (decoded.height * scale).roundToInt()),
+                true,
+            )
+        } catch (_: Exception) {
+            decoded
+        }
+        return try {
+            val out = java.io.ByteArrayOutputStream()
+            scaled.compress(Bitmap.CompressFormat.JPEG, 74, out)
+            Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+        } finally {
+            if (scaled != decoded) scaled.recycle()
+            decoded.recycle()
+        }
     }
 
     private fun writeImportedBytes(bytes: ByteArray, suggestedName: String): File {

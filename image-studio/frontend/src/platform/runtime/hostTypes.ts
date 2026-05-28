@@ -18,6 +18,13 @@ export type GenerateOptionsLike = {
   noPromptRevision: boolean;
   concurrencyLimit?: number;
   requestedJobId?: string;
+  sourceImages?: Array<{
+    path?: string;
+    name?: string;
+    mimeType?: string | null;
+    imageB64?: string | null;
+    imageBlob?: Blob | null;
+  }>;
 };
 
 export type PromptOptimizeOptionsLike = {
@@ -33,7 +40,7 @@ export type PromptOptimizeOptionsLike = {
 export type JobStartedLike = { jobId: string };
 export type ImportedImageLike = { path: string; imageB64: string };
 export type ImageTransformResultLike = { path: string; acceleration?: string };
-export type SelectFileResponseLike = { path: string; size: number; imageB64?: string };
+export type SelectFileResponseLike = { path: string; size: number; imageB64?: string; previewB64?: string };
 
 export type HostKind = "wails-desktop" | "android-shell" | "browser";
 
@@ -42,6 +49,7 @@ export type HostCapabilities = {
   promptOptimization: boolean;
   nativeFileDialogs: boolean;
   nativeImageTransforms: boolean;
+  imageTransformAcceleration: "gpu-metal" | "gpu-webgl" | "cpu-canvas" | "native" | "none";
   nativeHistoryFileIO: boolean;
   nativeOutputDirectoryPicker: boolean;
   secureCredentialStore: boolean;

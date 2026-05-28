@@ -61,6 +61,8 @@ function installEnvironment() {
         };
         const gl = {
           canvas,
+          drawingBufferWidth: 1,
+          drawingBufferHeight: 1,
           VERTEX_SHADER: 0x8b31,
           FRAGMENT_SHADER: 0x8b30,
           COMPILE_STATUS: 0x8b81,
@@ -112,6 +114,8 @@ function installEnvironment() {
           texImage2D() {},
           uniform1i() {},
           drawArrays() {},
+          flush() {},
+          getExtension() { return { loseContext() {} }; },
           deleteBuffer() {},
           deleteTexture() {},
         };
@@ -181,6 +185,10 @@ async function withPatchedGlobals(setup, run) {
 
 function loadRuntimeHost() {
   return import(`../src/platform/runtime/host.ts?runtime-host-test=${Date.now()}-${Math.random().toString(36).slice(2)}`);
+}
+
+function loadVirtualHostStore() {
+  return import(`../src/lib/virtualHostStore.ts?virtual-host-test=${Date.now()}-${Math.random().toString(36).slice(2)}`);
 }
 
 test("runtimeHost remote mode emits job lifecycle events", async () => {
@@ -273,6 +281,22 @@ test("runtimeHost Android transforms persist GPU-backed results to host files", 
     const result = await runtimeHost.RotateImage("/sdcard/imports/source.png", 90);
     assert.equal(result.path, "/sdcard/imports/gpu-rotated.png");
     assert.equal(result.acceleration, "gpu-webgl");
+  });
+});
+
+test("virtualHostStore prunes old in-memory images", async () => {
+  await withPatchedGlobals(async () => {}, async () => {
+    const virtualHostStore = await loadVirtualHostStore();
+    const payload = Buffer.alloc(1024, 1).toString("base64");
+    for (let i = 0; i < 32; i++) {
+      virtualHostStore.registerVirtualImage({
+        imageB64: payload,
+        suggestedName: `asset-${i}.png`,
+      });
+    }
+    const stats = virtualHostStore.getVirtualHostMemoryStats();
+    assert.equal(stats.imageCount, 24);
+    assert.ok(stats.imageBytes <= 24 * 1024);
   });
 });
 
@@ -440,6 +464,7 @@ test("runtimeHost can use Android invoke host capabilities directly", async () =
     assert.equal(runtimeHost.detectHostKind(), "android-shell");
     assert.equal(runtimeHost.getHostCapabilities().nativeFileDialogs, true);
     assert.equal(runtimeHost.getHostCapabilities().nativeHistoryFileIO, true);
+    assert.equal(runtimeHost.getHostCapabilities().imageTransformAcceleration, "gpu-webgl");
 
     await runtimeHost.SetStoredAPIKey("profile:a", "sk-android");
     assert.equal(await runtimeHost.GetStoredAPIKey("profile:a"), "sk-android");

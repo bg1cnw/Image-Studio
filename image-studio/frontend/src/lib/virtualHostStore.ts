@@ -13,6 +13,8 @@ type VirtualImageRecord = {
   size: number;
   imageB64: string;
   mimeType: string;
+  createdAt: number;
+  lastAccessedAt: number;
 };
 
 type VirtualTextRecord = {
@@ -36,6 +38,9 @@ type SelectedImageRecord = {
 
 const VIRTUAL_IMAGE_PREFIX = "memory://image/";
 const VIRTUAL_TEXT_PREFIX = "memory://text/";
+const MAX_VIRTUAL_IMAGE_RECORDS = 24;
+const MAX_VIRTUAL_IMAGE_BYTES = 128 * 1024 * 1024;
+const MAX_VIRTUAL_TEXT_RECORDS = 24;
 
 const virtualImages = new Map<string, VirtualImageRecord>();
 const virtualTexts = new Map<string, VirtualTextRecord>();
@@ -74,7 +79,48 @@ export function isVirtualPath(path: string | null | undefined): boolean {
 }
 
 export function getVirtualImageRecord(path: string): VirtualImageRecord | null {
-  return virtualImages.get(path) ?? null;
+  const record = virtualImages.get(path) ?? null;
+  if (record) record.lastAccessedAt = Date.now();
+  return record;
+}
+
+function virtualImageBytes(): number {
+  let total = 0;
+  for (const record of virtualImages.values()) total += record.size;
+  return total;
+}
+
+function pruneVirtualImages(preservePath?: string) {
+  if (virtualImages.size <= MAX_VIRTUAL_IMAGE_RECORDS && virtualImageBytes() <= MAX_VIRTUAL_IMAGE_BYTES) return;
+  const candidates = Array.from(virtualImages.values())
+    .filter((record) => record.path !== preservePath)
+    .sort((a, b) => a.lastAccessedAt - b.lastAccessedAt || a.createdAt - b.createdAt);
+  for (const record of candidates) {
+    if (virtualImages.size <= MAX_VIRTUAL_IMAGE_RECORDS && virtualImageBytes() <= MAX_VIRTUAL_IMAGE_BYTES) break;
+    virtualImages.delete(record.path);
+  }
+}
+
+function pruneVirtualTexts() {
+  if (virtualTexts.size <= MAX_VIRTUAL_TEXT_RECORDS) return;
+  const dropCount = virtualTexts.size - MAX_VIRTUAL_TEXT_RECORDS;
+  for (const path of Array.from(virtualTexts.keys()).slice(0, dropCount)) {
+    virtualTexts.delete(path);
+  }
+}
+
+export function releaseVirtualPath(path: string | null | undefined): void {
+  if (!path) return;
+  virtualImages.delete(path);
+  virtualTexts.delete(path);
+}
+
+export function getVirtualHostMemoryStats(): { imageCount: number; imageBytes: number; textCount: number } {
+  return {
+    imageCount: virtualImages.size,
+    imageBytes: virtualImageBytes(),
+    textCount: virtualTexts.size,
+  };
 }
 
 export function registerVirtualImage(input: {
@@ -100,13 +146,17 @@ export function registerVirtualImage(input: {
     size: base64SizeBytes(input.imageB64),
     imageB64: input.imageB64,
     mimeType,
+    createdAt: Date.now(),
+    lastAccessedAt: Date.now(),
   });
+  pruneVirtualImages(path);
   return { path, imageB64: input.imageB64, mimeType, name: suggestedName };
 }
 
 export function readVirtualImageAsBase64(path: string): string {
   const record = virtualImages.get(path);
   if (!record) throw new Error(`虚拟图片不存在:${path}`);
+  record.lastAccessedAt = Date.now();
   return record.imageB64;
 }
 
@@ -117,6 +167,7 @@ export function registerVirtualText(
 ): string {
   const path = buildVirtualPath(VIRTUAL_TEXT_PREFIX, suggestedName, "image/png").replace(/\.png$/, ".txt");
   virtualTexts.set(path, { path, text, mimeType });
+  pruneVirtualTexts();
   return path;
 }
 
@@ -223,6 +274,7 @@ async function canvasToRegisteredImage(
       preferredMime === "image/jpeg" ? 0.92 : undefined,
     );
   });
+  disposeCanvas(canvas);
   const imageB64 = await blobToBase64(blob);
   return registerVirtualImage({
     imageB64,
@@ -234,6 +286,7 @@ async function canvasToRegisteredImage(
 type GPUCanvas2DResult = {
   canvas: HTMLCanvasElement;
   acceleration: string;
+  dispose: () => void;
 };
 
 function createWebGLCanvas(width: number, height: number): WebGLRenderingContext | null {
@@ -256,6 +309,40 @@ function createWebGLCanvas(width: number, height: number): WebGLRenderingContext
     stencil: false,
   } as WebGLContextAttributes);
   return experimental as WebGLRenderingContext | null;
+}
+
+function disposeCanvas(canvas: HTMLCanvasElement) {
+  canvas.width = 0;
+  canvas.height = 0;
+}
+
+function disposeWebGLCanvas(gl: WebGLRenderingContext) {
+  try {
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
+  } catch {
+    // ignore GPU cleanup failures
+  }
+  disposeCanvas(gl.canvas as HTMLCanvasElement);
+}
+
+let cachedWebGLImageTransformSupport: boolean | null = null;
+
+export function canUseWebGLImageTransforms(): boolean {
+  if (cachedWebGLImageTransformSupport !== null) return cachedWebGLImageTransformSupport;
+  if (typeof document === "undefined") return false;
+  try {
+    const gl = createWebGLCanvas(1, 1);
+    if (!gl) {
+      cachedWebGLImageTransformSupport = false;
+      return false;
+    }
+    disposeWebGLCanvas(gl);
+    cachedWebGLImageTransformSupport = true;
+    return true;
+  } catch {
+    cachedWebGLImageTransformSupport = false;
+    return false;
+  }
 }
 
 function compileShader(gl: WebGLRenderingContext, type: number, source: string): WebGLShader {
@@ -315,7 +402,13 @@ function drawBitmapWithWebGL(
     throw new Error("WebGL 不可用");
   }
   const canvas = gl.canvas as HTMLCanvasElement;
-  const program = buildWebGLProgram(gl);
+  let program: WebGLProgram | null = null;
+  try {
+    program = buildWebGLProgram(gl);
+  } catch (error) {
+    disposeWebGLCanvas(gl);
+    throw error;
+  }
   gl.viewport(0, 0, outWidth, outHeight);
   gl.clearColor(0, 0, 0, 0);
   gl.clear(gl.COLOR_BUFFER_BIT);
@@ -334,36 +427,42 @@ function drawBitmapWithWebGL(
   const posBuffer = gl.createBuffer();
   const texBuffer = gl.createBuffer();
   const texture = gl.createTexture();
-  if (!posBuffer || !texBuffer || !texture || textureLoc == null) {
-    throw new Error("WebGL 资源创建失败");
+  try {
+    if (!posBuffer || !texBuffer || !texture || textureLoc == null) {
+      throw new Error("WebGL 资源创建失败");
+    }
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(positionLoc);
+    gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, texBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, texCoords, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(texCoordLoc);
+    gl.vertexAttribPointer(texCoordLoc, 2, gl.FLOAT, false, 0, 0);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bitmap);
+    gl.uniform1i(textureLoc, 0);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.flush();
+    return { canvas, acceleration: "gpu-webgl", dispose: () => disposeWebGLCanvas(gl) };
+  } catch (error) {
+    disposeWebGLCanvas(gl);
+    throw error;
+  } finally {
+    if (posBuffer) gl.deleteBuffer(posBuffer);
+    if (texBuffer) gl.deleteBuffer(texBuffer);
+    if (texture) gl.deleteTexture(texture);
+    if (program) gl.deleteProgram(program);
   }
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(positionLoc);
-  gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 0, 0);
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, texBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, texCoords, gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(texCoordLoc);
-  gl.vertexAttribPointer(texCoordLoc, 2, gl.FLOAT, false, 0, 0);
-
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bitmap);
-  gl.uniform1i(textureLoc, 0);
-  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-
-  gl.deleteBuffer(posBuffer);
-  gl.deleteBuffer(texBuffer);
-  gl.deleteTexture(texture);
-  gl.deleteProgram(program);
-  return { canvas, acceleration: "gpu-webgl" };
 }
 
 function noteGPUFallback(stage: string, error: unknown) {
@@ -472,8 +571,12 @@ export async function rotateVirtualImage(path: string, degrees: number): Promise
     const normalized = ((degrees % 360) + 360) % 360;
     try {
       const rendered = await rotateBitmapWithGPU(bitmap, normalized);
-      const result = await canvasToRegisteredImage(rendered.canvas, record, record.name);
-      return { ...result, acceleration: rendered.acceleration };
+      try {
+        const result = await canvasToRegisteredImage(rendered.canvas, record, record.name);
+        return { ...result, acceleration: rendered.acceleration };
+      } finally {
+        rendered.dispose();
+      }
     } catch (error) {
       noteGPUFallback("rotate", error);
       const swap = normalized === 90 || normalized === 270;
@@ -498,8 +601,12 @@ export async function flipVirtualImage(path: string, horizontal: boolean): Promi
   try {
     try {
       const rendered = await flipBitmapWithGPU(bitmap, horizontal);
-      const result = await canvasToRegisteredImage(rendered.canvas, record, record.name);
-      return { ...result, acceleration: rendered.acceleration };
+      try {
+        const result = await canvasToRegisteredImage(rendered.canvas, record, record.name);
+        return { ...result, acceleration: rendered.acceleration };
+      } finally {
+        rendered.dispose();
+      }
     } catch (error) {
       noteGPUFallback("flip", error);
       const canvas = document.createElement("canvas");
@@ -533,8 +640,12 @@ export async function cropVirtualImage(
     const cropHeight = Math.max(1, Math.min(bitmap.height - top, Math.round(height)));
     try {
       const rendered = await cropBitmapWithGPU(bitmap, left, top, cropWidth, cropHeight);
-      const result = await canvasToRegisteredImage(rendered.canvas, record, record.name);
-      return { ...result, acceleration: rendered.acceleration };
+      try {
+        const result = await canvasToRegisteredImage(rendered.canvas, record, record.name);
+        return { ...result, acceleration: rendered.acceleration };
+      } finally {
+        rendered.dispose();
+      }
     } catch (error) {
       noteGPUFallback("crop", error);
       const canvas = document.createElement("canvas");
