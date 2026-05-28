@@ -1,0 +1,352 @@
+import {
+  CropImage,
+  ExportHistoryToFile,
+  FlipImage,
+  ImportHistoryFromFile,
+  ReadImageAsBase64,
+  RotateImage,
+} from "../platform/runtime/host";
+import { exportHistoryForPlatform } from "../platform/android/bridge";
+import {
+  sanitizeHistoryForExport,
+  sanitizeImportedHistoryItem,
+} from "../lib/security";
+import { base64ToBlob } from "../lib/images";
+import { persistHistoryItem } from "../lib/storage";
+import type { HistoryItem, Preset, Toast } from "../types/domain";
+import type { StudioState } from "./studioStore.types";
+import {
+  genId,
+  persistTrimmedHistory,
+  trimHistory,
+} from "./studioStore.shared";
+import {
+  ensureFullBatchItem,
+  ensureFullHistoryItem,
+  materializeHistoryItem,
+} from "./studioStore.runtime";
+import { patchWorkspaceRuntime } from "./workspaceRuntime";
+
+type StateAdapter = {
+  getState: () => StudioState;
+  setState: (patch: Partial<StudioState> | ((state: StudioState) => Partial<StudioState>)) => void;
+};
+
+export function createMediaActions(store: StateAdapter) {
+  return {
+    async setCompareB(item: HistoryItem | null) {
+      if (!item) {
+        store.setState({ compareB: null, compareSplit: 0.5 });
+        return;
+      }
+      const full = await ensureFullHistoryItem(item, {
+        setState: (fn) => store.setState((state) => fn(state)),
+      });
+      if (full) store.setState({ compareB: full, compareSplit: 0.5 });
+    },
+
+    setCompareSplit(v: number) {
+      store.setState({ compareSplit: Math.max(0, Math.min(1, v)) });
+    },
+
+    openResultGrid() {
+      const state = store.getState();
+      if (state.batchResults.length <= 1) return;
+      store.setState({
+        resultGridOpen: true,
+        compareB: null,
+        workspaces: patchWorkspaceRuntime(state.workspaces, state.activeWorkspaceId, { resultGridOpen: true }),
+      });
+    },
+
+    closeResultGrid() {
+      const state = store.getState();
+      store.setState({
+        resultGridOpen: false,
+        workspaces: patchWorkspaceRuntime(state.workspaces, state.activeWorkspaceId, { resultGridOpen: false }),
+      });
+    },
+
+    async selectBatchResult(item: HistoryItem) {
+      const full = await ensureFullBatchItem(item, {
+        setState: (fn) => store.setState((state) => fn(state)),
+      });
+      const state = store.getState();
+      store.setState({
+        currentImage: full,
+        resultGridOpen: false,
+        compareB: null,
+        maskDataURL: null,
+        annotations: [],
+        tool: "pan",
+        workspaces: patchWorkspaceRuntime(state.workspaces, state.activeWorkspaceId, {
+          currentImageId: full.id,
+          resultGridOpen: false,
+        }),
+      });
+    },
+
+    pushToast(text: string, kind: Toast["kind"] = "info", ttl = 3500, action?: Toast["action"]) {
+      const id = genId();
+      const toast: Toast = { id, text, kind, createdAt: Date.now(), ttl, action };
+      store.setState((state) => ({ toasts: [...state.toasts, toast] }));
+      if (ttl > 0) {
+        setTimeout(() => {
+          store.setState((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
+        }, ttl);
+      }
+    },
+
+    dismissToast(id: string) {
+      store.setState((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
+    },
+
+    async openResultDetail(item: HistoryItem) {
+      const full = await ensureFullHistoryItem(item, {
+        setState: (fn) => store.setState((state) => fn(state)),
+      });
+      store.setState({ resultDetail: full ?? item });
+    },
+
+    closeResultDetail() {
+      store.setState({ resultDetail: null });
+    },
+
+    async materializeCurrentImage(item: HistoryItem) {
+      const full = await ensureFullHistoryItem(item, {
+        setState: (fn) => store.setState((state) => fn(state)),
+      });
+      return full ?? item;
+    },
+
+    setHistoryRailCollapsed(collapsed: boolean) {
+      store.setState({ historyRailCollapsed: collapsed });
+    },
+
+    openHistoryTimeline() {
+      store.setState({ historyTimelineOpen: true });
+    },
+
+    closeHistoryTimeline() {
+      store.setState({ historyTimelineOpen: false });
+    },
+
+    async pruneHistoryOlderThanDays(days: number) {
+      const cutoff = Date.now() - days * 24 * 3600 * 1000;
+      const state = store.getState();
+      const kept = state.history.filter((item) => item.createdAt >= cutoff);
+      const removed = state.history.length - kept.length;
+      if (removed <= 0) return 0;
+      const keepIds = new Set(kept.map((item) => item.id));
+      const nextBatchResults = state.batchResults.filter((item) => keepIds.has(item.id));
+      const nextWorkspaces = state.workspaces.map((w) => ({
+        ...w,
+        currentImageId: w.currentImageId && keepIds.has(w.currentImageId) ? w.currentImageId : null,
+        batchResultIds: (w.batchResultIds ?? []).filter((id) => keepIds.has(id)),
+        resultGridOpen: (w.batchResultIds ?? []).filter((id) => keepIds.has(id)).length > 1 ? w.resultGridOpen : false,
+      }));
+      store.setState({
+        history: kept,
+        currentImage: state.currentImage && keepIds.has(state.currentImage.id) ? state.currentImage : null,
+        compareB: state.compareB && keepIds.has(state.compareB.id) ? state.compareB : null,
+        resultDetail: state.resultDetail && keepIds.has(state.resultDetail.id) ? state.resultDetail : null,
+        batchResults: nextBatchResults,
+        resultGridOpen: nextBatchResults.length > 1 && state.resultGridOpen,
+        workspaces: nextWorkspaces,
+      });
+      persistTrimmedHistory(kept);
+      return removed;
+    },
+
+    async rotateCurrent(degrees: number) {
+      let current = store.getState().currentImage;
+      if (!current) {
+        store.getState().pushToast("当前没有图片", "warn");
+        return;
+      }
+      current = await materializeHistoryItem(current, {
+        setState: (fn) => store.setState((state) => fn(state)),
+      }).catch((e: any) => {
+        store.getState().pushToast(`当前图无法落盘:${e?.message ?? e}`, "error");
+        return null;
+      });
+      if (!current?.savedPath) return;
+      try {
+        const result = await RotateImage(current.savedPath, degrees);
+        await loadTransformedAsCurrent(store, result.path);
+        store.getState().pushToast(`已旋转 ${degrees}° · ${result.acceleration ?? "native"}`, "success");
+      } catch (e: any) {
+        store.getState().pushToast(`旋转失败:${e?.message ?? e}`, "error");
+      }
+    },
+
+    async flipCurrent(horizontal: boolean) {
+      let current = store.getState().currentImage;
+      if (!current) {
+        store.getState().pushToast("当前没有图片", "warn");
+        return;
+      }
+      current = await materializeHistoryItem(current, {
+        setState: (fn) => store.setState((state) => fn(state)),
+      }).catch((e: any) => {
+        store.getState().pushToast(`当前图无法落盘:${e?.message ?? e}`, "error");
+        return null;
+      });
+      if (!current?.savedPath) return;
+      try {
+        const result = await FlipImage(current.savedPath, horizontal);
+        await loadTransformedAsCurrent(store, result.path);
+        store.getState().pushToast(`${horizontal ? "已水平翻转" : "已竖直翻转"} · ${result.acceleration ?? "native"}`, "success");
+      } catch (e: any) {
+        store.getState().pushToast(`翻转失败:${e?.message ?? e}`, "error");
+      }
+    },
+
+    async cropToRect(x: number, y: number, w: number, h: number) {
+      let current = store.getState().currentImage;
+      if (!current) {
+        store.getState().pushToast("当前没有图片", "warn");
+        return;
+      }
+      current = await materializeHistoryItem(current, {
+        setState: (fn) => store.setState((state) => fn(state)),
+      }).catch((e: any) => {
+        store.getState().pushToast(`当前图无法落盘:${e?.message ?? e}`, "error");
+        return null;
+      });
+      if (!current?.savedPath) return;
+      try {
+        const result = await CropImage(current.savedPath, Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+        await loadTransformedAsCurrent(store, result.path);
+        store.getState().pushToast(`已裁出 ${Math.round(w)}×${Math.round(h)} · ${result.acceleration ?? "native"}`, "success");
+      } catch (e: any) {
+        store.getState().pushToast(`裁剪失败:${e?.message ?? e}`, "error");
+      }
+    },
+
+    savePreset(name: string) {
+      const state = store.getState();
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      const preset: Preset = {
+        id: genId(),
+        name: trimmed,
+        size: state.size,
+        quality: state.quality,
+        outputFormat: state.outputFormat,
+        negativePrompt: state.negativePrompt,
+        batchCount: state.batchCount,
+      };
+      const next = [...state.presets, preset];
+      store.setState({ presets: next });
+      try { localStorage.setItem("gptcodex.presets", JSON.stringify(next)); } catch {}
+      store.getState().pushToast(`已保存预设「${trimmed}」`, "success");
+    },
+
+    applyPreset(id: string) {
+      const preset = store.getState().presets.find((x) => x.id === id);
+      if (!preset) return;
+      store.setState({
+        size: preset.size,
+        quality: preset.quality,
+        outputFormat: preset.outputFormat ?? store.getState().outputFormat,
+        negativePrompt: preset.negativePrompt,
+        batchCount: preset.batchCount,
+      });
+      store.getState().pushToast(`已应用预设「${preset.name}」`, "success");
+    },
+
+    deletePreset(id: string) {
+      const next = store.getState().presets.filter((preset) => preset.id !== id);
+      store.setState({ presets: next });
+      try { localStorage.setItem("gptcodex.presets", JSON.stringify(next)); } catch {}
+    },
+
+    async exportHistory() {
+      const state = store.getState();
+      if (state.history.length === 0) {
+        state.pushToast("没有可导出的历史记录", "warn");
+        return;
+      }
+      const payload = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        count: state.history.length,
+        items: state.history.map(sanitizeHistoryForExport),
+      };
+      try {
+        const dst = await exportHistoryForPlatform(JSON.stringify(payload, null, 2), ExportHistoryToFile);
+        if (dst) state.pushToast(`已导出 ${state.history.length} 条 → ${dst.split(/[\\/]/).pop()}`, "success");
+      } catch (e: any) {
+        state.pushToast(`导出失败:${e?.message ?? e}`, "error");
+      }
+    },
+
+    async importHistory() {
+      const state = store.getState();
+      try {
+        const json = await ImportHistoryFromFile();
+        if (!json) return;
+        const parsed = JSON.parse(json);
+        const incoming: HistoryItem[] = Array.isArray(parsed?.items) ? parsed.items : [];
+        if (incoming.length === 0) {
+          state.pushToast("文件里没有历史记录", "warn");
+          return;
+        }
+        const existing = new Set(state.history.map((h) => h.id));
+        const merged = [...state.history];
+        let added = 0;
+        for (const item of incoming) {
+          if (!item.id || existing.has(item.id)) continue;
+          if (!item.imageB64 || !item.createdAt) continue;
+          const safeItem = sanitizeImportedHistoryItem(item);
+          merged.push(safeItem);
+          await persistHistoryItem(safeItem).catch(() => undefined);
+          added++;
+        }
+        merged.sort((a, b) => b.createdAt - a.createdAt);
+        const trimmed = trimHistory(merged);
+        store.setState({ history: trimmed });
+        persistTrimmedHistory(trimmed);
+        state.pushToast(`已导入 ${added} 条(跳过 ${incoming.length - added} 条重复/无效)`, "success");
+      } catch (e: any) {
+        state.pushToast(`导入失败:${e?.message ?? e}`, "error");
+      }
+    },
+  };
+}
+
+async function loadTransformedAsCurrent(store: StateAdapter, path: string) {
+  const snapshot = store.getState();
+  try {
+    const b64 = await ReadImageAsBase64(path);
+    const baseName = path.split(/[\\/]/).pop() ?? "transformed.png";
+    const current = snapshot.currentImage;
+    const updated: HistoryItem = current
+      ? { ...current, imageB64: b64, savedPath: path }
+      : {
+          id: genId(),
+          imageB64: b64,
+          prompt: `(变换)${baseName}`,
+          mode: "edit",
+          size: snapshot.size,
+          quality: snapshot.quality,
+          createdAt: Date.now(),
+          savedPath: path,
+        };
+    const nextSources = snapshot.sources.length > 0
+      ? [{ path, name: baseName, size: 0, imageB64: b64 }, ...snapshot.sources.slice(1)]
+      : [{ path, name: baseName, size: 0, imageB64: b64 }];
+    store.setState({
+      currentImage: updated,
+      sources: nextSources,
+      mode: "edit",
+      maskDataURL: null,
+      strokes: [],
+      annotations: [],
+      canvasViewResetTick: snapshot.canvasViewResetTick + 1,
+    });
+  } catch (e: any) {
+    store.getState().pushToast(`加载变换结果失败:${e?.message ?? e}`, "error");
+  }
+}

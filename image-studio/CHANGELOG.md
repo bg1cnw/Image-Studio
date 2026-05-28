@@ -28,7 +28,7 @@
 - 系统通知:窗口非焦点时生成完成 → Windows toast
 - raw 响应一键查看(modal 含复制全文)
 - 右键菜单:复制 prompt / 复制路径 / 查看 raw / 设为源图 / 用作对比 / 删除
-- 关于对话框 + 设置面板(transport / 输出目录 / 模型 / 清除 key / 清空历史)
+- 关于对话框 + 设置面板(输出目录 / 模型 / 清除 key / 清空历史)
 
 ### 修复
 - canvas-shell 用 flexbox 代替 grid,彻底切断 Konva canvas 撑爆 stage-host 的正反馈循环(此前 host_dom 测出 2405/3731,真实窗口仅 1424)

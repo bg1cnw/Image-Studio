@@ -59,3 +59,11 @@
   transition: opacity 120ms;
 }
 .thumb:hover .del { opacity: 1; }
+
+html[data-target-platform="macos"] .history-rail-header-actions {
+  row-gap: 6px;
+}
+
+html[data-target-platform="macos"] .history-rail-header-btn {
+  white-space: nowrap;
+}

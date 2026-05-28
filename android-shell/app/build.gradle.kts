@@ -1,25 +1,80 @@
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
 
+import org.gradle.api.DefaultTask
+import org.gradle.api.GradleException
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.tasks.OutputDirectory
+
 val frontendRoot = file("../../image-studio/frontend")
-val versionStamp = SimpleDateFormat("yyyyMMddHHmm", Locale.US).format(Date())
 val npmCacheDir = rootProject.file("../.tmp/android-npm-cache")
+val androidHomeDir = rootProject.file("../.tmp/android-home")
+val androidHomeCacheDir = androidHomeDir.resolve(".android")
+val frontendNodeModules = frontendRoot.resolve("node_modules")
+val fallbackDebugKeystore = androidHomeCacheDir.resolve("debug.keystore")
+val customKeystorePath = providers.environmentVariable("IMAGE_STUDIO_KEYSTORE_PATH")
+val appVersionName = providers.environmentVariable("IMAGE_STUDIO_ANDROID_VERSION_NAME").orElse("0.1.5-dev")
+val appVersionCode = providers.environmentVariable("IMAGE_STUDIO_ANDROID_VERSION_CODE").orElse("1050001").map(String::toInt)
+val usePrebuiltFrontend = providers.environmentVariable("IMAGE_STUDIO_ANDROID_USE_PREBUILT_FRONTEND")
+    .map { value -> value == "1" || value.equals("true", ignoreCase = true) }
+    .orElse(false)
+val ensureFallbackDebugKeystore = tasks.register("ensureFallbackDebugKeystore") {
+    group = "build setup"
+    outputs.file(fallbackDebugKeystore)
+    doLast {
+        androidHomeCacheDir.mkdirs()
+        if (fallbackDebugKeystore.exists()) return@doLast
+        val javaHome = System.getenv("JAVA_HOME") ?: System.getProperty("java.home")
+        val keytool = file(javaHome).resolve("bin/keytool").absolutePath
+        exec {
+            commandLine(
+                keytool,
+                "-genkeypair",
+                "-v",
+                "-keystore",
+                fallbackDebugKeystore.absolutePath,
+                "-storepass",
+                "android",
+                "-alias",
+                "androiddebugkey",
+                "-keypass",
+                "android",
+                "-keyalg",
+                "RSA",
+                "-keysize",
+                "2048",
+                "-validity",
+                "10000",
+                "-dname",
+                "CN=Android Debug,O=Android,C=US",
+            )
+        }
+    }
+}
 val frontendInstallTask = tasks.register("prepareFrontendDependencies") {
     group = "frontend"
+    inputs.file(frontendRoot.resolve("package.json"))
+    inputs.file(frontendRoot.resolve("package-lock.json"))
     outputs.dir(frontendRoot.resolve("node_modules"))
+    onlyIf {
+        !usePrebuiltFrontend.get()
+    }
     doLast {
         exec {
             workingDir = frontendRoot
             environment("npm_config_cache", npmCacheDir.absolutePath)
+            environment("ANDROID_USER_HOME", androidHomeCacheDir.absolutePath)
+            environment("HOME", androidHomeDir.absolutePath)
             commandLine("npm", "ci")
         }
     }
+}
+
+abstract class SyncFrontendAssetsTask : DefaultTask() {
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
 }
 
 android {
@@ -27,37 +82,47 @@ android {
     compileSdk = 34
     buildToolsVersion = "34.0.0"
 
+    signingConfigs {
+        getByName("debug") {
+            storeFile = fallbackDebugKeystore
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+            enableV1Signing = true
+            enableV2Signing = true
+        }
+        create("release") {
+            storeFile = customKeystorePath
+                .map(::file)
+                .orElse(fallbackDebugKeystore)
+                .get()
+            storePassword = providers.environmentVariable("IMAGE_STUDIO_KEYSTORE_PASSWORD").orElse("android").get()
+            keyAlias = providers.environmentVariable("IMAGE_STUDIO_KEY_ALIAS").orElse("androiddebugkey").get()
+            keyPassword = providers.environmentVariable("IMAGE_STUDIO_KEY_PASSWORD").orElse("android").get()
+            enableV1Signing = true
+            enableV2Signing = true
+        }
+    }
+
     defaultConfig {
         applicationId = "top.gptcodex.imagestudio.android"
         minSdk = 28
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0-$versionStamp"
+        versionCode = appVersionCode.get()
+        versionName = appVersionName.get()
+        manifestPlaceholders["appLabel"] = "Image Studio Android"
+        buildConfigField("String", "TARGET_PLATFORM", "\"android\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    }
-
-    flavorDimensions += "device"
-
-    productFlavors {
-        create("phone") {
-            dimension = "device"
-            applicationIdSuffix = ".phone"
-            versionNameSuffix = "-phone"
-            manifestPlaceholders["appLabel"] = "Image Studio Phone"
-            buildConfigField("String", "TARGET_PLATFORM", "\"android\"")
-        }
-        create("pad") {
-            dimension = "device"
-            applicationIdSuffix = ".pad"
-            versionNameSuffix = "-pad"
-            manifestPlaceholders["appLabel"] = "Image Studio Pad"
-            buildConfigField("String", "TARGET_PLATFORM", "\"android-pad\"")
-        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = if (customKeystorePath.isPresent) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -85,42 +150,58 @@ android {
 
 androidComponents {
     onVariants(selector().all()) { variant ->
-        val flavorName = variant.productFlavors.firstOrNull()?.second ?: return@onVariants
-        val mode = if (flavorName == "pad") "android-pad" else "android"
-        val capFlavor = flavorName.replaceFirstChar { it.uppercaseChar() }
-        val capBuild = variant.buildType?.replaceFirstChar { it.uppercaseChar() } ?: "Release"
-        val frontendTaskName = "sync${capFlavor}${capBuild}FrontendAssets"
+        val mode = "android"
+        val frontendTaskName = "sync${variant.name.replaceFirstChar { it.uppercaseChar() }}FrontendAssets"
         val frontendDist = frontendRoot.resolve("dist")
         val sharedAssetsDir = layout.projectDirectory.dir("src/main/assets/web")
-        val assetsDir = layout.projectDirectory.dir("src/$flavorName/assets/web")
+        val generatedAssetsDir = layout.buildDirectory.dir("generated/assets/${frontendTaskName}")
         val variantCapName = variant.name.replaceFirstChar { it.uppercaseChar() }
 
-        val syncTask = tasks.register(frontendTaskName) {
+        val syncTask = tasks.register<SyncFrontendAssetsTask>(frontendTaskName) {
             group = "frontend"
             dependsOn(frontendInstallTask)
+            outputDir.set(generatedAssetsDir)
+            inputs.dir(frontendRoot.resolve("src"))
+            inputs.file(frontendRoot.resolve("package.json"))
+            inputs.file(frontendRoot.resolve("package-lock.json"))
+            inputs.file(frontendRoot.resolve("vite.config.ts"))
+            inputs.file(frontendRoot.resolve("scripts/platform-vite.mjs"))
+            outputs.upToDateWhen { false }
             doLast {
-                exec {
-                    workingDir = frontendRoot
-                    environment("npm_config_cache", npmCacheDir.absolutePath)
-                    commandLine("npm", "run", "build:$mode")
+                androidHomeCacheDir.mkdirs()
+                if (!usePrebuiltFrontend.get()) {
+                    exec {
+                        workingDir = frontendRoot
+                        environment("npm_config_cache", npmCacheDir.absolutePath)
+                        environment("ANDROID_USER_HOME", androidHomeCacheDir.absolutePath)
+                        environment("HOME", androidHomeDir.absolutePath)
+                        commandLine("npm", "run", "build:$mode")
+                    }
+                }
+                if (!frontendDist.resolve("index.html").isFile) {
+                    throw GradleException("Frontend dist is missing. Run npm run build:$mode or unset IMAGE_STUDIO_ANDROID_USE_PREBUILT_FRONTEND.")
                 }
                 delete(sharedAssetsDir)
-                delete(assetsDir)
+                delete(outputDir)
                 copy {
                     from(frontendDist)
-                    into(assetsDir)
+                    into(outputDir)
                 }
             }
         }
 
+        variant.sources.assets?.addGeneratedSourceDirectory(
+            syncTask,
+            SyncFrontendAssetsTask::outputDir,
+        )
+
         afterEvaluate {
             listOf(
-                "merge${variantCapName}Assets",
-                "generate${variantCapName}Assets",
-                "package${variantCapName}Assets",
+                "validateSigning${variantCapName}",
             ).forEach { taskName ->
                 tasks.findByName(taskName)?.dependsOn(syncTask)
             }
+            tasks.findByName("validateSigning${variantCapName}")?.dependsOn(ensureFallbackDebugKeystore)
         }
     }
 }

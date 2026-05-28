@@ -180,7 +180,7 @@ func responsesAPIWithRetries(
 			return ImageResult{}, lastPath, fmt.Errorf("%s", reason)
 		}
 
-		// Transport-level error (network, curl exit). Retry up to MaxAttempts.
+		// Transport-level error (network / native HTTP failure). Retry up to MaxAttempts.
 		lastErr = reqErr
 		if attempt < MaxAttempts {
 			onLog(fmt.Sprintf("%v", reqErr))

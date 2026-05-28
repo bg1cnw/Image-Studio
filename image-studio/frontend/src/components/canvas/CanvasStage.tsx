@@ -1,61 +1,17 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Stage, Layer, Image as KonvaImage, Line, Rect, Arrow, Text, Group } from "react-konva";
+import { Stage, Layer, Image as KonvaImage, Line, Rect, Arrow } from "react-konva";
 import Konva from "konva";
 import { useStudioStore } from "../../state/studioStore";
-import { Annotation, HistoryItem } from "../../types/domain";
-import { isMac } from "../../lib/platform";
-import { blobToObjectURL, useBlobURL } from "../../lib/images";
-
-async function copyImageToClipboard(b64: string): Promise<boolean> {
-  try {
-    const blob = await (await fetch(`data:image/png;base64,${b64}`)).blob();
-    if (typeof ClipboardItem === "undefined" || !navigator.clipboard?.write) return false;
-    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-// Convert a Blob/base64 PNG to an HTMLImageElement (lazy).
-// Clears the previous image synchronously when b64 changes so the rest of the
-// component never renders with a stale-image / new-view mismatch.
-function useImageFromSource(blob: Blob | null | undefined, b64: string | undefined): HTMLImageElement | null {
-  const [img, setImg] = useState<HTMLImageElement | null>(null);
-  useEffect(() => {
-    if (!blob && !b64) { setImg(null); return; }
-    setImg(null); // drop the stale element immediately
-    const el = new Image();
-    const objectURL = blob ? URL.createObjectURL(blob) : b64 ? b64ToObjectURL(b64) : null;
-    if (!objectURL) return;
-    el.onload = () => setImg(el);
-    el.onerror = () => setImg(null);
-    el.src = objectURL;
-    return () => {
-      el.onload = null;
-      el.onerror = null;
-      URL.revokeObjectURL(objectURL);
-    };
-    // ★ 必须把 blob 也放 deps,否则历史项点击切换时 b64 都是 undefined,
-    // effect 不重跑,画板就卡在第一次加载的图上 —— 这是「历史栏连点几张图
-    // 卡住前一两张」的真凶。
-  }, [blob, b64]);
-  return img;
-}
-
-function b64ToObjectURL(b64: string): string | null {
-  try {
-    const bin = atob(b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return URL.createObjectURL(new Blob([bytes], { type: "image/png" }));
-  } catch {
-    return null;
-  }
-}
-
-import type { Stroke } from "../../state/studioStore";
+import { HistoryItem } from "../../types/domain";
+import { usePlatform } from "../../platform/context";
+import { ContextMenu, MenuItem } from "../common/ContextMenu";
+import { BatchResultGrid } from "./BatchResultGrid";
+import { CompareOverlay } from "./CompareOverlay";
+import type { Stroke } from "../../state/studioStore.types";
 import { EmptyState } from "./EmptyState";
+import { useImageFromSource, copyImageB64ToClipboard } from "./canvasImage";
+import { AnnotationShape } from "./AnnotationShape";
+import { useCanvasShortcuts } from "./useCanvasShortcuts";
 
 export function CanvasStage() {
   const {
@@ -68,9 +24,11 @@ export function CanvasStage() {
     undoStack, redoStack, undo, redo,
     compareB, compareSplit, setCompareSplit, setCompareB,
     isRunning, cancel, errorMessage, setField,
+    toggleFullscreen,
     batchResults, resultGridOpen, selectBatchResult, closeResultGrid,
     canvasViewResetTick,
   } = useStudioStore();
+  const { isMac } = usePlatform();
   const showingResultGrid = resultGridOpen && batchResults.length > 1;
 
   // Hold-space-for-pan: while space is held, override tool to "pan".
@@ -98,9 +56,16 @@ export function CanvasStage() {
       if (w > 0 && h > 0) setHostSize({ w, h });
     };
     update();
-    const ro = new ResizeObserver(update);
-    ro.observe(node);
-    roRef.current = ro;
+    if (typeof ResizeObserver === "function") {
+      const ro = new ResizeObserver(update);
+      ro.observe(node);
+      roRef.current = ro;
+      return;
+    }
+    window.addEventListener("resize", update);
+    roRef.current = {
+      disconnect: () => window.removeEventListener("resize", update),
+    } as ResizeObserver;
   }, []);
 
   // Plain function — not useMemo — so it is always computed with the very
@@ -160,6 +125,7 @@ export function CanvasStage() {
 
   // Annotation drag state.
   const [drag, setDrag] = useState<null | { kind: "rect" | "arrow" | "freehand" | "text"; sx: number; sy: number; x: number; y: number }>(null);
+  const [canvasMenu, setCanvasMenu] = useState<null | { x: number; y: number }>(null);
 
   // When the displayed image identity changes, clear the user's manual view
   // and per-image canvas state. This guarantees the new image starts at fit.
@@ -250,6 +216,23 @@ export function CanvasStage() {
     }
   }
 
+  function openCanvasMenu(e: Konva.KonvaEventObject<PointerEvent>) {
+    if (!currentImage) return;
+    e.evt.preventDefault();
+    setCanvasMenu({ x: e.evt.clientX, y: e.evt.clientY });
+  }
+
+  const canvasMenuItems: MenuItem[] = currentImage ? [
+    { label: "查看详情", icon: "ℹ", onClick: () => void useStudioStore.getState().openResultDetail(currentImage) },
+    { label: "另存为", icon: "💾", onClick: () => void useStudioStore.getState().saveCurrentImageAs() },
+    {
+      label: modeLabelForMenu(currentImage),
+      icon: "→",
+      onClick: () => void useStudioStore.getState().reuseAsSource(currentImage),
+    },
+    { separatorBefore: true, label: "清空画板", icon: "✕", onClick: () => useStudioStore.getState().setField("currentImage", null) },
+  ] : [];
+
   function onMouseMove() {
     if (!image) return;
     const local = stagePointerToImageCoord();
@@ -336,457 +319,208 @@ export function CanvasStage() {
     };
   }, [fit.scale, fit.x, fit.y]);
 
-  // Keyboard shortcuts. Skipped when the user is typing in an input/textarea.
+  useCanvasShortcuts({
+    brushSize,
+    cancel,
+    compareB,
+    copyCurrentImage: () => {
+      if (!currentImage) return;
+      copyImageB64ToClipboard(currentImage.imageB64).then((ok) => {
+        const pushToast = useStudioStore.getState().pushToast;
+        if (ok) pushToast("已复制图片到剪贴板", "success");
+        else pushToast("复制失败,当前运行环境拒绝写剪贴板", "error");
+      });
+    },
+    currentImage,
+    errorMessage,
+    isMac,
+    isRunning,
+    redo,
+    removeAnnotation,
+    resetView,
+    selectedAnnotationId,
+    setBrushSize: (value) => setField("brushSize", value),
+    setCompareB,
+    setErrorMessage: (value) => setField("errorMessage", value),
+    toggleFullscreen,
+    setSelectedAnnotationId: (value) => setField("selectedAnnotationId", value),
+    setTool: (value) => setField("tool", value),
+    undo,
+  });
+
   useEffect(() => {
-    const isTypingInField = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      return !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
-    };
-
     const onKeyDown = (e: KeyboardEvent) => {
-      if (isTypingInField(e)) return;
-      const meta = e.ctrlKey || e.metaKey;
-      const k = e.key.toLowerCase();
-
-      // Primary-modifier shortcuts
-      if (meta && k === "z" && !e.shiftKey) { e.preventDefault(); undo(); return; }
-      if (meta && ((k === "z" && e.shiftKey) || k === "y")) { e.preventDefault(); redo(); return; }
-
-      // Space → temporary pan (don't react to autorepeat).
+      const t = e.target as HTMLElement | null;
+      const isTyping = !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+      if (isTyping) return;
       if (e.code === "Space" && !e.repeat) {
         e.preventDefault();
         setSpacePan(true);
-        return;
-      }
-
-      // Esc → cancel running job → exit compare → clear selection → dismiss error
-      if (k === "escape") {
-        if (isRunning) cancel();
-        else if (compareB) setCompareB(null);
-        else if (selectedAnnotationId) setField("selectedAnnotationId", null);
-        else if (errorMessage) setField("errorMessage", null);
-        return;
-      }
-
-      // Delete / Backspace → remove selected annotation
-      if ((k === "delete" || k === "backspace") && selectedAnnotationId) {
-        e.preventDefault();
-        removeAnnotation(selectedAnnotationId);
-        return;
-      }
-
-      // F11 on non-macOS, or Control+Command+F on macOS → toggle fullscreen.
-      if ((!isMac && k === "f11") || (isMac && e.ctrlKey && e.metaKey && k === "f")) {
-        e.preventDefault();
-        const { fullscreen } = useStudioStore.getState();
-        setField("fullscreen", !fullscreen);
-        return;
-      }
-
-      // Ctrl+C → copy current image to clipboard
-      if (meta && k === "c" && currentImage) {
-        e.preventDefault();
-        copyImageToClipboard(currentImage.imageB64).then((ok) => {
-          const t = useStudioStore.getState().pushToast;
-          if (ok) t("已复制图片到剪贴板", "success");
-          else t("复制失败,当前运行环境拒绝写剪贴板", "error");
-        });
-        return;
-      }
-
-      // F → fit to screen
-      if (k === "f") { e.preventDefault(); setUserView(null); return; }
-
-      // 1/2/3 → tool switch
-      if (currentImage) {
-        if (k === "1") { e.preventDefault(); setField("tool", "pan"); return; }
-        if (k === "2") { e.preventDefault(); setField("tool", "mask"); return; }
-        if (k === "3") { e.preventDefault(); setField("tool", "annotate"); return; }
-      }
-
-      // [ / ] → brush size
-      if (k === "[" || k === "]") {
-        e.preventDefault();
-        const delta = k === "[" ? -5 : 5;
-        setField("brushSize", Math.max(5, Math.min(120, brushSize + delta)));
-        return;
       }
     };
-
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code === "Space") setSpacePan(false);
     };
-
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [undo, redo, isRunning, cancel, compareB, setCompareB, errorMessage, setField, currentImage, brushSize, selectedAnnotationId, removeAnnotation]);
+  }, []);
 
   // Host div is rendered unconditionally so its ref (and the ResizeObserver
   // attached to it) survives the empty-state → has-image transition. Previously
   // the empty branch had its own <div ref={hostRef}>, the host unmounted on
   // first generate, and the observer kept reporting the stale initial size.
   return (
-    <div
-      ref={hostRef}
-      className="stage-host"
-      style={{ cursor: !currentImage ? "default" : (effectiveTool === "pan" ? (spacePan ? "grabbing" : "grab") : "crosshair") }}
-    >
-      {!currentImage && <EmptyState />}
-      {showingResultGrid && (
-        <BatchResultGrid
-          items={batchResults}
-          currentId={currentImage?.id ?? null}
-          onSelect={selectBatchResult}
-          onClose={closeResultGrid}
-        />
-      )}
-      {!showingResultGrid && currentImage && compareB && (
-        <CompareOverlay
-          aBlob={currentImage.imageBlob ?? null}
-          aB64={currentImage.imageB64}
-          bBlob={compareB.imageBlob ?? null}
-          bB64={compareB.imageB64}
-          split={compareSplit}
-          onSplit={setCompareSplit}
-        />
-      )}
-      {!showingResultGrid && currentImage && !compareB && hostSize.w > 0 && hostSize.h > 0 && (
-      // The Stage canvas is wrapped in an absolutely positioned container so
-      // its (potentially very large) layout footprint cannot push back on the
-      // stage-host's grid-derived width. stage-host stays bounded by the grid
-      // track; this wrapper takes whatever size stage-host gives it via inset:0.
-      <div className="stage-canvas-wrap" style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
-      <Stage
-        ref={stageRef}
-        width={hostSize.w}
-        height={hostSize.h}
-        x={view.x}
-        y={view.y}
-        scaleX={view.scale}
-        scaleY={view.scale}
-        draggable={effectiveTool === "pan"}
-        onDragEnd={(e) => setView({ ...view, x: e.target.x(), y: e.target.y() })}
-        onWheel={onWheel}
-        onMouseDown={onMouseDown}
-        onMouseMove={onMouseMove}
-        onMouseUp={onMouseUp}
-        onMouseLeave={onMouseUp}
-        onDblClick={onStageDblClick}
-      >
-        <Layer ref={imageLayerRef}>
-          {image && <KonvaImage image={image} listening={false} />}
-        </Layer>
-
-        <Layer ref={maskLayerRef}>
-          {strokes.map((s, i) => (
-            <Line
-              key={i}
-              points={s.points}
-              stroke={s.erase ? "rgba(226,85,85,0.55)" : "rgba(77,124,255,0.55)"}
-              strokeWidth={s.size}
-              lineCap="round"
-              lineJoin="round"
-              tension={0.4}
-              dash={s.erase ? [s.size * 0.4, s.size * 0.4] : undefined}
-              listening={false}
-              globalCompositeOperation={s.erase ? "destination-out" : "source-over"}
-            />
-          ))}
-          {drawingRef.current.current && (
-            <Line
-              // ★ 必须 .slice() 出新数组引用 —— onMouseMove 原地 push 不会改变
-              // points 数组引用,react-konva 走 prop 浅比较会跳过更新,导致
-              // 拖拽期间只画起点 / 终点,松手才一次性补全所有中间点。
-              points={drawingRef.current.current.points.slice()}
-              stroke={drawingRef.current.current.erase ? "rgba(226,85,85,0.55)" : "rgba(77,124,255,0.55)"}
-              strokeWidth={drawingRef.current.current.size}
-              lineCap="round"
-              lineJoin="round"
-              tension={0.4}
-              dash={drawingRef.current.current.erase ? [drawingRef.current.current.size * 0.4, drawingRef.current.current.size * 0.4] : undefined}
-              listening={false}
-              globalCompositeOperation={drawingRef.current.current.erase ? "destination-out" : "source-over"}
-            />
-          )}
-        </Layer>
-
-        <Layer>
-          {annotations.map((a) => (
-            <AnnotationShape
-              key={a.id}
-              a={a}
-              selected={selectedAnnotationId === a.id}
-              onSelect={() => setField("selectedAnnotationId", a.id)}
-            />
-          ))}
-          {drag && drag.kind === "rect" && (
-            <Rect
-              x={Math.min(drag.sx, drag.x)}
-              y={Math.min(drag.sy, drag.y)}
-              width={Math.abs(drag.x - drag.sx)}
-              height={Math.abs(drag.y - drag.sy)}
-              stroke={annotationColor}
-              strokeWidth={2 / view.scale}
-              dash={[6 / view.scale, 4 / view.scale]}
-              listening={false}
-            />
-          )}
-          {drag && drag.kind === "arrow" && (
-            <Arrow
-              points={[drag.sx, drag.sy, drag.x, drag.y]}
-              stroke={annotationColor}
-              strokeWidth={2 / view.scale}
-              fill={annotationColor}
-              pointerLength={12 / view.scale}
-              pointerWidth={12 / view.scale}
-              listening={false}
-            />
-          )}
-          {freehandRef.current && freehandRef.current.length >= 4 && (
-            <Line
-              // 同上:.slice() 强制每帧新引用,绕过 react-konva 的浅比较跳更新。
-              points={freehandRef.current.slice()}
-              stroke={annotationColor}
-              strokeWidth={3 / view.scale}
-              lineCap="round"
-              lineJoin="round"
-              tension={0.4}
-              listening={false}
-            />
-          )}
-        </Layer>
-      </Stage>
-      </div>
-      )}
-    </div>
-  );
-}
-
-function BatchResultGrid({
-  items,
-  currentId,
-  onSelect,
-  onClose,
-}: {
-  items: HistoryItem[];
-  currentId: string | null;
-  onSelect: (item: HistoryItem) => void | Promise<void>;
-  onClose: () => void;
-}) {
-  const columns = items.length <= 2 ? 2 : items.length <= 4 ? 2 : 3;
-  return (
-    <div className="batch-grid-overlay">
-      <div className="batch-grid-head">
-        <span className="batch-grid-title">本批结果 · {items.length} 张</span>
-        <button type="button" className="batch-grid-close" onClick={onClose} title="返回当前图">
-          返回当前图
-        </button>
-      </div>
+    <>
       <div
-        className="batch-grid"
-        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+        ref={hostRef}
+        className="stage-host"
+        style={{ cursor: !currentImage ? "default" : (effectiveTool === "pan" ? (spacePan ? "grabbing" : "grab") : "crosshair") }}
       >
-        {items.map((item, index) => (
-          <BatchGridTile
-            key={item.id}
-            item={item}
-            index={index}
-            active={item.id === currentId}
-            onSelect={onSelect}
+        {!currentImage && <EmptyState />}
+        {showingResultGrid && (
+          <BatchResultGrid
+            items={batchResults}
+            currentId={currentImage?.id ?? null}
+            onSelect={selectBatchResult}
+            onClose={closeResultGrid}
           />
-        ))}
+        )}
+        {!showingResultGrid && currentImage && compareB && (
+          <CompareOverlay
+            aBlob={currentImage.imageBlob ?? null}
+            aB64={currentImage.imageB64}
+            bBlob={compareB.imageBlob ?? null}
+            bB64={compareB.imageB64}
+            split={compareSplit}
+            onSplit={setCompareSplit}
+          />
+        )}
+        {!showingResultGrid && currentImage && !compareB && hostSize.w > 0 && hostSize.h > 0 && (
+        // The Stage canvas is wrapped in an absolutely positioned container so
+        // its (potentially very large) layout footprint cannot push back on the
+        // stage-host's grid-derived width. stage-host stays bounded by the grid
+        // track; this wrapper takes whatever size stage-host gives it via inset:0.
+        <div className="stage-canvas-wrap" style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
+        <Stage
+          ref={stageRef}
+          width={hostSize.w}
+          height={hostSize.h}
+          x={view.x}
+          y={view.y}
+          scaleX={view.scale}
+          scaleY={view.scale}
+          draggable={effectiveTool === "pan"}
+          onDragEnd={(e) => setView({ ...view, x: e.target.x(), y: e.target.y() })}
+          onWheel={onWheel}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+          onMouseLeave={onMouseUp}
+          onDblClick={onStageDblClick}
+          onContextMenu={openCanvasMenu}
+        >
+          <Layer ref={imageLayerRef}>
+            {image && <KonvaImage image={image} listening={false} />}
+          </Layer>
+
+          <Layer ref={maskLayerRef}>
+            {strokes.map((s, i) => (
+              <Line
+                key={i}
+                points={s.points}
+                stroke={s.erase ? "rgba(226,85,85,0.55)" : "rgba(77,124,255,0.55)"}
+                strokeWidth={s.size}
+                lineCap="round"
+                lineJoin="round"
+                tension={0.4}
+                dash={s.erase ? [s.size * 0.4, s.size * 0.4] : undefined}
+                listening={false}
+                globalCompositeOperation={s.erase ? "destination-out" : "source-over"}
+              />
+            ))}
+            {drawingRef.current.current && (
+              <Line
+                // ★ 必须 .slice() 出新数组引用 —— onMouseMove 原地 push 不会改变
+                // points 数组引用,react-konva 走 prop 浅比较会跳过更新,导致
+                // 拖拽期间只画起点 / 终点,松手才一次性补全所有中间点。
+                points={drawingRef.current.current.points.slice()}
+                stroke={drawingRef.current.current.erase ? "rgba(226,85,85,0.55)" : "rgba(77,124,255,0.55)"}
+                strokeWidth={drawingRef.current.current.size}
+                lineCap="round"
+                lineJoin="round"
+                tension={0.4}
+                dash={drawingRef.current.current.erase ? [drawingRef.current.current.size * 0.4, drawingRef.current.current.size * 0.4] : undefined}
+                listening={false}
+                globalCompositeOperation={drawingRef.current.current.erase ? "destination-out" : "source-over"}
+              />
+            )}
+          </Layer>
+
+          <Layer>
+            {annotations.map((a) => (
+              <AnnotationShape
+                key={a.id}
+                annotation={a}
+                selected={selectedAnnotationId === a.id}
+                onSelect={() => setField("selectedAnnotationId", a.id)}
+              />
+            ))}
+            {drag && drag.kind === "rect" && (
+              <Rect
+                x={Math.min(drag.sx, drag.x)}
+                y={Math.min(drag.sy, drag.y)}
+                width={Math.abs(drag.x - drag.sx)}
+                height={Math.abs(drag.y - drag.sy)}
+                stroke={annotationColor}
+                strokeWidth={2 / view.scale}
+                dash={[6 / view.scale, 4 / view.scale]}
+                listening={false}
+              />
+            )}
+            {drag && drag.kind === "arrow" && (
+              <Arrow
+                points={[drag.sx, drag.sy, drag.x, drag.y]}
+                stroke={annotationColor}
+                strokeWidth={2 / view.scale}
+                fill={annotationColor}
+                pointerLength={12 / view.scale}
+                pointerWidth={12 / view.scale}
+                listening={false}
+              />
+            )}
+            {freehandRef.current && freehandRef.current.length >= 4 && (
+              <Line
+                // 同上:.slice() 强制每帧新引用,绕过 react-konva 的浅比较跳更新。
+                points={freehandRef.current.slice()}
+                stroke={annotationColor}
+                strokeWidth={3 / view.scale}
+                lineCap="round"
+                lineJoin="round"
+                tension={0.4}
+                listening={false}
+              />
+            )}
+          </Layer>
+        </Stage>
+        </div>
+        )}
       </div>
-    </div>
+      {canvasMenu && currentImage ? (
+        <ContextMenu
+          x={canvasMenu.x}
+          y={canvasMenu.y}
+          items={canvasMenuItems}
+          onClose={() => setCanvasMenu(null)}
+        />
+      ) : null}
+    </>
   );
 }
 
-function BatchGridTile({
-  item,
-  index,
-  active,
-  onSelect,
-}: {
-  item: HistoryItem;
-  index: number;
-  active: boolean;
-  onSelect: (item: HistoryItem) => void | Promise<void>;
-}) {
-  // 批量网格里每张图能撑到 400×400+ 像素,不能用 192px 的 previewBlob(那是
-  // 给侧栏小缩略图准备的,放大到这种尺寸会糊得很明显)。优先 imageBlob(全分),
-  // 没 blob 时把 imageB64 喂给 useBlobURL 让它内部转 blob URL —— 避免落到
-  // 大 data URL fallback。
-  const previewURL = useBlobURL(item.imageBlob ?? item.previewBlob ?? null, item.imageB64 ?? null);
-  return (
-    <button
-      type="button"
-      className={`batch-grid-tile ${active ? "active" : ""}`}
-      onClick={() => void onSelect(item)}
-      title={item.prompt}
-    >
-      <img
-        src={previewURL ?? `data:image/png;base64,${item.imageB64}`}
-        alt={item.prompt || `batch result ${index + 1}`}
-        loading="eager"
-        decoding="async"
-        draggable={false}
-      />
-      <span className="batch-grid-index">{index + 1}</span>
-      {item.elapsedSec && <span className="batch-grid-meta">{item.elapsedSec}s</span>}
-    </button>
-  );
-}
-
-function CompareOverlay({
-  aBlob, aB64, bBlob, bB64, split, onSplit,
-}: {
-  aBlob: Blob | null;
-  aB64: string;
-  bBlob: Blob | null;
-  bB64: string;
-  split: number;
-  onSplit: (v: number) => void;
-}) {
-  const wrapRef = useRef<HTMLDivElement | null>(null);
-  const draggingRef = useRef(false);
-
-  useEffect(() => {
-    const move = (e: MouseEvent) => {
-      if (!draggingRef.current || !wrapRef.current) return;
-      const r = wrapRef.current.getBoundingClientRect();
-      const x = e.clientX - r.left;
-      onSplit(x / r.width);
-    };
-    const up = () => { draggingRef.current = false; };
-    window.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", up);
-    return () => {
-      window.removeEventListener("mousemove", move);
-      window.removeEventListener("mouseup", up);
-    };
-  }, [onSplit]);
-
-  const pct = Math.round(split * 100);
-  return (
-    <div ref={wrapRef} style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
-      <img
-        src={aBlob ? blobToObjectURL(aBlob) : `data:image/png;base64,${aB64}`}
-        draggable={false}
-        style={{
-          position: "absolute", inset: 0, width: "100%", height: "100%",
-          objectFit: "contain", userSelect: "none",
-          clipPath: `inset(0 ${100 - pct}% 0 0)`,
-        }}
-      />
-      <img
-        src={bBlob ? blobToObjectURL(bBlob) : `data:image/png;base64,${bB64}`}
-        draggable={false}
-        style={{
-          position: "absolute", inset: 0, width: "100%", height: "100%",
-          objectFit: "contain", userSelect: "none",
-          clipPath: `inset(0 0 0 ${pct}%)`,
-        }}
-      />
-      {/* Split bar handle */}
-      <div
-        onMouseDown={(e) => { e.preventDefault(); draggingRef.current = true; }}
-        style={{
-          position: "absolute",
-          top: 0, bottom: 0,
-          left: `${pct}%`,
-          width: 3, marginLeft: -1.5,
-          background: "#7e5cff",
-          cursor: "ew-resize",
-          boxShadow: "0 0 0 1px rgba(0,0,0,0.4)",
-        }}
-      >
-        <div style={{
-          position: "absolute",
-          top: "50%", left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: 24, height: 24, borderRadius: "50%",
-          background: "#7e5cff",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          color: "#fff", fontSize: 12,
-        }}>⇆</div>
-      </div>
-      {/* Labels */}
-      <div style={{ position: "absolute", top: 8, left: 8, background: "rgba(0,0,0,0.55)", padding: "2px 8px", borderRadius: 4, fontSize: 11, color: "#9ec5ff" }}>A · 当前图</div>
-      <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,0.55)", padding: "2px 8px", borderRadius: 4, fontSize: 11, color: "#cdb8ff" }}>B · 对比图</div>
-    </div>
-  );
-}
-
-function AnnotationShape({ a, selected, onSelect }: { a: Annotation; selected: boolean; onSelect: () => void }) {
-  const halo = selected ? "#4d7cff" : undefined;
-  const onClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    e.cancelBubble = true;
-    onSelect();
-  };
-  if (a.kind === "rect") {
-    return (
-      <Rect
-        x={a.x}
-        y={a.y}
-        width={a.width ?? 0}
-        height={a.height ?? 0}
-        stroke={a.color}
-        strokeWidth={3}
-        shadowColor={halo}
-        shadowBlur={selected ? 12 : 0}
-        shadowOpacity={selected ? 0.9 : 0}
-        onClick={onClick}
-      />
-    );
-  }
-  if (a.kind === "arrow") {
-    return (
-      <Arrow
-        points={[a.x, a.y, (a.x + (a.width ?? 0)), (a.y + (a.height ?? 0))]}
-        stroke={a.color}
-        strokeWidth={3}
-        fill={a.color}
-        pointerLength={12}
-        pointerWidth={12}
-        shadowColor={halo}
-        shadowBlur={selected ? 12 : 0}
-        shadowOpacity={selected ? 0.9 : 0}
-        onClick={onClick}
-      />
-    );
-  }
-  if (a.kind === "freehand") {
-    return (
-      <Line
-        points={a.points ?? []}
-        stroke={a.color}
-        strokeWidth={3}
-        lineCap="round"
-        lineJoin="round"
-        tension={0.4}
-        shadowColor={halo}
-        shadowBlur={selected ? 12 : 0}
-        shadowOpacity={selected ? 0.9 : 0}
-        hitStrokeWidth={10}
-        onClick={onClick}
-      />
-    );
-  }
-  // text
-  return (
-    <Text
-      x={a.x}
-      y={a.y}
-      text={a.text ?? ""}
-      fill={a.color}
-      fontSize={20}
-      shadowColor={halo}
-      shadowBlur={selected ? 8 : 0}
-      shadowOpacity={selected ? 0.9 : 0}
-      onClick={onClick}
-    />
-  );
+function modeLabelForMenu(item: HistoryItem) {
+  return item.mode === "edit" ? "设为继续编辑源图" : "设为图生图源图";
 }

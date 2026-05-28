@@ -11,16 +11,20 @@ const (
 	OutputFormat       = "png"
 	MaxInputImageBytes = 50 * 1024 * 1024
 	MaxAttempts        = 3
-	// 所有出站请求的 User-Agent。sub2api / 中转站后台会把这串当客户端标识展示。
-	// 改这里就同时影响 NativeTransport / CurlTransport / Images API 路径。
-	UserAgent = "image-studio/0.1.0"
 )
 
 // Tunable knobs (exposed as vars so tests can shrink them).
 var (
 	RetryBackoffSeconds  = 15
 	StatusIntervalSecond = 10
+	// Version 在构建时通过 ldflags 注入;本地未注入时回退到开发标识。
+	Version = "0.1.5"
 )
+
+// UserAgent 返回所有上游请求统一使用的客户端标识。
+func UserAgent() string {
+	return "image-studio/" + Version
+}
 
 var SupportedImageMime = map[string]string{
 	".png":  "image/png",
@@ -89,15 +93,6 @@ const (
 	ModeEdit     Mode = "edit"
 )
 
-// TransportKind selects HTTP implementation.
-type TransportKind string
-
-const (
-	TransportAuto   TransportKind = "auto"
-	TransportNative TransportKind = "native"
-	TransportCurl   TransportKind = "curl"
-)
-
 // APIMode selects which upstream contract to use.
 //
 //   - APIModeResponses: 老路径,POST /v1/responses(OpenAI Responses API 形态)
@@ -110,6 +105,13 @@ type APIMode string
 const (
 	APIModeResponses APIMode = "responses"
 	APIModeImages    APIMode = "images"
+)
+
+type RequestPolicy string
+
+const (
+	RequestPolicyOpenAI RequestPolicy = "openai"
+	RequestPolicyCompat RequestPolicy = "compat"
 )
 
 // Options drives a single image request.
@@ -144,6 +146,11 @@ type Options struct {
 	// Empty string is treated as APIModeResponses for back-compat.
 	APIMode APIMode
 
+	// RequestPolicy selects whether to send only OpenAI-documented fields
+	// ("openai", default) or also include relay-oriented extension fields
+	// such as seed / negative_prompt ("compat").
+	RequestPolicy RequestPolicy
+
 	MaskB64 string // optional, reserved for Phase 3 GUI; omitted from payload when empty
 
 	// Seed pins the random source so users can reproduce a result. 0 means
@@ -160,13 +167,11 @@ type Options struct {
 	TextModelID     string
 	ImageModelID    string
 
-	// NoPromptRevision:Responses API 模式下,默认文本模型会把用户 prompt 改写
-	// 一遍再喂给 image_generation 工具(返回里的 revised_prompt 字段就是改写版)。
-	// 设为 true 时在 payload 顶层加 instructions 让模型逐字使用,适合用户已经
-	// 精修过 prompt、不想被二次发挥的场景。Images API 路径忽略此字段(本来就不重写)。
+	// NoPromptRevision is kept for backward compatibility. Responses API
+	// payloads now always add instructions that ask the text model to pass the
+	// prompt to image_generation verbatim. Images API ignores this field.
 	NoPromptRevision bool
 
-	Transport TransportKind // auto | native | curl
 }
 
 // EffectiveImageDataURLs returns the merged list, deduplicating empty entries.

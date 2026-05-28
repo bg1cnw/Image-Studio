@@ -1,4 +1,4 @@
-import type { APIMode, UpstreamProfile } from "../types/domain";
+import type { APIMode, RequestPolicy, UpstreamProfile } from "../types/domain";
 
 // localStorage 键名规范:
 //   gptcodex.profiles        —— UpstreamProfile[] JSON(无 apiKey,key 在 keyring)
@@ -34,6 +34,10 @@ export function apiModeLabel(mode: APIMode): string {
   return mode === "images" ? "Images API" : "Responses API";
 }
 
+export function requestPolicyLabel(mode: RequestPolicy): string {
+  return mode === "compat" ? "兼容中转扩展" : "OpenAI 标准";
+}
+
 // 从可信任的 JSON 反序列化一个 profile。字段缺失 / 类型不对回 null,bootstrap
 // 里遇到坏的就跳过,不让一条坏数据带崩整张表。
 export function tryParseProfile(raw: unknown): UpstreamProfile | null {
@@ -42,6 +46,7 @@ export function tryParseProfile(raw: unknown): UpstreamProfile | null {
   const id = typeof o.id === "string" ? o.id : "";
   const name = typeof o.name === "string" ? o.name : "";
   const apiMode = o.apiMode === "images" ? "images" : "responses";
+  const requestPolicy = o.requestPolicy === "compat" ? "compat" : "openai";
   const baseURL = typeof o.baseURL === "string" ? o.baseURL : "";
   const textModelID = typeof o.textModelID === "string" ? o.textModelID : "";
   const imageModelID = typeof o.imageModelID === "string" ? o.imageModelID : "";
@@ -50,7 +55,7 @@ export function tryParseProfile(raw: unknown): UpstreamProfile | null {
   const createdAt = typeof o.createdAt === "number" ? o.createdAt : Date.now();
   const lastUsedAt = typeof o.lastUsedAt === "number" ? o.lastUsedAt : undefined;
   if (!id || !name) return null;
-  return { id, name, apiMode, baseURL, textModelID, imageModelID, concurrencyLimit, createdAt, lastUsedAt };
+  return { id, name, apiMode, requestPolicy, baseURL, textModelID, imageModelID, concurrencyLimit, createdAt, lastUsedAt };
 }
 
 // 列表里挑当前 active —— activeProfileId 命中时用它,否则用最近使用过的,
@@ -72,6 +77,7 @@ export function makeBlankProfile(apiMode: APIMode = "responses"): UpstreamProfil
     id: genProfileId(),
     name: apiMode === "responses" ? "新配置 · Responses" : "新配置 · Images",
     apiMode,
+    requestPolicy: "openai",
     baseURL: "",
     textModelID: "",
     imageModelID: "",

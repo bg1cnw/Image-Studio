@@ -9,6 +9,10 @@ import "strings"
 type GenerateOptions struct {
 	APIKey  string `json:"apiKey"`
 	Mode    string `json:"mode"` // "generate" | "edit"
+	// RequestedJobID allows the frontend to pre-bind event listeners before
+	// dispatching the request, avoiding a race where a very fast result event
+	// arrives before the UI has attached `result:<jobId>` handlers.
+	RequestedJobID string `json:"requestedJobId"`
 	Prompt  string `json:"prompt"`
 	Size    string `json:"size"`
 	Quality string `json:"quality"`
@@ -30,9 +34,10 @@ type GenerateOptions struct {
 	BaseURL        string `json:"baseURL"`        // overrides the default upstream URL
 	TextModelID    string `json:"textModelID"`    // overrides the default text model
 	ImageModelID   string `json:"imageModelID"`   // overrides the default image model
-	Transport      string `json:"transport"`      // "auto" | "native" | "curl"
 	APIMode        string `json:"apiMode"`        // "responses" (default) | "images"
-	// NoPromptRevision:true 时禁止 Responses API 文本模型改写 prompt;Images API 路径忽略。
+	RequestPolicy  string `json:"requestPolicy"`  // "openai" (default) | "compat"
+	// NoPromptRevision is kept for backward compatibility; Responses API
+	// requests now always ask the text model to keep the prompt verbatim.
 	NoPromptRevision bool `json:"noPromptRevision"`
 	// ConcurrencyLimit is enforced per APIMode. 0 means unlimited.
 	ConcurrencyLimit int `json:"concurrencyLimit"`

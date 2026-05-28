@@ -8,14 +8,62 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      base_version:
+        description: "基础版本号，例如 0.1.6。手动 release 编译前必须填写。"
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 jobs:
+  prepare-version:
+    name: Prepare version metadata
+    runs-on: ubuntu-24.04
+    outputs:
+      product_version: ${{ steps.version.outputs.product_version }}
+      app_version: ${{ steps.version.outputs.app_version }}
+      frontend_version: ${{ steps.version.outputs.frontend_version }}
+      android_version_name: ${{ steps.version.outputs.android_version_name }}
+      android_version_code: ${{ steps.version.outputs.android_version_code }}
+      version_channel: ${{ steps.version.outputs.version_channel }}
+      version_sha: ${{ steps.version.outputs.version_sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute version
+        id: version
+        shell: bash
+        env:
+          DISPATCH_BASE_VERSION: ${{ github.event.inputs.base_version }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ -z "${DISPATCH_BASE_VERSION// }" ]; then
+              echo "base_version is required for manual release builds" >&2
+              exit 1
+            fi
+            eval "$(./scripts/compute-version.sh "$DISPATCH_BASE_VERSION")"
+          else
+            eval "$(./scripts/compute-version.sh)"
+          fi
+          {
+            echo "product_version=${PRODUCT_VERSION}"
+            echo "app_version=${APP_VERSION}"
+            echo "frontend_version=${FRONTEND_VERSION}"
+            echo "android_version_name=${ANDROID_VERSION_NAME}"
+            echo "android_version_code=${ANDROID_VERSION_CODE}"
+            echo "version_channel=${VERSION_CHANNEL}"
+            echo "version_sha=${VERSION_SHA}"
+          } >> "$GITHUB_OUTPUT"
+
   build-desktop:
     name: Build ${{ matrix.id }}
     runs-on: ${{ matrix.runner }}
+    needs: prepare-version
     strategy:
       fail-fast: false
       matrix:
@@ -32,14 +80,14 @@ jobs:
             goos: darwin
             artifact_name: image-studio-macos-universal.zip
             artifact_path: dist/image-studio-macos-universal.zip
-            wails_args: -clean
-            package_cmd: ditto -c -k --sequesterRsrc --keepParent image-studio/build/bin/image-studio.app dist/image-studio-macos-universal.zip
+            wails_args: ""
+            package_cmd: ditto -c -k --sequesterRsrc --keepParent "image-studio/build/bin/Image Studio.app" dist/image-studio-macos-universal.zip
           - id: linux-amd64
             runner: ubuntu-24.04
             goos: linux
             artifact_name: image-studio-linux-amd64.tar.gz
             artifact_path: dist/image-studio-linux-amd64.tar.gz
-            wails_args: -clean -tags webkit2_41
+            wails_args: -platform linux/amd64 -clean -tags webkit2_41
             package_cmd: tar -C image-studio/build/bin -czf dist/image-studio-linux-amd64.tar.gz image-studio
 
     steps:
@@ -51,6 +99,7 @@ jobs:
         with:
           go-version: "1.25"
           check-latest: true
+          cache-dependency-path: image-studio/go.sum
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -59,6 +108,18 @@ jobs:
           cache: npm
           cache-dependency-path: image-studio/frontend/package-lock.json
 
+      - name: Sync version metadata
+        shell: bash
+        env:
+          IMAGE_STUDIO_PRODUCT_VERSION: ${{ needs.prepare-version.outputs.product_version }}
+          IMAGE_STUDIO_FRONTEND_VERSION: ${{ needs.prepare-version.outputs.frontend_version }}
+        run: node ./scripts/sync-version-metadata.mjs
+
+      - name: Install frontend dependencies
+        working-directory: image-studio/frontend
+        shell: bash
+        run: npm ci
+
       - name: Install Linux build dependencies
         if: matrix.goos == 'linux'
         run: |
@@ -66,15 +127,24 @@ jobs:
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
 
       - name: Install Wails CLI
+        if: matrix.goos != 'darwin'
         shell: bash
         run: |
-          go install github.com/wailsapp/wails/v2/cmd/wails@latest
+          go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Build desktop app
         working-directory: image-studio
         shell: bash
-        run: wails build ${{ matrix.wails_args }}
+        env:
+          VITE_APP_VERSION: ${{ needs.prepare-version.outputs.app_version }}
+        run: |
+          if [ "${{ matrix.goos }}" = "darwin" ]; then
+            bash ../scripts/package-local-macos-app.sh
+          else
+            wails build ${{ matrix.wails_args }} \
+              -ldflags "-X github.com/yuanhua/image-gptcodex/pkg/client.Version=${{ needs.prepare-version.outputs.app_version }}"
+          fi
 
       - name: Stage packaged artifact
         shell: bash
@@ -91,20 +161,9 @@ jobs:
           retention-days: 14
 
   build-android-apk:
-    name: Build ${{ matrix.id }} apk
+    name: Build android apk
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - id: phone
-            gradle_task: assemblePhoneRelease
-            artifact_name: image-studio-android-phone-release-unsigned.apk
-            artifact_path: android-shell/app/build/outputs/apk/phone/release/app-phone-release-unsigned.apk
-          - id: pad
-            gradle_task: assemblePadRelease
-            artifact_name: image-studio-android-pad-release-unsigned.apk
-            artifact_path: android-shell/app/build/outputs/apk/pad/release/app-pad-release-unsigned.apk
+    needs: prepare-version
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -122,11 +181,21 @@ jobs:
           cache: npm
           cache-dependency-path: image-studio/frontend/package-lock.json
 
+      - name: Sync version metadata
+        shell: bash
+        env:
+          IMAGE_STUDIO_PRODUCT_VERSION: ${{ needs.prepare-version.outputs.product_version }}
+          IMAGE_STUDIO_FRONTEND_VERSION: ${{ needs.prepare-version.outputs.frontend_version }}
+        run: node ./scripts/sync-version-metadata.mjs
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
       - name: Install Android packages
         run: sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Prepare Android user home
+        run: mkdir -p .tmp/android-home/.android
 
       - name: Write Android local.properties
         run: |
@@ -137,21 +206,37 @@ jobs:
         with:
           gradle-version: "8.7"
 
-      - name: Build ${{ matrix.id }} apk
+      - name: Build android apk
+        env:
+          ANDROID_USER_HOME: ${{ github.workspace }}/.tmp/android-home/.android
+          ANDROID_SDK_HOME: ${{ github.workspace }}/.tmp/android-home
+          HOME: ${{ github.workspace }}/.tmp/android-home
+          IMAGE_STUDIO_ANDROID_VERSION_NAME: ${{ needs.prepare-version.outputs.android_version_name }}
+          IMAGE_STUDIO_ANDROID_VERSION_CODE: ${{ needs.prepare-version.outputs.android_version_code }}
+          VITE_APP_VERSION: ${{ needs.prepare-version.outputs.app_version }}
         run: |
-          gradle -p android-shell --no-daemon ${{ matrix.gradle_task }}
+          gradle -p android-shell --no-daemon assembleRelease
+
+      - name: Verify signed apk
+        env:
+          ANDROID_USER_HOME: ${{ github.workspace }}/.tmp/android-home/.android
+          ANDROID_SDK_HOME: ${{ github.workspace }}/.tmp/android-home
+          HOME: ${{ github.workspace }}/.tmp/android-home
+        run: |
+          "$ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner" verify -v "android-shell/app/build/outputs/apk/release/app-release.apk"
 
       - name: Upload apk artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.artifact_path }}
+          name: image-studio-android-release.apk
+          path: android-shell/app/build/outputs/apk/release/app-release.apk
           retention-days: 14
 
   publish-release:
     name: Publish release assets
     runs-on: ubuntu-24.04
     needs:
+      - prepare-version
       - build-desktop
       - build-android-apk
     if: startsWith(github.ref, 'refs/tags/v')
@@ -171,6 +256,8 @@ jobs:
       - name: Attach to release
         uses: softprops/action-gh-release@v2
         with:
+          name: v${{ needs.prepare-version.outputs.product_version }}
+          tag_name: v${{ needs.prepare-version.outputs.product_version }}
           files: release-assets/*
           fail_on_unmatched_files: true
           generate_release_notes: false

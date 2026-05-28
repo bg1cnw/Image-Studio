@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Copy } from "lucide-react";
 import { Modal } from "../common/Modal";
-import { ReadTextFile } from "../../../wailsjs/go/backend/Service";
+import { ReadTextFile } from "../../platform/runtime/host";
 import { useStudioStore } from "../../state/studioStore";
-import { isWindows } from "../../lib/platform";
+import { usePlatform } from "../../platform/context";
 
 const MAX_PREVIEW = 200_000; // chars
 
@@ -12,6 +12,7 @@ export function RawResponseModal({ path, onClose }: { path: string; onClose: () 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const pushToast = useStudioStore((s) => s.pushToast);
+  const { usesFluentUI } = usePlatform();
 
   useEffect(() => {
     setLoading(true);
@@ -40,17 +41,17 @@ export function RawResponseModal({ path, onClose }: { path: string; onClose: () 
         <code className="font-mono-token break-all text-zinc-600 dark:text-zinc-400">{path}</code>
         <button
           onClick={copyAll}
-          className={`inline-flex shrink-0 items-center gap-1 border border-black/[0.08] px-2.5 py-1.5 text-xs text-zinc-700 transition-colors hover:border-[color:var(--accent)]/35 hover:text-[var(--accent)] dark:border-white/[0.08] dark:text-zinc-300 ${isWindows ? "rounded-[8px]" : "rounded-full"}`}
+          className={`inline-flex shrink-0 items-center gap-1 border border-black/[0.08] px-2.5 py-1.5 text-xs text-zinc-700 transition-colors hover:border-[color:var(--accent)]/35 hover:text-[var(--accent)] dark:border-white/[0.08] dark:text-zinc-300 ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
         >
           <Copy className="w-3 h-3" /> 复制全文
         </button>
       </div>
       {loading && <div className="text-zinc-500 p-3 text-sm">读取中...</div>}
       {error && (
-        <div className={`border border-red-500/25 bg-red-500/10 p-3 text-sm text-red-400 ${isWindows ? "rounded-[10px]" : "rounded-[16px]"}`}>{error}</div>
+        <div className={`border border-red-500/25 bg-red-500/10 p-3 text-sm text-red-400 ${usesFluentUI ? "rounded-[10px]" : "rounded-[16px]"}`}>{error}</div>
       )}
       {!loading && !error && (
-        <pre className={`font-mono-token max-h-[55vh] overflow-auto whitespace-pre-wrap break-all border border-black/[0.08] bg-[var(--surface)] p-3 text-[11px] leading-relaxed text-zinc-600 dark:border-white/[0.06] dark:text-zinc-400 ${isWindows ? "rounded-[10px]" : "rounded-[16px]"}`}>
+        <pre className={`font-mono-token max-h-[55vh] overflow-auto whitespace-pre-wrap break-all border border-black/[0.08] bg-[var(--surface)] p-3 text-[11px] leading-relaxed text-zinc-600 dark:border-white/[0.06] dark:text-zinc-400 ${usesFluentUI ? "rounded-[10px]" : "rounded-[16px]"}`}>
           {text}
         </pre>
       )}

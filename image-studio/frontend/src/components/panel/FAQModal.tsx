@@ -1,6 +1,6 @@
 import { Modal } from "../common/Modal";
-import { OpenExternalURL } from "../../../wailsjs/go/backend/Service";
-import { openExternalURLForPlatform } from "../../lib/androidBridge";
+import { OpenExternalURL } from "../../platform/runtime/host";
+import { openExternalURLForPlatform } from "../../platform/android/bridge";
 import {
   closeTabShortcutLabel,
   copyShortcutLabel,
@@ -11,7 +11,7 @@ import {
   redoShortcutLabel,
   submitShortcutLabel,
   undoShortcutLabel,
-} from "../../lib/platform";
+} from "../../platform";
 
 export function FAQModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
@@ -94,7 +94,6 @@ export function FAQModal({ open, onClose }: { open: boolean; onClose: () => void
           </p>
           <ul>
             <li>检查 key 是否过期 / 余额是否充足 / 是否绑对了分组(见第一条)</li>
-            <li>试试切换网络通道:「设置 → 网络通道」改成 <code>curl</code> 让请求走系统 curl,有时能绕过原生 HTTP 的 TLS 问题;新版本不会再把 API Key 暴露到 curl 命令行参数里</li>
             <li>查看历史项右键「📄 查看 raw 响应」看上游具体返回了什么</li>
           </ul>
         </details>
@@ -102,13 +101,12 @@ export function FAQModal({ open, onClose }: { open: boolean; onClose: () => void
         <details>
           <summary>蒙版 / 多参考图 / seed 上游会用吗?</summary>
           <p>
-            这些字段在请求 payload 里都会发送,但<strong>上游是否真的使用取决于中转站和模型的实现</strong>:
+            这些字段是否发送,取决于当前 profile 里的「参数策略」。默认 `OpenAI 标准` 只发官方公开字段；切到 `兼容中转扩展` 才会额外发送 relay 常见扩展字段。
           </p>
           <ul>
             <li><strong>多参考图</strong>:作为多个 <code>input_image</code> 内容块发送,上游解释方式因模型而异</li>
-            <li><strong>蒙版</strong>:作为 tool 的 <code>mask</code> 字段发送,gpt-image-2 通常会用但不保证 100%</li>
-            <li><strong>seed</strong>:作为 tool 的 <code>seed</code> 字段发送,理论上能复现结果</li>
-            <li><strong>negative prompt</strong>:作为 tool 的 <code>negative_prompt</code> 字段发送,部分实现支持</li>
+            <li><strong>蒙版</strong>:Responses 模式按 OpenAI 官方 <code>input_image_mask</code> 发送；Images 模式按标准 multipart <code>mask</code> 文件发送</li>
+            <li><strong>seed / negative prompt</strong>:属于 relay 常见扩展字段。只有在 `兼容中转扩展` 策略下才会附带发送，OpenAI 标准模式默认不发</li>
           </ul>
         </details>
 

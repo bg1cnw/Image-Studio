@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
 import { useBlobURL } from "../../lib/images";
-import { isWindows, usesAppleUI } from "../../lib/platform";
+import { usePlatform } from "../../platform/context";
 
 export function SourceStrip() {
   const sources = useStudioStore((s) => s.sources);
@@ -10,6 +10,7 @@ export function SourceStrip() {
   const reorderSources = useStudioStore((s) => s.reorderSources);
   const mode = useStudioStore((s) => s.mode);
   const selectSourceImage = useStudioStore((s) => s.selectSourceImage);
+  const { isMac, usesFluentUI, usesAppleUI } = usePlatform();
 
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
@@ -18,8 +19,17 @@ export function SourceStrip() {
   if (sources.length === 0) return null;
 
   return (
-    <div className={`flex items-center gap-2 overflow-x-auto border-b border-[var(--border)] bg-[var(--toolbar)] px-3 py-2 backdrop-blur-2xl ${usesAppleUI ? "liquid-glass-bar" : ""}`}>
-      <span className="text-[11px] text-zinc-500 shrink-0">参考图 {sources.length} 张:</span>
+    <div className={`source-strip border-b border-[var(--border)] bg-[var(--toolbar)] backdrop-blur-2xl ${usesAppleUI ? "liquid-glass-bar" : ""} ${isMac ? "px-3 py-2.5" : "px-3 py-2"}`}>
+      <div className={`flex ${isMac ? "items-start justify-between gap-3" : "items-center gap-2"} overflow-x-auto`}>
+        <div className="min-w-0 shrink-0">
+          <div className="source-strip-label text-[11px] text-zinc-500 shrink-0">参考图 {sources.length} 张</div>
+          {isMac && (
+            <div className="mt-0.5 text-[11px] leading-5 text-zinc-500 dark:text-zinc-400">
+              图生图时常驻显示，支持拖拽排序和继续追加参考图。
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2 overflow-x-auto">
       {sources.map((s, i) => (
         <SourceTile
           key={s.path}
@@ -36,10 +46,12 @@ export function SourceStrip() {
       <button
         onClick={selectSourceImage}
         title="添加参考图"
-        className={`flex h-12 w-12 shrink-0 items-center justify-center border border-dashed border-zinc-300 text-zinc-500 transition-colors hover:border-[color:var(--accent)]/35 hover:text-[var(--accent)] dark:border-zinc-700 ${isWindows ? "rounded-[10px]" : "rounded-[14px]"}`}
+        className={`source-thumb add flex h-12 w-12 shrink-0 items-center justify-center border border-dashed border-zinc-300 text-zinc-500 transition-colors hover:border-[color:var(--accent)]/35 hover:text-[var(--accent)] dark:border-zinc-700 ${usesFluentUI ? "rounded-[10px]" : "rounded-[14px]"}`}
       >
         <Plus className="w-4 h-4" />
       </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -64,6 +76,7 @@ function SourceTile({
   removeSource: (index: number) => void;
 }) {
   const previewURL = useBlobURL(source.imageBlob ?? null, source.imageB64 ?? null);
+  const { usesFluentUI } = usePlatform();
   return (
     <div
       draggable
@@ -78,11 +91,11 @@ function SourceTile({
       }}
       onDragEnd={() => { setDragFrom(null); setOverIdx(null); }}
       title={`${index + 1}. ${source.name}\n${source.path}`}
-      className={`relative group h-12 w-12 shrink-0 cursor-grab overflow-hidden border transition-all ${
+      className={`source-thumb relative group h-12 w-12 shrink-0 cursor-grab overflow-hidden border transition-all ${
         overIdx === index
           ? "scale-105 border-[color:var(--accent)] shadow-[0_0_0_1px_var(--accent)]"
           : "border-black/[0.06] hover:border-[color:var(--accent)]/30 dark:border-white/[0.06]"
-      } ${isWindows ? "rounded-[10px]" : "rounded-[14px]"}`}
+      } ${usesFluentUI ? "rounded-[10px]" : "rounded-[14px]"}`}
     >
       <span className="absolute top-0 left-0 z-10 px-1 text-[9px] bg-zinc-950/70 text-white rounded-br">
         {index + 1}

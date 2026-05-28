@@ -3,29 +3,7 @@
 /* 启用 class-based 暗色模式(挂在 <html> 上)。 */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* 自托管字体:中文 HarmonyOS Sans SC(Regular + Medium)、英文/等宽 JetBrains Mono。
-   macOS 会优先走 SF Pro / PingFang SC,其他平台再回退到仓库自带字体。 */
-@font-face {
-  font-family: "JetBrains Mono";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("../assets/fonts/JetBrainsMono-Regular.ttf") format("truetype");
-}
-@font-face {
-  font-family: "HarmonyOS Sans SC";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("../assets/fonts/HarmonyOS_SansSC_Regular.ttf") format("truetype");
-}
-@font-face {
-  font-family: "HarmonyOS Sans SC";
-  font-style: normal;
-  font-weight: 500 700;
-  font-display: swap;
-  src: url("../assets/fonts/HarmonyOS_SansSC_Medium.ttf") format("truetype");
-}
+/* 改走系统字体栈,避免把大体积 TTF 一起打进 Wails 产物。 */
 
 /* 兼容旧 CSS 模块里残留的 var(--accent) / var(--text) 等(逐文件改 utility 之前先有 fallback)。
    等所有组件改完,这些变量会变成无人引用的 dead code,可以删。
@@ -76,6 +54,10 @@
   --window-outline: rgb(255 255 255 / 0.42);
   --window-outline-dark: rgb(255 255 255 / 0.06);
   --header-height: 58px;
+  --mac-titlebar-safe-left: 110px;
+  --mac-titlebar-safe-right: 18px;
+  --mac-titlebar-top-pad: 10px;
+  --mac-titlebar-bottom-pad: 8px;
   --tab-radius: 999px;
   --card-radius: 18px;
   --control-radius: 999px;
@@ -96,9 +78,9 @@
   --lg-prism-blue: rgb(0 122 255 / 0.16);
   --lg-prism-teal: rgb(90 200 250 / 0.13);
   --lg-prism-pink: rgb(255 45 85 / 0.1);
-  --title-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Pro SC", "PingFang SC", "HarmonyOS Sans SC", "Segoe UI", sans-serif;
-  --body-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro SC", "PingFang SC", "HarmonyOS Sans SC", "Segoe UI", sans-serif;
-  --mono-font: "JetBrains Mono", ui-monospace, "SFMono-Regular", "Cascadia Code", Menlo, Consolas, "Liberation Mono", monospace;
+  --title-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Pro SC", "PingFang SC", "Hiragino Sans GB", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --body-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro SC", "PingFang SC", "Hiragino Sans GB", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --mono-font: "SFMono-Regular", "Cascadia Code", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
 /* 暗色模式 */
@@ -118,8 +100,8 @@
   --border: rgb(84 84 88 / 0.52);
   --border-2: rgb(84 84 88 / 0.72);
   --text: #f5f5f7;
-  --text-muted: rgb(235 235 245 / 0.68);
-  --text-dim: rgb(235 235 245 / 0.4);
+  --text-muted: rgb(235 235 245 / 0.78);
+  --text-dim: rgb(235 235 245 / 0.54);
   --danger: #ff453a;
   --danger-soft: rgb(255 69 58 / 0.14);
   --success: #30d158;
@@ -179,102 +161,86 @@
   --bg: #0d0f14;
   --bg-2: #11141b;
   --panel: var(--lg-bg);
-  --panel-2: rgb(255 255 255 / 0.07);
-  --surface: rgb(255 255 255 / 0.08);
-  --surface-2: rgb(255 255 255 / 0.11);
-  --sidebar: rgb(18 20 26 / 0.48);
-  --inspector: rgb(16 18 24 / 0.46);
-  --toolbar: rgb(18 20 26 / 0.42);
-  --border: rgb(255 255 255 / 0.1);
-  --border-2: rgb(255 255 255 / 0.16);
+  --panel-2: rgb(255 255 255 / 0.1);
+  --surface: rgb(255 255 255 / 0.11);
+  --surface-2: rgb(255 255 255 / 0.16);
+  --sidebar: rgb(20 23 31 / 0.72);
+  --inspector: rgb(20 23 31 / 0.68);
+  --toolbar: rgb(21 24 33 / 0.64);
+  --border: rgb(255 255 255 / 0.14);
+  --border-2: rgb(255 255 255 / 0.22);
   --canvas-bg: #141821;
   --canvas-tile: #252b37;
-  --btn-secondary-bg: rgb(255 255 255 / 0.08);
-  --btn-secondary-bg-hover: rgb(255 255 255 / 0.13);
+  --btn-secondary-bg: rgb(255 255 255 / 0.11);
+  --btn-secondary-bg-hover: rgb(255 255 255 / 0.17);
   --surface-elevated: var(--lg-bg);
   --surface-elevated-dark: var(--lg-bg);
 }
 
-/* Windows / Fluent design tokens: Segoe typography, subtler rounding,
-   higher border contrast, and layered materials inspired by Mica surfaces. */
-:root[data-ui-family="fluent"] {
-  --accent: #0067c0;
-  --accent-2: #0f7ad6;
-  --accent-soft: rgb(0 103 192 / 0.12);
-  --bg: #f3f3f3;
-  --bg-2: #ededed;
-  --panel: rgb(255 255 255 / 0.88);
-  --panel-2: rgb(250 250 250 / 0.92);
-  --surface: #fbfbfb;
-  --surface-2: #efefef;
-  --sidebar: rgb(248 248 248 / 0.82);
-  --inspector: rgb(244 244 244 / 0.82);
-  --toolbar: rgb(246 246 246 / 0.8);
-  --border: rgb(0 0 0 / 0.09);
-  --border-2: rgb(0 0 0 / 0.18);
-  --text: #1f1f1f;
-  --text-muted: rgb(54 54 54 / 0.78);
-  --text-dim: rgb(96 96 96 / 0.76);
-  --danger: #c42b1c;
-  --danger-soft: rgb(196 43 28 / 0.12);
-  --success: #0f7b0f;
-  --canvas-bg: #ececec;
-  --canvas-tile: #dbdbdb;
-  --on-accent-soft: #005a9e;
-  --btn-secondary-bg: #f6f6f6;
-  --btn-secondary-bg-hover: #ececec;
-  --tool-hover-bg: rgb(0 103 192 / 0.1);
-  --tool-hover-text: #005a9e;
-  --error-text: #8a1010;
-  --error-border: rgb(196 43 28 / 0.22);
-  --shadow-card: 0 14px 34px rgb(0 0 0 / 0.08);
-  --shadow-card-hover: 0 18px 42px rgb(0 0 0 / 0.12);
-  --window-blur: blur(20px);
-  --window-outline: rgb(255 255 255 / 0.7);
-  --header-height: 48px;
-  --tab-radius: 10px;
-  --card-radius: 12px;
-  --control-radius: 8px;
-  --surface-elevated: rgb(255 255 255 / 0.84);
-  --surface-elevated-dark: rgb(32 32 32 / 0.7);
-  --title-font: "Segoe UI Variable Display", "Segoe UI", "HarmonyOS Sans SC", sans-serif;
-  --body-font: "Segoe UI Variable Text", "Segoe UI", "HarmonyOS Sans SC", sans-serif;
-  --mono-font: "Cascadia Code", "JetBrains Mono", ui-monospace, Consolas, monospace;
+input,
+textarea,
+select,
+button {
+  font: inherit;
 }
 
-:root.dark[data-ui-family="fluent"] {
-  --accent: #4cc2ff;
-  --accent-2: #78d3ff;
-  --accent-soft: rgb(76 194 255 / 0.18);
-  --bg: #202020;
-  --bg-2: #1b1b1b;
-  --panel: rgb(42 42 42 / 0.9);
-  --panel-2: rgb(38 38 38 / 0.94);
-  --surface: #2b2b2b;
-  --surface-2: #353535;
-  --sidebar: rgb(35 35 35 / 0.86);
-  --inspector: rgb(31 31 31 / 0.84);
-  --toolbar: rgb(37 37 37 / 0.84);
-  --border: rgb(255 255 255 / 0.08);
-  --border-2: rgb(255 255 255 / 0.18);
-  --text: #f5f5f5;
-  --text-muted: rgb(243 243 243 / 0.76);
-  --text-dim: rgb(215 215 215 / 0.6);
-  --danger: #ff99a4;
-  --danger-soft: rgb(255 153 164 / 0.12);
-  --success: #6ccb5f;
-  --canvas-bg: #252526;
-  --canvas-tile: #343436;
-  --on-accent-soft: #9ddfff;
-  --btn-secondary-bg: #2f2f2f;
-  --btn-secondary-bg-hover: #383838;
-  --tool-hover-bg: rgb(76 194 255 / 0.14);
-  --tool-hover-text: #b7e8ff;
-  --error-text: #ffb4bd;
-  --error-border: rgb(255 153 164 / 0.28);
-  --shadow-card: 0 20px 48px rgb(0 0 0 / 0.34);
-  --shadow-card-hover: 0 24px 56px rgb(0 0 0 / 0.4);
-  --window-outline: rgb(255 255 255 / 0.08);
+button {
+  -webkit-appearance: none;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+textarea,
+select,
+input[type="text"],
+input[type="number"],
+input[type="password"] {
+  -webkit-appearance: none;
+  appearance: none;
+  border: 1px solid rgb(0 0 0 / 0.08);
+  border-radius: 14px;
+  background: var(--surface);
+  color: rgb(24 24 27);
+  line-height: 1.45;
+}
+
+:root.dark textarea,
+:root.dark select,
+:root.dark input[type="text"],
+:root.dark input[type="number"],
+:root.dark input[type="password"] {
+  border-color: rgb(255 255 255 / 0.08);
+  color: rgb(244 244 245);
+}
+
+textarea:focus,
+select:focus,
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="password"]:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 55%, white 45%);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+select {
+  min-height: 40px;
+  padding-right: 2rem;
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgb(113 113 122) 50%),
+    linear-gradient(135deg, rgb(113 113 122) 50%, transparent 50%);
+  background-position:
+    calc(100% - 16px) calc(50% - 1px),
+    calc(100% - 11px) calc(50% - 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+textarea {
+  min-width: 0;
 }
 
 /* Android / Material 3 targets. Phone and Pad share the same visual language,
@@ -283,15 +249,15 @@
   --accent: #006a60;
   --accent-2: #008577;
   --accent-soft: rgb(0 106 96 / 0.12);
-  --bg: #f8faf6;
-  --bg-2: #eef4ef;
+  --bg: #f7faf6;
+  --bg-2: #edf2ee;
   --panel: #ffffff;
-  --panel-2: #f0f5f0;
-  --surface: #f6fbf6;
-  --surface-2: #e6eee7;
-  --sidebar: #fbfdf8;
-  --inspector: #fbfdf8;
-  --toolbar: #fbfdf8;
+  --panel-2: #eef3ef;
+  --surface: #f3f7f3;
+  --surface-2: #e2e9e3;
+  --sidebar: #f8fbf7;
+  --inspector: #f8fbf7;
+  --toolbar: #f7faf6;
   --border: rgb(64 73 68 / 0.13);
   --border-2: rgb(64 73 68 / 0.22);
   --text: #191c1b;
@@ -300,8 +266,8 @@
   --danger: #ba1a1a;
   --danger-soft: rgb(186 26 26 / 0.1);
   --success: #2f7d32;
-  --canvas-bg: #eef4ef;
-  --canvas-tile: #d7e2da;
+  --canvas-bg: #edf3ee;
+  --canvas-tile: #d6dfd8;
   --on-accent-soft: #004c43;
   --btn-secondary-bg: #edf3ee;
   --btn-secondary-bg-hover: #dfe8e2;
@@ -309,8 +275,8 @@
   --tool-hover-text: #004c43;
   --error-text: #8c1d18;
   --error-border: rgb(186 26 26 / 0.22);
-  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.08), 0 2px 6px rgb(0 0 0 / 0.05);
-  --shadow-card-hover: 0 2px 4px rgb(0 0 0 / 0.12), 0 6px 18px rgb(0 0 0 / 0.08);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.06), 0 3px 8px rgb(0 0 0 / 0.04);
+  --shadow-card-hover: 0 2px 4px rgb(0 0 0 / 0.1), 0 8px 18px rgb(0 0 0 / 0.06);
   --window-blur: blur(0px);
   --window-outline: transparent;
   --header-height: 64px;
@@ -319,9 +285,9 @@
   --control-radius: 20px;
   --surface-elevated: #ffffff;
   --surface-elevated-dark: #202523;
-  --title-font: "Roboto Flex", "Google Sans", "HarmonyOS Sans SC", "Noto Sans CJK SC", "Segoe UI", sans-serif;
-  --body-font: "Roboto", "HarmonyOS Sans SC", "Noto Sans CJK SC", "Segoe UI", sans-serif;
-  --mono-font: "JetBrains Mono", ui-monospace, "Roboto Mono", Consolas, monospace;
+  --title-font: "Roboto Flex", "Google Sans", "Roboto", "Noto Sans CJK SC", "Source Han Sans SC", "Droid Sans Fallback", "Segoe UI", sans-serif;
+  --body-font: "Roboto", "Noto Sans CJK SC", "Source Han Sans SC", "Droid Sans Fallback", "Segoe UI", sans-serif;
+  --mono-font: "Roboto Mono", "SFMono-Regular", ui-monospace, Consolas, monospace;
 }
 
 :root.dark[data-ui-family="android"] {
@@ -329,14 +295,14 @@
   --accent-2: #9bf2e8;
   --accent-soft: rgb(123 218 207 / 0.16);
   --bg: #101412;
-  --bg-2: #171d1a;
-  --panel: #1c211f;
-  --panel-2: #202623;
-  --surface: #202623;
+  --bg-2: #161b18;
+  --panel: #1b201d;
+  --panel-2: #1f2522;
+  --surface: #1f2522;
   --surface-2: #2a302d;
-  --sidebar: #181d1b;
-  --inspector: #181d1b;
-  --toolbar: #181d1b;
+  --sidebar: #161b18;
+  --inspector: #161b18;
+  --toolbar: #151a18;
   --border: rgb(218 230 224 / 0.1);
   --border-2: rgb(218 230 224 / 0.18);
   --text: #e1e4e1;
@@ -346,7 +312,7 @@
   --danger-soft: rgb(255 180 171 / 0.12);
   --success: #8bd78d;
   --canvas-bg: #151a18;
-  --canvas-tile: #27302c;
+  --canvas-tile: #28312d;
   --on-accent-soft: #b7fff5;
   --btn-secondary-bg: #252b28;
   --btn-secondary-bg-hover: #303734;
@@ -354,8 +320,8 @@
   --tool-hover-text: #b7fff5;
   --error-text: #ffdad6;
   --error-border: rgb(255 180 171 / 0.28);
-  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.34), 0 2px 10px rgb(0 0 0 / 0.22);
-  --shadow-card-hover: 0 2px 4px rgb(0 0 0 / 0.4), 0 8px 22px rgb(0 0 0 / 0.28);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.28), 0 4px 12px rgb(0 0 0 / 0.18);
+  --shadow-card-hover: 0 2px 4px rgb(0 0 0 / 0.36), 0 8px 20px rgb(0 0 0 / 0.24);
 }
 
 /* 老 data-theme 选择器映射到 .dark class,平滑过渡。 */
@@ -408,22 +374,17 @@ html.dark[data-ui-family="apple"] body {
 html[data-ui-family="android"] body {
   background-color: var(--bg);
   background-image:
-    linear-gradient(180deg, rgb(255 255 255 / 0.48), transparent 18rem),
-    linear-gradient(135deg, #f8faf6 0%, #eef4ef 54%, #f6f8f2 100%);
+    linear-gradient(180deg, rgb(255 255 255 / 0.34), transparent 16rem),
+    linear-gradient(135deg, #f7faf6 0%, #eef3ee 58%, #f6f8f4 100%);
   background-attachment: scroll;
 }
 
 html.dark[data-ui-family="android"] body {
   background-image:
-    linear-gradient(180deg, rgb(123 218 207 / 0.05), transparent 18rem),
-    linear-gradient(135deg, #101412 0%, #151a18 52%, #111712 100%);
+    linear-gradient(180deg, rgb(123 218 207 / 0.04), transparent 16rem),
+    linear-gradient(135deg, #101412 0%, #141916 54%, #101512 100%);
 }
 button, input, textarea, select { font-family: inherit; }
-
-body[data-platform="windows"],
-html[data-platform="windows"] body {
-  text-rendering: optimizeLegibility;
-}
 
 /* 全局滚动条 —— 模仿 fuckwangui 的圆角 thumb */
 *::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -550,7 +511,7 @@ html[data-ui-family="android"] .platform-icon-btn,
 html[data-ui-family="android"] .platform-chip,
 html[data-ui-family="android"] .liquid-primary-button {
   border-radius: var(--control-radius);
-  min-height: 40px;
+  min-height: 44px;
   transition:
     background-color 140ms ease,
     border-color 140ms ease,
@@ -613,6 +574,24 @@ html[data-ui-family="apple"] .liquid-glass-panel {
     opacity 160ms ease;
 }
 
+html[data-ui-family="apple"] .platform-card {
+  background: rgb(255 255 255 / 0.82);
+  backdrop-filter: blur(12px) saturate(135%);
+  -webkit-backdrop-filter: blur(12px) saturate(135%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.36),
+    0 10px 28px rgb(22 28 45 / 0.12);
+}
+
+html.dark[data-ui-family="apple"] .platform-card {
+  background: rgb(30 33 42 / 0.9);
+  backdrop-filter: blur(12px) saturate(125%);
+  -webkit-backdrop-filter: blur(12px) saturate(125%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.1),
+    0 16px 36px rgb(0 0 0 / 0.32);
+}
+
 html[data-ui-family="apple"] .platform-seg,
 html[data-ui-family="apple"] .platform-tab,
 html[data-ui-family="apple"] .platform-action-btn,
@@ -634,6 +613,13 @@ html[data-ui-family="apple"] .liquid-primary-button {
     color 140ms ease,
     transform 120ms ease,
     opacity 140ms ease;
+}
+
+html[data-ui-family="apple"] .platform-pill,
+html[data-ui-family="apple"] .platform-action-btn,
+html[data-ui-family="apple"] .liquid-primary-button {
+  min-height: 34px;
+  line-height: 1.2;
 }
 
 html.dark[data-ui-family="apple"] .platform-seg,
@@ -714,6 +700,13 @@ html[data-ui-family="apple"] .liquid-glass-panel:hover {
 html[data-ui-family="apple"] .liquid-glass-bar:hover,
 html[data-ui-family="apple"] .liquid-sidebar:hover {
   border-color: var(--lg-border-low);
+}
+
+html[data-ui-family="apple"] .platform-card:hover {
+  border-color: rgb(255 255 255 / 0.18);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.36),
+    0 12px 30px rgb(22 28 45 / 0.14);
 }
 
 html[data-ui-family="apple"] .platform-action-btn:active,
@@ -871,8 +864,23 @@ html[data-ui-family="apple"] .select:focus {
    每改完一个组件,删一段对应 CSS。 */
 @import "./_buttons.css";
 @import "./_form.css";
+@import "./fluent/_tokens.css";
+@import "./fluent/_shared-shell.css";
+@import "./fluent/_shared-controls.css";
 @import "./_layout.css";
+@import "./_android-phone-advanced.css";
+@import "./_android-settings.css";
+@import "./_android-upstream.css";
+@import "./_android-parameters.css";
+@import "./_android-history.css";
+@import "./_android-canvas.css";
 @import "./_panel.css";
 @import "./_canvas.css";
 @import "./_history.css";
 @import "./_overlays.css";
+@import "./fluent/_windows-theme.css";
+@import "./fluent/_windows-controls.css";
+@import "./fluent/_windows-compose.css";
+@import "./fluent/_windows-history.css";
+@import "./fluent/_windows-flyouts.css";
+@import "./fluent/_responsive.css";

@@ -190,7 +190,7 @@ func optimizePromptWithLLM(
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
-	req.Header.Set("User-Agent", client.UserAgent)
+	req.Header.Set("User-Agent", client.UserAgent())
 
 	httpClient := &http.Client{Timeout: 3 * time.Minute}
 	resp, err := httpClient.Do(req)

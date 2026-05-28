@@ -1,0 +1,58 @@
+export type GenerateOptionsLike = {
+  apiKey: string;
+  mode: string;
+  prompt: string;
+  size: string;
+  quality: string;
+  outputFormat: string;
+  imagePaths: string[];
+  imagePath: string;
+  maskB64: string;
+  seed: number;
+  negativePrompt: string;
+  baseURL: string;
+  textModelID: string;
+  imageModelID: string;
+  apiMode: string;
+  requestPolicy: string;
+  noPromptRevision: boolean;
+  concurrencyLimit?: number;
+  requestedJobId?: string;
+  sourceImages?: Array<{
+    path?: string;
+    name?: string;
+    mimeType?: string | null;
+    imageB64?: string | null;
+    imageBlob?: Blob | null;
+  }>;
+};
+
+export type PromptOptimizeOptionsLike = {
+  apiKey: string;
+  prompt: string;
+  mode: string;
+  baseURL: string;
+  textModelID: string;
+  imagePaths: string[];
+  imagePath: string;
+};
+
+export type JobStartedLike = { jobId: string };
+export type ImportedImageLike = { path: string; imageB64: string };
+export type ImageTransformResultLike = { path: string; acceleration?: string };
+export type SelectFileResponseLike = { path: string; size: number; imageB64?: string; previewB64?: string };
+
+export type HostKind = "wails-desktop" | "android-shell" | "browser";
+
+export type HostCapabilities = {
+  localGeneration: boolean;
+  promptOptimization: boolean;
+  nativeFileDialogs: boolean;
+  nativeImageTransforms: boolean;
+  imageTransformAcceleration: "gpu-metal" | "gpu-webgl" | "cpu-canvas" | "native" | "none";
+  nativeHistoryFileIO: boolean;
+  nativeOutputDirectoryPicker: boolean;
+  secureCredentialStore: boolean;
+};
+
+export type KernelRuntimeMode = "auto" | "local" | "remote";

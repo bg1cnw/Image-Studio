@@ -205,8 +205,8 @@ func SummarizeSSELine(line string) string {
 // Default token size is 64KB which truncates partial_image_b64 at 2048x1152 sizes.
 func NewSSEScanner(r io.Reader) *bufio.Scanner {
 	scanner := bufio.NewScanner(r)
-	const initial = 1 << 20 // 1 MB
-	const max = 8 << 20     // 8 MB
+	const initial = 2 << 20 // 2 MB
+	const max = 1 << 30     // 1 GiB upper bound for future very large partial_image_b64 payload lines
 	scanner.Buffer(make([]byte, 0, initial), max)
 	return scanner
 }

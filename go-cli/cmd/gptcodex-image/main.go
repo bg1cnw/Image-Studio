@@ -31,14 +31,10 @@ func run() error {
 	quality := flag.String("quality", "", "auto | high | medium | low")
 	prompt := flag.String("prompt", "", "prompt text (or edit instructions)")
 	outDir := flag.String("out-dir", "", "output directory (default: ./images)")
-	transportKind := flag.String("transport", "", "auto | native | curl")
 	flag.Parse()
 
 	if envKey := os.Getenv("GPTCODEX_API_KEY"); envKey != "" && *apiKey == "" {
 		*apiKey = envKey
-	}
-	if envTrans := os.Getenv("GPTCODEX_TRANSPORT"); envTrans != "" && *transportKind == "" {
-		*transportKind = envTrans
 	}
 
 	fmt.Println("GPTCODEX 图片生成器")
@@ -100,8 +96,7 @@ func run() error {
 		}
 	}
 
-	tk := client.TransportKind(*transportKind)
-	transport, err := client.PickTransport(tk)
+	transport, err := client.PickTransport()
 	if err != nil {
 		return err
 	}
@@ -137,7 +132,6 @@ func run() error {
 		Size:         *size,
 		Quality:      *quality,
 		ImageDataURL: imageDataURL,
-		Transport:    tk,
 	}
 
 	logger := func(msg string) {

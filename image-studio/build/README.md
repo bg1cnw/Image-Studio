@@ -11,14 +11,17 @@ The structure is:
 ## Mac
 
 The `darwin` directory holds files specific to Mac builds.
-These may be customised and used as part of the build. To return these files to the default state, simply delete them
-and
-build with `wails build`.
+These may be customised and used as part of the build. In this repository they
+are consumed by both:
+
+- `wails build` / `wails dev` when you are using the upstream Wails workflow
+- `scripts/package-local-macos-app.sh`, which is the repository's preferred
+  local macOS packaging path and produces the universal `Image Studio.app`
 
 The directory contains the following files:
 
-- `Info.plist` - the main plist file used for Mac builds. It is used when building using `wails build`.
-- `Info.dev.plist` - same as the main plist file but used when building using `wails dev`.
+- `Info.plist` - the main plist template for macOS release builds
+- `Info.dev.plist` - same as the main plist file but used when building using `wails dev`
 
 ## Windows
 

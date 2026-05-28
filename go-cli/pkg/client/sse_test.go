@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bufio"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -121,5 +122,20 @@ func TestSummarizeSSELine(t *testing.T) {
 		if got := SummarizeSSELine(c.in); got != c.want {
 			t.Errorf("SummarizeSSELine(%q) = %q, want %q", c.in, got, c.want)
 		}
+	}
+}
+
+func TestNewSSEScannerHandlesLargePartialImageLine(t *testing.T) {
+	largeB64 := strings.Repeat("A", 12<<20)
+	line := `data: {"type":"response.image_generation_call.partial_image","partial_image_b64":"` + largeB64 + `"}` + "\n"
+	scanner := NewSSEScanner(strings.NewReader(line))
+	if !scanner.Scan() {
+		t.Fatalf("scanner failed to read large line: %v", scanner.Err())
+	}
+	if got := scanner.Text(); len(got) != len(strings.TrimSuffix(line, "\n")) {
+		t.Fatalf("scanner truncated line: got %d want %d", len(got), len(strings.TrimSuffix(line, "\n")))
+	}
+	if scanner.Err() != nil && scanner.Err() != bufio.ErrTooLong {
+		t.Fatalf("unexpected scanner err: %v", scanner.Err())
 	}
 }

@@ -1,0 +1,29 @@
+name: Live Verify Platform Kernel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  live-verify:
+    name: Live verify upstream and worker parity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: cloudflare-worker/package-lock.json
+
+      - name: Run live verify
+        env:
+          IMAGE_STUDIO_UPSTREAM_BASE_URL: ${{ secrets.IMAGE_STUDIO_UPSTREAM_BASE_URL }}
+          IMAGE_STUDIO_API_KEY: ${{ secrets.IMAGE_STUDIO_API_KEY }}
+          IMAGE_STUDIO_TEXT_MODEL_ID: ${{ secrets.IMAGE_STUDIO_TEXT_MODEL_ID }}
+          IMAGE_STUDIO_IMAGE_MODEL_ID: ${{ secrets.IMAGE_STUDIO_IMAGE_MODEL_ID }}
+        run: node ./scripts/live-verify.mjs

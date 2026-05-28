@@ -18,7 +18,8 @@ import (
 // ImageTransformResult is the shape returned by the rotation / flip / crop
 // bindings. Path is an absolute path under UserConfigDir/imports.
 type ImageTransformResult struct {
-	Path string `json:"path"`
+	Path         string `json:"path"`
+	Acceleration string `json:"acceleration,omitempty"`
 }
 
 // RotateImage rotates the image at `path` by `degrees` (multiples of 90 only)
@@ -37,9 +38,16 @@ func (s *Service) RotateImage(path string, degrees int) (ImageTransformResult, e
 	if err != nil {
 		return ImageTransformResult{}, err
 	}
+	out, err := prepareTransformOutput(allowed, fmt.Sprintf("rot%d", deg))
+	if err != nil {
+		return ImageTransformResult{}, err
+	}
+	if result, err := transformWithGPU(allowed, out, gpuTransformRequest{Kind: gpuTransformRotate, Degrees: deg}); err == nil {
+		return result, nil
+	}
+	_ = os.Remove(out.Path)
 	rotated := rotate(src, deg)
-	out, err := saveTransform(rotated, allowed, fmt.Sprintf("rot%d", deg))
-	return ImageTransformResult{Path: out}, err
+	return saveTransform(rotated, out, "cpu")
 }
 
 // FlipImage flips horizontally (true) or vertically (false).
@@ -52,13 +60,20 @@ func (s *Service) FlipImage(path string, horizontal bool) (ImageTransformResult,
 	if err != nil {
 		return ImageTransformResult{}, err
 	}
-	flipped := flip(src, horizontal)
 	suffix := "fliph"
 	if !horizontal {
 		suffix = "flipv"
 	}
-	out, err := saveTransform(flipped, allowed, suffix)
-	return ImageTransformResult{Path: out}, err
+	out, err := prepareTransformOutput(allowed, suffix)
+	if err != nil {
+		return ImageTransformResult{}, err
+	}
+	if result, err := transformWithGPU(allowed, out, gpuTransformRequest{Kind: gpuTransformFlip, Horizontal: horizontal}); err == nil {
+		return result, nil
+	}
+	_ = os.Remove(out.Path)
+	flipped := flip(src, horizontal)
+	return saveTransform(flipped, out, "cpu")
 }
 
 // CropImage crops a rectangle (x,y,w,h in source pixels) and writes a new file.
@@ -79,10 +94,23 @@ func (s *Service) CropImage(path string, x, y, w, h int) (ImageTransformResult, 
 	if rect.Empty() {
 		return ImageTransformResult{}, errors.New("crop rect lies outside the image")
 	}
+	out, err := prepareTransformOutput(allowed, "crop")
+	if err != nil {
+		return ImageTransformResult{}, err
+	}
+	if result, err := transformWithGPU(allowed, out, gpuTransformRequest{
+		Kind: gpuTransformCrop,
+		CropX: x,
+		CropY: y,
+		CropW: rect.Dx(),
+		CropH: rect.Dy(),
+	}); err == nil {
+		return result, nil
+	}
+	_ = os.Remove(out.Path)
 	dst := image.NewRGBA(image.Rect(0, 0, rect.Dx(), rect.Dy()))
 	draw.Draw(dst, dst.Bounds(), src, rect.Min, draw.Src)
-	out, err := saveTransform(dst, allowed, "crop")
-	return ImageTransformResult{Path: out}, err
+	return saveTransform(dst, out, "cpu")
 }
 
 // --- internal helpers ------------------------------------------------------
@@ -146,26 +174,54 @@ func flip(src image.Image, horizontal bool) image.Image {
 	return dst
 }
 
-func saveTransform(img image.Image, originalPath, suffix string) (string, error) {
+type transformOutput struct {
+	Path   string
+	Format string
+}
+
+func prepareTransformOutput(originalPath, suffix string) (transformOutput, error) {
 	dir, err := importsDir()
 	if err != nil {
-		return "", err
+		return transformOutput{}, err
 	}
 	if err := os.MkdirAll(dir, secureDirMode); err != nil {
-		return "", err
+		return transformOutput{}, err
 	}
 	base := filepath.Base(originalPath)
 	stem := strings.TrimSuffix(base, filepath.Ext(base))
-	name := fmt.Sprintf("%s-%s-%s.png", time.Now().Format("20060102-150405"), sanitiseName(stem), suffix)
-	out := filepath.Join(dir, name)
-	f, err := os.OpenFile(out, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, secureFileMode)
+	ext, format := transformEncodingForPath(originalPath)
+	name := fmt.Sprintf("%s-%s-%s%s", time.Now().Format("20060102-150405"), sanitiseName(stem), suffix, ext)
+	out, err := filepath.Abs(filepath.Join(dir, name))
 	if err != nil {
-		return "", err
+		return transformOutput{}, err
+	}
+	return transformOutput{Path: out, Format: format}, nil
+}
+
+func transformEncodingForPath(originalPath string) (ext string, format string) {
+	switch strings.ToLower(filepath.Ext(originalPath)) {
+	case ".jpg", ".jpeg":
+		return ".jpg", "jpeg"
+	default:
+		return ".png", "png"
+	}
+}
+
+func saveTransform(img image.Image, out transformOutput, acceleration string) (ImageTransformResult, error) {
+	f, err := os.OpenFile(out.Path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, secureFileMode)
+	if err != nil {
+		return ImageTransformResult{}, err
 	}
 	defer f.Close()
-	ext := strings.ToLower(filepath.Ext(originalPath))
-	if ext == ".jpg" || ext == ".jpeg" {
-		return out, jpeg.Encode(f, img, &jpeg.Options{Quality: 92})
+	switch out.Format {
+	case "jpeg":
+		if err := jpeg.Encode(f, img, &jpeg.Options{Quality: 92}); err != nil {
+			return ImageTransformResult{}, err
+		}
+	default:
+		if err := png.Encode(f, img); err != nil {
+			return ImageTransformResult{}, err
+		}
 	}
-	return out, png.Encode(f, img)
+	return ImageTransformResult{Path: out.Path, Acceleration: acceleration}, nil
 }

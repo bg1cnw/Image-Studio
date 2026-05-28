@@ -6,6 +6,7 @@ export type Mode = "generate" | "edit";
 // 上游 API 形态 —— Responses (`/v1/responses` + SSE) 或标准 Images API。
 // 老代码里以前是顶层全局二选一,v0.1.6 起降级成 profile 的字段。
 export type APIMode = "responses" | "images";
+export type RequestPolicy = "openai" | "compat";
 
 // UpstreamProfile 是一组完整可用于生成的上游配置。用户可以保存多个,例如
 // 「gptcodex 主号 / gptcodex 备号 / OpenAI 直连」,在 UI 里下拉切换 active。
@@ -17,6 +18,7 @@ export interface UpstreamProfile {
   id: string;
   name: string;
   apiMode: APIMode;
+  requestPolicy: RequestPolicy;
   baseURL: string;
   textModelID: string;
   imageModelID: string;
@@ -28,9 +30,25 @@ export interface UpstreamProfile {
   lastUsedAt?: number;
 }
 
-export type SizeValue = "auto" | "1024x1024" | "1536x1024" | "1024x1536" | "2048x1152" | "1152x2048";
+export type SizeValue =
+  | "auto"
+  | "1024x1024"
+  | "1536x1024"
+  | "1024x1536"
+  | "1536x864"
+  | "864x1536"
+  | "2048x2048"
+  | "2048x1360"
+  | "1360x2048"
+  | "2048x1152"
+  | "1152x2048"
+  | "2880x2880"
+  | "3456x2304"
+  | "2304x3456"
+  | "3840x2160"
+  | "2160x3840";
 export type QualityValue = "auto" | "high" | "medium" | "low";
-export type TransportKind = "auto" | "native" | "curl";
+export type KernelRuntimeMode = "auto" | "local" | "remote";
 // 让上游做编码;落盘扩展名 jpeg → .jpg,其他原样。
 export type OutputFormatValue = "png" | "jpeg" | "webp";
 export type ThemeMode = "system" | "light" | "dark";
@@ -41,11 +59,19 @@ export interface OutputFormatOption { value: OutputFormatValue; label: string; }
 
 export const SIZE_OPTIONS: SizeOption[] = [
   { value: "auto",      label: "自适应 auto" },
-  { value: "1024x1024", label: "正方形 1024×1024" },
+  { value: "1024x1024", label: "方形 1024×1024" },
   { value: "1536x1024", label: "横版 1536×1024" },
   { value: "1024x1536", label: "竖版 1024×1536" },
-  { value: "2048x1152", label: "宽屏 2048×1152" },
-  { value: "1152x2048", label: "竖屏 1152×2048" },
+  { value: "2048x2048", label: "2K 方形 2048×2048" },
+  { value: "2048x1360", label: "2K 横版 2048×1360" },
+  { value: "1360x2048", label: "2K 竖版 1360×2048" },
+  { value: "2048x1152", label: "2K 横版 2048×1152" },
+  { value: "1152x2048", label: "2K 竖版 1152×2048" },
+  { value: "2880x2880", label: "4K 方形 2880×2880" },
+  { value: "3456x2304", label: "4K 横版 3456×2304" },
+  { value: "2304x3456", label: "4K 竖版 2304×3456" },
+  { value: "3840x2160", label: "4K 横版 3840×2160" },
+  { value: "2160x3840", label: "4K 竖版 2160×3840" },
 ];
 
 export const QUALITY_OPTIONS: QualityOption[] = [
@@ -67,8 +93,9 @@ export interface SourceImage {
   name: string;
   size: number;       // bytes; 0 when unknown (e.g. reused-from-history)
   imageBlob?: Blob | null;
-  // Optional base64 for canvas preview, only kept when freshly imported.
-  // Items added via OpenImageDialog don't carry b64 to keep memory bounded.
+  // Optional base64 for canvas preview. OpenImageDialog now returns it for
+  // reasonably sized files, while very large files still fall back to the
+  // extension placeholder UI to avoid blowing up the JSON bridge.
   imageB64?: string;
 }
 
@@ -94,7 +121,6 @@ export interface HistoryItem {
   seed?: number;
   negativePrompt?: string;
   styleTag?: string;
-  transport?: TransportKind;
   elapsedSec?: number;     // generation duration in seconds
 
   savedPath?: string;
@@ -147,7 +173,7 @@ export interface Preset {
   quality: QualityValue;
   outputFormat?: OutputFormatValue;
   negativePrompt: string;
-  transport: TransportKind;
+  kernelRuntimeMode?: KernelRuntimeMode;
   batchCount: number;
 }
 

@@ -21,7 +21,7 @@ import (
 // 来源,这里直接读没问题。
 //
 // 文件 > 50MB 时只回 path/size,b64 留空 —— 一来太大走 JSON bridge 太重,
-// 二来 client.MaxInputImageBytes 本身也不接受这么大的源图,前端 sourceStrip
+// 二来 client.MaxInputImageBytes 本身也不接受这么大的源图,前端 SourceStrip
 // 会自动落到扩展名占位 UI。
 const maxDialogReadBytes int64 = 50 * 1024 * 1024
 
@@ -45,10 +45,9 @@ func (s *Service) OpenImageDialog() (SelectFileResponse, error) {
 	}
 	resp := SelectFileResponse{Path: path, Size: info.Size()}
 	if info.Size() > 0 && info.Size() <= maxDialogReadBytes {
-		if data, rerr := os.ReadFile(path); rerr == nil {
+		if data, readErr := os.ReadFile(path); readErr == nil {
 			resp.ImageB64 = base64.StdEncoding.EncodeToString(data)
 		}
-		// 读不出来不致命,前端会落到扩展名占位
 	}
 	return resp, nil
 }

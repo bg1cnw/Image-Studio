@@ -1,17 +1,19 @@
 import { Folder, Github, MessageSquare } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
-import { OpenExternalURL, OpenOutputDir } from "../../../wailsjs/go/backend/Service";
-import { isAndroid, isWindows, usesAppleUI } from "../../lib/platform";
-import { androidTarget, openExternalURLForPlatform, openOutputLocationForPlatform } from "../../lib/androidBridge";
+import { OpenExternalURL, OpenOutputDir } from "../../platform/runtime/host";
+import { androidTarget, openExternalURLForPlatform, openOutputLocationForPlatform } from "../../platform/android/bridge";
+import { appVersion } from "../../lib/version";
+import { usePlatform } from "../../platform/context";
 
 const REPO_URL = "https://github.com/RoseKhlifa/Image-Studio";
 const ISSUES_URL = "https://github.com/RoseKhlifa/Image-Studio/issues";
-const VERSION = "0.1.6";
 
 export function FooterBar() {
   const { fullscreen, history, runningJobs, isRunning, workspaces, pushToast } = useStudioStore();
+  const { isAndroid, isMac, isWindows, usesFluentUI, usesAppleUI } = usePlatform();
   if (fullscreen) return null;
   if (isAndroid) return null;
+  if (isMac) return null;
   const totalRunning = workspaces.reduce((sum, w) => sum + (w.runningJobIds?.length ?? 0), 0);
   const activeRunning = isRunning;
   const anyRunning = activeRunning || totalRunning > 0;
@@ -30,17 +32,21 @@ export function FooterBar() {
   }
 
   return (
-    <footer className={`flex items-center justify-between border-t border-[var(--border)] bg-[var(--toolbar)] px-4 text-[11px] text-zinc-500 backdrop-blur-2xl dark:text-zinc-400 ${usesAppleUI ? "liquid-glass-bar" : ""} ${isWindows ? "min-h-[36px]" : "min-h-10"}`}>
+    <footer className={`${isWindows ? "footer-bar" : ""} flex items-center justify-between border-t border-[var(--border)] bg-[var(--toolbar)] px-4 text-[11px] text-zinc-500 backdrop-blur-2xl dark:text-zinc-400 ${usesAppleUI ? "liquid-glass-bar" : ""} ${usesFluentUI ? "min-h-[36px]" : "min-h-10"}`}>
       <div className="flex items-center gap-1">
         <FooterBtn onClick={openOutputLocation}>
           <Folder className="h-3 w-3" /> {androidTarget.isAndroid ? "保存位置" : "输出目录"}
         </FooterBtn>
-        <FooterBtn onClick={() => open(REPO_URL)}>
-          <Github className="h-3 w-3" /> GitHub
-        </FooterBtn>
-        <FooterBtn onClick={() => open(ISSUES_URL)}>
-          <MessageSquare className="h-3 w-3" /> 反馈
-        </FooterBtn>
+        {!isMac && (
+          <>
+            <FooterBtn onClick={() => open(REPO_URL)}>
+              <Github className="h-3 w-3" /> GitHub
+            </FooterBtn>
+            <FooterBtn onClick={() => open(ISSUES_URL)}>
+              <MessageSquare className="h-3 w-3" /> 反馈
+            </FooterBtn>
+          </>
+        )}
       </div>
       <div className="flex items-center gap-3">
         <span className="flex items-baseline gap-1">
@@ -71,18 +77,19 @@ export function FooterBar() {
               : "bg-zinc-400 dark:bg-zinc-600"
           }`}
         />
-        <span className="font-mono-token text-zinc-400 dark:text-zinc-600">v{VERSION}</span>
+        <span className="font-mono-token text-zinc-400 dark:text-zinc-600">v{appVersion}</span>
       </div>
     </footer>
   );
 }
 
 function FooterBtn({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+  const { usesFluentUI } = usePlatform();
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`platform-pill inline-flex items-center gap-1 px-2.5 py-1 transition-colors hover:bg-black/[0.04] hover:text-zinc-900 dark:hover:bg-white/[0.06] dark:hover:text-zinc-200 ${isWindows ? "rounded-[6px]" : "rounded-full"}`}
+      className={`platform-pill inline-flex items-center gap-1 px-2.5 py-1 transition-colors hover:bg-black/[0.04] hover:text-zinc-900 dark:hover:bg-white/[0.06] dark:hover:text-zinc-200 ${usesFluentUI ? "rounded-[6px]" : "rounded-full"}`}
     >
       {children}
     </button>

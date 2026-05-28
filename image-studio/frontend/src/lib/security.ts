@@ -1,7 +1,17 @@
 import type { HistoryItem } from "../types/domain";
 
 export function cleanBaseURL(value: string): string {
-  return value.replace(/\/+$/, "").trim();
+  const trimmed = value.replace(/\/+$/, "").trim();
+  if (!trimmed) return "";
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === "http:" && !isLoopbackHost(parsed.hostname)) {
+      parsed.protocol = "https:";
+    }
+    return parsed.toString().replace(/\/+$/, "");
+  } catch {
+    return trimmed;
+  }
 }
 
 export function validateBaseURL(value: string): string | null {

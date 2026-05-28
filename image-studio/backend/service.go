@@ -218,12 +218,20 @@ func (s *Service) startJob(opts GenerateOptions) (JobStarted, error) {
 		return JobStarted{}, errors.New("服务未启动")
 	}
 
-	jobID, err := newJobID()
-	if err != nil {
-		return JobStarted{}, err
-	}
-
 	s.mu.Lock()
+	jobID := strings.TrimSpace(opts.RequestedJobID)
+	if jobID == "" {
+		var err error
+		jobID, err = newJobID()
+		if err != nil {
+			s.mu.Unlock()
+			return JobStarted{}, err
+		}
+	}
+	if _, exists := s.jobs[jobID]; exists {
+		s.mu.Unlock()
+		return JobStarted{}, fmt.Errorf("job id 已存在,请稍后重试")
+	}
 	if !s.canStartJobLocked(apiMode, limit) {
 		s.mu.Unlock()
 		return JobStarted{}, fmt.Errorf("%s 已达到并发限制 %d,请等待当前任务完成后再提交", apiModeLabel(apiMode), limit)
@@ -279,8 +287,8 @@ func (s *Service) runJob(ctx context.Context, jobID string, opts GenerateOptions
 		BaseURL:          opts.BaseURL,
 		TextModelID:      opts.TextModelID,
 		ImageModelID:     opts.ImageModelID,
-		Transport:        client.TransportKind(opts.Transport),
 		APIMode:          apiMode,
+		RequestPolicy:    client.RequestPolicy(strings.TrimSpace(opts.RequestPolicy)),
 		NoPromptRevision: opts.NoPromptRevision,
 	}
 	if mode == client.ModeEdit {
@@ -307,7 +315,7 @@ func (s *Service) runJob(ctx context.Context, jobID string, opts GenerateOptions
 		}
 	}
 
-	transport, err := client.PickTransport(clientOpts.Transport)
+	transport, err := client.PickTransport()
 	if err != nil {
 		s.emitError(jobID, err)
 		return

@@ -97,13 +97,12 @@ func TestBuildPayloadEmptyPromptError(t *testing.T) {
 	}
 }
 
-func TestBuildPayloadNoPromptRevision(t *testing.T) {
-	// 关闭改写时 payload 顶层应该有 instructions 字段
+func TestBuildPayloadAlwaysKeepsPromptVerbatim(t *testing.T) {
+	// Responses payload 顶层始终带 instructions,禁止文本模型改写用户 prompt。
 	b, err := BuildPayload(Options{
-		Prompt:           "a tiny red dot",
-		Size:             "1024x1024",
-		Quality:          "auto",
-		NoPromptRevision: true,
+		Prompt:  "a tiny red dot",
+		Size:    "1024x1024",
+		Quality: "auto",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -118,14 +117,6 @@ func TestBuildPayloadNoPromptRevision(t *testing.T) {
 	}
 	if !strings.Contains(instr, "VERBATIM") {
 		t.Errorf("instructions missing VERBATIM directive: %s", instr)
-	}
-
-	// 默认(NoPromptRevision=false)不应含 instructions
-	b2, _ := BuildPayload(Options{Prompt: "a tiny red dot", Size: "1024x1024", Quality: "auto"})
-	var p2 map[string]any
-	json.Unmarshal(b2, &p2)
-	if _, has := p2["instructions"]; has {
-		t.Errorf("default payload should not contain instructions, got %v", p2["instructions"])
 	}
 }
 
@@ -189,8 +180,12 @@ func TestBuildPayloadIncludesMaskWhenSet(t *testing.T) {
 	raw, _ := BuildPayload(Options{Prompt: "x", MaskB64: "AAAA"})
 	v := mustDecodePayload(t, raw)
 	tool := v["tools"].([]any)[0].(map[string]any)
-	if tool["mask"] != "AAAA" {
-		t.Errorf("mask = %v, want AAAA", tool["mask"])
+	mask, ok := tool["input_image_mask"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected input_image_mask object, got %T", tool["input_image_mask"])
+	}
+	if mask["image_url"] != "data:image/png;base64,AAAA" {
+		t.Errorf("input_image_mask.image_url = %v, want data:image/png;base64,AAAA", mask["image_url"])
 	}
 }
 
@@ -220,6 +215,13 @@ func TestImageFileToDataURLUnsupportedExt(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "不支持的图片格式") {
 		t.Errorf("error message = %q, want 不支持的图片格式", err)
+	}
+}
+
+func TestImageDataURLFromBase64DefaultsPNG(t *testing.T) {
+	got := imageDataURLFromBase64("AAAA", "")
+	if got != "data:image/png;base64,AAAA" {
+		t.Fatalf("got %q, want png data URL", got)
 	}
 }
 

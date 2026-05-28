@@ -16,8 +16,8 @@ import (
 // When opts has one or more image data URLs (via ImageDataURLs or the legacy
 // single ImageDataURL field), action becomes "edit" and each URL is appended
 // as its own input_image content block, in order. When opts.MaskB64 is
-// non-empty (Phase 3 reservation), it is embedded as the tool's "mask"
-// parameter; otherwise the field is omitted.
+// non-empty, it is embedded as the tool's "input_image_mask.image_url"
+// parameter using a base64 data URL.
 func BuildPayload(opts Options) ([]byte, error) {
 	if strings.TrimSpace(opts.Prompt) == "" {
 		return nil, ErrEmptyPrompt
@@ -34,6 +34,7 @@ func BuildPayload(opts Options) ([]byte, error) {
 	if outputFormat == "" {
 		outputFormat = OutputFormat
 	}
+	includeExtended := shouldSendExtendedImageParameters(opts.RequestPolicy)
 
 	content := []map[string]any{
 		{"type": "input_text", "text": opts.Prompt},
@@ -65,12 +66,14 @@ func BuildPayload(opts Options) ([]byte, error) {
 		"partial_images": 0,
 	}
 	if opts.MaskB64 != "" {
-		tool["mask"] = opts.MaskB64
+		tool["input_image_mask"] = map[string]any{
+			"image_url": imageDataURLFromBase64(opts.MaskB64, "image/png"),
+		}
 	}
-	if opts.Seed != 0 {
+	if includeExtended && opts.Seed != 0 {
 		tool["seed"] = opts.Seed
 	}
-	if strings.TrimSpace(opts.NegativePrompt) != "" {
+	if includeExtended && strings.TrimSpace(opts.NegativePrompt) != "" {
 		tool["negative_prompt"] = opts.NegativePrompt
 	}
 
@@ -89,11 +92,9 @@ func BuildPayload(opts Options) ([]byte, error) {
 		"store":       false,
 		"stream":      true,
 	}
-	if opts.NoPromptRevision {
-		// 实测此条 instructions 能让 gpt-5.5 把用户 prompt 字字传给 image_generation,
-		// 而不是惯常的「改写润色再生」流程。改 wording 可能失效 —— 经验值。
-		payload["instructions"] = "You are a tool runner. Pass the user prompt to image_generation VERBATIM. DO NOT rewrite, expand, polish, or revise it in any way. Use the exact text the user gave."
-	}
+	// 实测此条 instructions 能让 gpt-5.5 把用户 prompt 字字传给 image_generation,
+	// 而不是惯常的「改写润色再生」流程。改 wording 可能失效 —— 经验值。
+	payload["instructions"] = "You are a tool runner. Pass the user prompt to image_generation VERBATIM. DO NOT rewrite, expand, polish, or revise it in any way. Use the exact text the user gave."
 
 	// Use a non-escaping encoder so 中文 prompts don't get \uXXXX-mangled.
 	var buf strings.Builder
@@ -187,6 +188,29 @@ func ImageFileToDataURL(path string) (string, error) {
 	}
 	encoded := base64.StdEncoding.EncodeToString(data)
 	return fmt.Sprintf("data:%s;base64,%s", mime, encoded), nil
+}
+
+func imageDataURLFromBase64(raw, mime string) string {
+	encoded := strings.TrimSpace(raw)
+	if encoded == "" {
+		return ""
+	}
+	cleanMime := strings.TrimSpace(mime)
+	if cleanMime == "" {
+		cleanMime = "image/png"
+	}
+	return fmt.Sprintf("data:%s;base64,%s", cleanMime, encoded)
+}
+
+func normalizeRequestPolicy(policy RequestPolicy) RequestPolicy {
+	if policy == RequestPolicyCompat {
+		return RequestPolicyCompat
+	}
+	return RequestPolicyOpenAI
+}
+
+func shouldSendExtendedImageParameters(policy RequestPolicy) bool {
+	return normalizeRequestPolicy(policy) == RequestPolicyCompat
 }
 
 // FormatBytes mirrors Python's format_bytes.

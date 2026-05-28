@@ -8,7 +8,7 @@ package client
 //   - 一次性 JSON 响应,无 SSE,因此无法做流式保活;Cloudflare 524 风险更高
 //   - 多图编辑能力受上游约束(OpenAI 官方仅接受 1 张 image,部分中转站允许 image[] 数组),
 //     为最大兼容,这里默认只取第一张源图;如果上游支持多张,可后续扩展
-//   - response_format 固定为 b64_json,这样和 Responses API 的下游处理保持一致
+//   - 默认优先走 OpenAI 官方公开字段;若请求策略切到 compat,可附带 relay 扩展字段
 
 import (
 	"bytes"
@@ -26,6 +26,28 @@ import (
 	"strings"
 	"time"
 )
+
+func classifyImageModel(model string) string {
+	normalized := strings.ToLower(strings.TrimSpace(model))
+	switch {
+	case strings.HasPrefix(normalized, "dall-e-2"):
+		return "dalle2"
+	case strings.HasPrefix(normalized, "dall-e-3"):
+		return "dalle3"
+	case strings.HasPrefix(normalized, "gpt-image"), strings.HasPrefix(normalized, "chatgpt-image"):
+		return "gpt-image"
+	default:
+		return "other"
+	}
+}
+
+func supportsImagesResponseFormat(model string, mode Mode) bool {
+	family := classifyImageModel(model)
+	if mode == ModeEdit {
+		return family == "dalle2"
+	}
+	return family == "dalle2" || family == "dalle3"
+}
 
 type imagesAPIDatum struct {
 	B64JSON       string `json:"b64_json"`
@@ -84,6 +106,7 @@ func RequestImagesAPI(
 	if outputFormat == "" {
 		outputFormat = OutputFormat
 	}
+	includeExtended := shouldSendExtendedImageParameters(opts.RequestPolicy)
 
 	var (
 		url         string
@@ -96,7 +119,7 @@ func RequestImagesAPI(
 		if len(paths) == 0 {
 			return ImageResult{}, errors.New("图生图模式需要至少一张源图(请在面板里添加参考图)")
 		}
-		multipartBuf, mpType, err := buildEditsMultipart(paths, opts.MaskB64, opts.Prompt, model, size, quality, outputFormat, opts.NegativePrompt, opts.Seed)
+		multipartBuf, mpType, err := buildEditsMultipart(paths, opts.MaskB64, opts.Prompt, model, size, quality, outputFormat, opts.NegativePrompt, opts.Seed, opts.RequestPolicy)
 		if err != nil {
 			return ImageResult{}, err
 		}
@@ -111,12 +134,14 @@ func RequestImagesAPI(
 			"size":            size,
 			"quality":         quality,
 			"output_format":   outputFormat,
-			"response_format": "b64_json",
 		}
-		if opts.Seed != 0 {
+		if supportsImagesResponseFormat(model, opts.Mode) {
+			payload["response_format"] = "b64_json"
+		}
+		if includeExtended && opts.Seed != 0 {
 			payload["seed"] = opts.Seed
 		}
-		if strings.TrimSpace(opts.NegativePrompt) != "" {
+		if includeExtended && strings.TrimSpace(opts.NegativePrompt) != "" {
 			payload["negative_prompt"] = opts.NegativePrompt
 		}
 		b, err := json.Marshal(payload)
@@ -135,7 +160,7 @@ func RequestImagesAPI(
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+opts.APIKey)
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", UserAgent)
+	req.Header.Set("User-Agent", UserAgent())
 
 	httpClient := &http.Client{
 		Timeout: 8 * time.Minute,
@@ -305,7 +330,7 @@ func writeDataURLToTemp(dataURL string) (string, error) {
 // 多张源图按 image[] / image[1] / ... 形式串联 —— 不同中转站对多图编辑支持不一,
 // 仅第一张是 OpenAI 官方接受的最小可用形态,其余作为兼容性 best-effort。
 func buildEditsMultipart(
-	paths []string, maskB64, prompt, model, size, quality, outputFormat, negativePrompt string, seed int64,
+	paths []string, maskB64, prompt, model, size, quality, outputFormat, negativePrompt string, seed int64, requestPolicy RequestPolicy,
 ) (*bytes.Buffer, string, error) {
 	buf := &bytes.Buffer{}
 	w := multipart.NewWriter(buf)
@@ -325,8 +350,16 @@ func buildEditsMultipart(
 	if strings.TrimSpace(maskB64) != "" {
 		raw, err := base64.StdEncoding.DecodeString(maskB64)
 		if err == nil && len(raw) > 0 {
-			fw, _ := w.CreateFormFile("mask", "mask.png")
-			fw.Write(raw)
+			h := make(textproto.MIMEHeader)
+			h.Set("Content-Disposition", `form-data; name="mask"; filename="mask.png"`)
+			h.Set("Content-Type", "image/png")
+			fw, err := w.CreatePart(h)
+			if err != nil {
+				return nil, "", err
+			}
+			if _, err := fw.Write(raw); err != nil {
+				return nil, "", err
+			}
 		}
 	}
 
@@ -338,11 +371,13 @@ func buildEditsMultipart(
 	if strings.TrimSpace(outputFormat) != "" {
 		_ = w.WriteField("output_format", outputFormat)
 	}
-	_ = w.WriteField("response_format", "b64_json")
-	if seed != 0 {
+	if supportsImagesResponseFormat(model, ModeEdit) {
+		_ = w.WriteField("response_format", "b64_json")
+	}
+	if shouldSendExtendedImageParameters(requestPolicy) && seed != 0 {
 		_ = w.WriteField("seed", fmt.Sprintf("%d", seed))
 	}
-	if strings.TrimSpace(negativePrompt) != "" {
+	if shouldSendExtendedImageParameters(requestPolicy) && strings.TrimSpace(negativePrompt) != "" {
 		_ = w.WriteField("negative_prompt", negativePrompt)
 	}
 

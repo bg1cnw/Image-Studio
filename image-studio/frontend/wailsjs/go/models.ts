@@ -1,8 +1,9 @@
 export namespace backend {
-	
+
 	export class GenerateOptions {
 	    apiKey: string;
 	    mode: string;
+	    requestedJobId: string;
 	    prompt: string;
 	    size: string;
 	    quality: string;
@@ -15,19 +16,20 @@ export namespace backend {
 	    baseURL: string;
 	    textModelID: string;
 	    imageModelID: string;
-	    transport: string;
 	    apiMode: string;
+	    requestPolicy: string;
 	    noPromptRevision: boolean;
 	    concurrencyLimit: number;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new GenerateOptions(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.apiKey = source["apiKey"];
 	        this.mode = source["mode"];
+	        this.requestedJobId = source["requestedJobId"];
 	        this.prompt = source["prompt"];
 	        this.size = source["size"];
 	        this.quality = source["quality"];
@@ -40,32 +42,34 @@ export namespace backend {
 	        this.baseURL = source["baseURL"];
 	        this.textModelID = source["textModelID"];
 	        this.imageModelID = source["imageModelID"];
-	        this.transport = source["transport"];
 	        this.apiMode = source["apiMode"];
+	        this.requestPolicy = source["requestPolicy"];
 	        this.noPromptRevision = source["noPromptRevision"];
 	        this.concurrencyLimit = source["concurrencyLimit"];
 	    }
 	}
 	export class ImageTransformResult {
 	    path: string;
-	
+	    acceleration?: string;
+
 	    static createFrom(source: any = {}) {
 	        return new ImageTransformResult(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.path = source["path"];
+	        this.acceleration = source["acceleration"];
 	    }
 	}
 	export class ImportedImage {
 	    path: string;
 	    imageB64: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new ImportedImage(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.path = source["path"];
@@ -74,11 +78,11 @@ export namespace backend {
 	}
 	export class JobStarted {
 	    jobId: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new JobStarted(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.jobId = source["jobId"];
@@ -92,11 +96,11 @@ export namespace backend {
 	    textModelID: string;
 	    imagePaths: string[];
 	    imagePath: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new PromptOptimizeOptions(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.apiKey = source["apiKey"];
@@ -112,11 +116,11 @@ export namespace backend {
 	    path: string;
 	    size: number;
 	    imageB64?: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new SelectFileResponse(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.path = source["path"];
@@ -126,4 +130,3 @@ export namespace backend {
 	}
 
 }
-

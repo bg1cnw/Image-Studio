@@ -1,49 +1,39 @@
 import { Github, Monitor, Moon, Plus, Settings, Star, Sun } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
-import { OpenExternalURL } from "../../../wailsjs/go/backend/Service";
-import { HitokotoStrip } from "./HitokotoStrip";
-import { isAndroidPhone, isWindows, usesAndroidUI, usesAppleUI } from "../../lib/platform";
-import { openExternalURLForPlatform } from "../../lib/androidBridge";
+import { OpenExternalURL } from "../../platform/runtime/host";
+import { usePlatform } from "../../platform/context";
+import { openExternalURLForPlatform } from "../../platform/android/bridge";
+import { AppHeaderBrand } from "./AppHeaderBrand";
+import { HeaderIconBtn, HeaderToggleBtn } from "./headerPrimitives";
 
 const REPO_URL = "https://github.com/RoseKhlifa/Image-Studio";
 
 export function AppHeader({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { fullscreen, theme, setTheme, pushToast, workspaces, newWorkspace, openStarPrompt } = useStudioStore();
+  const { isAndroid, isAndroidPhone, isAndroidPad, isMac, usesFluentUI, usesAndroidUI, usesAppleUI } = usePlatform();
   if (fullscreen) return null;
 
   return (
     <header
-      className={`drag-region sticky top-0 z-40 flex items-center gap-3 border-b border-[var(--border)] bg-[var(--toolbar)] backdrop-blur-2xl ${
+      className={`drag-region app-header sticky top-0 z-40 flex items-center gap-3 border-b border-[var(--border)] bg-[var(--toolbar)] backdrop-blur-2xl ${
         usesAppleUI ? "liquid-glass-bar" : ""
       } ${
         usesAndroidUI
-          ? "min-h-[64px] px-4"
+          ? "android-app-header min-h-[46px] px-[calc(env(safe-area-inset-left,0px)+14px)] pr-[calc(env(safe-area-inset-right,0px)+14px)] pt-[calc(env(safe-area-inset-top,0px)+2px)] pb-1"
           :
         usesAppleUI
-          ? "min-h-[58px] pl-[92px] pr-5 pb-2 pt-3"
-          : isWindows
+          ? `${isMac ? "mac-app-header" : ""} min-h-[64px] px-5 pb-2 pt-3`
+          : usesFluentUI
             ? "min-h-[48px] px-3"
             : "min-h-12 px-4"
       }`}
     >
-      <div className="min-w-0 flex-1">
-        <div
-          className={`text-zinc-900 dark:text-zinc-100 ${
-            isWindows
-              ? "font-[600] text-[14px] tracking-[0]"
-              : "text-[13px] font-semibold tracking-[-0.01em]"
-          }`}
-          style={{ fontFamily: "var(--title-font)" }}
-        >
-          Image Studio
-        </div>
-        <div className={`flex min-w-0 items-center text-zinc-500 dark:text-zinc-400 ${isWindows ? "mt-0 text-[10px]" : "mt-0.5 text-[11px]"}`}>
-          <HitokotoStrip />
-        </div>
+      <div className={`min-w-0 flex-1 ${usesAndroidUI ? "android-header-copy" : ""} ${isMac ? "mac-header-copy" : ""}`}>
+        <AppHeaderBrand />
       </div>
 
-      <div className={`no-drag ml-auto flex items-center ${isWindows ? "gap-1" : "gap-1.5"}`}>
-        <HeaderIconBtn
+      <div className={`no-drag ml-auto flex items-center shrink-0 ${usesAndroidUI ? "android-header-actions" : ""} ${isMac ? "mac-header-actions" : ""} ${usesFluentUI ? "gap-1" : isMac ? "gap-2" : "gap-1.5"}`}>
+        {!isAndroid && <HeaderIconBtn
           onClick={() => newWorkspace()}
           title={workspaces.length > 1 ? `${workspaces.length} 个标签 · 新建` : "新建标签"}
         >
@@ -53,9 +43,9 @@ export function AppHeader({ onOpenSettings }: { onOpenSettings: () => void }) {
               {workspaces.length}
             </span>
           )}
-        </HeaderIconBtn>
-        {!isAndroidPhone && <div className={`platform-seg flex items-center p-0.5 ring-1 ${
-          isWindows
+        </HeaderIconBtn>}
+        {!isAndroid && <div className={`platform-seg flex items-center p-0.5 ring-1 ${
+          usesFluentUI
             ? "bg-white/66 ring-black/[0.08] dark:bg-white/[0.04] dark:ring-white/[0.08]"
             : "rounded-full bg-black/[0.04] ring-black/[0.05] dark:bg-white/[0.06] dark:ring-white/[0.06]"
         }`}>
@@ -81,20 +71,18 @@ export function AppHeader({ onOpenSettings }: { onOpenSettings: () => void }) {
             <Moon className="h-3.5 w-3.5" />
           </HeaderToggleBtn>
         </div>}
-        <HeaderIconBtn
+        {!isAndroid && !isMac && <HeaderIconBtn
           onClick={() => openExternalURLForPlatform(REPO_URL, OpenExternalURL).catch(() => pushToast("无法打开浏览器", "error"))}
           title="GitHub"
         >
           <Github className="h-4 w-4" />
-        </HeaderIconBtn>
-        {/* 给项目点个 star —— 跟自动弹窗共用同一份 modal,手动点不写「再也别弹」标志。
-            图标用 amber 调色让它在一排灰色 icon 里轻微凸出,提示这是"鼓励作者"的入口。 */}
-        <HeaderIconBtn
+        </HeaderIconBtn>}
+        {!isAndroid && !isMac && <HeaderIconBtn
           onClick={openStarPrompt}
           title="给项目点个 Star"
         >
           <Star className="h-4 w-4 text-amber-500 dark:text-amber-400" fill="currentColor" strokeWidth={1.5} />
-        </HeaderIconBtn>
+        </HeaderIconBtn>}
         <HeaderIconBtn
           onClick={onOpenSettings}
           title="设置"
@@ -103,46 +91,5 @@ export function AppHeader({ onOpenSettings }: { onOpenSettings: () => void }) {
         </HeaderIconBtn>
       </div>
     </header>
-  );
-}
-
-function HeaderIconBtn({ children, onClick, title }: {
-  children: React.ReactNode;
-  onClick: () => void;
-  title: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      className={`platform-icon-btn no-drag relative flex items-center justify-center text-zinc-600 transition-colors hover:bg-black/[0.05] hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100 ${
-        isWindows ? "h-8 w-8 rounded-[8px]" : "h-8 w-8 rounded-full"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function HeaderToggleBtn({ active, children, onClick, title }: {
-  active: boolean;
-  children: React.ReactNode;
-  onClick: () => void;
-  title: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      className={`platform-chip no-drag flex h-7 w-7 items-center justify-center transition-all ${
-        active
-          ? "active bg-white text-zinc-900 shadow-sm dark:bg-zinc-900 dark:text-zinc-100"
-          : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-      } ${isWindows ? "rounded-[7px]" : "rounded-full"}`}
-    >
-      {children}
-    </button>
   );
 }
