@@ -2,12 +2,14 @@ import { useEffect, useRef } from "react";
 import { useBlobURL } from "../../lib/images";
 
 export function CompareOverlay({
-  aBlob, aB64, bBlob, bB64, split, onSplit,
+  aBlob, aB64, aUrl, bBlob, bB64, bUrl, split, onSplit,
 }: {
   aBlob: Blob | null;
-  aB64: string;
+  aB64?: string | null;
+  aUrl?: string | null;
   bBlob: Blob | null;
-  bB64: string;
+  bB64?: string | null;
+  bUrl?: string | null;
   split: number;
   onSplit: (v: number) => void;
 }) {
@@ -15,6 +17,8 @@ export function CompareOverlay({
   const draggingRef = useRef(false);
   const aURL = useBlobURL(aBlob, aBlob ? null : aB64);
   const bURL = useBlobURL(bBlob, bBlob ? null : bB64);
+  const aSrc = aURL || aUrl || "";
+  const bSrc = bURL || bUrl || "";
 
   useEffect(() => {
     const move = (e: MouseEvent) => {
@@ -36,7 +40,7 @@ export function CompareOverlay({
   return (
     <div ref={wrapRef} style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
       <img
-        src={aURL ?? ""}
+        src={aSrc}
         draggable={false}
         style={{
           position: "absolute", inset: 0, width: "100%", height: "100%",
@@ -45,7 +49,7 @@ export function CompareOverlay({
         }}
       />
       <img
-        src={bURL ?? ""}
+        src={bSrc}
         draggable={false}
         style={{
           position: "absolute", inset: 0, width: "100%", height: "100%",

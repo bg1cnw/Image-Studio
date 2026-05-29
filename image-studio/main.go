@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"net/http"
 	"runtime"
 
 	"image-studio/backend"
@@ -25,7 +26,9 @@ func main() {
 		MinWidth:  1100,
 		MinHeight: 780,
 		AssetServer: &assetserver.Options{
-			Assets: assets,
+			Assets:     assets,
+			Handler:    svc.MediaHandler(http.NotFoundHandler()),
+			Middleware: svc.MediaHandler,
 		},
 		BackgroundColour: &options.RGBA{R: 18, G: 20, B: 26, A: 1},
 		OnStartup:        svc.Startup,

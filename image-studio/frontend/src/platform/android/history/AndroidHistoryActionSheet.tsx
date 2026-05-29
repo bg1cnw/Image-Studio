@@ -15,7 +15,7 @@ import { createPortal } from "react-dom";
 import type { MenuItem } from "../../../components/common/ContextMenu";
 import { HistoryModeBadge } from "../../../components/history/HistoryModeBadge";
 import { qualityLabel, sizeLabel } from "../../../components/history/historyLabels";
-import { useBlobURL } from "../../../lib/images";
+import { historyPreviewSrc, useBlobURL } from "../../../lib/images";
 import type { HistoryItem } from "../../../types/domain";
 import { vibrateForPlatform } from "../bridge";
 
@@ -42,7 +42,7 @@ export function AndroidHistoryActionSheet({
   onClose: () => void;
 }) {
   const previewURL = useBlobURL(item.previewBlob ?? item.imageBlob ?? null, item.imageB64 ?? null);
-  const imageSrc = previewURL ?? `data:image/png;base64,${item.imageB64}`;
+  const imageSrc = historyPreviewSrc(item, previewURL);
   const primaryItems = useMemo(() => items.filter((action) => !action.danger), [items]);
   const dangerItems = useMemo(() => items.filter((action) => action.danger), [items]);
 

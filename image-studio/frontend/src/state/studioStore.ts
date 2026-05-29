@@ -6,19 +6,13 @@ import {
   Edit as wailsEdit,
   OptimizePrompt as wailsOptimizePrompt,
   Cancel as wailsCancel,
-  OpenImageDialog,
   GetOutputDir,
   DeleteStoredAPIKey,
   GetStoredAPIKey,
   SetStoredAPIKey,
-  SaveImageAs,
-  ImportImageFromB64,
-  RotateImage,
-  FlipImage,
-  CropImage,
-  ReadImageAsBase64,
   ExportHistoryToFile,
   ImportHistoryFromFile,
+  RegisterMediaAsset,
   SetOutputDir,
   probeCurrentUpstream,
   setKernelRuntimeMode,
@@ -46,10 +40,8 @@ import {
   loadLegacyModeAPIKey,
   loadLegacySharedAPIKey,
   loadTrustedOutputRoots,
-  persistHistoryFullImage,
   persistHistoryItem,
   rememberTrustedOutputRoot,
-  removeHistoryItem,
   loadAllHistory,
 } from "../lib/storage";
 import {
@@ -61,9 +53,7 @@ import {
   keyringUserFor,
   pickActiveProfile,
 } from "../lib/profiles";
-import { base64ToBlob } from "../lib/images";
 import { isMac, readRuntimePlatformState } from "../platform";
-import { saveImageForPlatform } from "../platform/android/bridge";
 import { dispatchFullscreenResize, setNativeFullscreen } from "../platform/nativeFullscreen";
 import {
   activeRuntimePatch,
@@ -99,13 +89,12 @@ import {
 } from "./studioStore.shared";
 import type { ModeConfig, PromptOptimizeRequest, Stroke, StudioState, UndoEntry } from "./studioStore.types";
 import {
-  createPreviewB64,
   cryptoIDFallback,
-  fileToBase64,
   ensureFullHistoryItem as ensureFullHistoryItemRuntime,
   materializeHistoryItem as materializeHistoryItemRuntime,
   STYLE_SUFFIXES,
   tryNotify,
+  withMediaAssetRef,
 } from "./studioStore.runtime";
 import { createMediaActions } from "./studioStore.media";
 import { createProfileActions } from "./studioStore.profiles";
@@ -648,7 +637,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       return;
     }
 
-    const items = await loadAllHistory();
+    const loadedItems = await loadAllHistory();
+    let items = trimHistory(loadedItems);
     let promptHistory: string[] = [];
     let presets: Preset[] = [];
     let theme: ThemeMode = "system";
@@ -798,6 +788,15 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     if (effectiveOutput) trustedRoots.add(effectiveOutput);
     for (const root of trustedRoots) rememberTrustedOutputRoot(root);
     await registerTrustedOutputRoots(Array.from(trustedRoots));
+    items = await Promise.all(items.map(async (item) => {
+      if (!item.savedPath || !item.thumbPath) return item;
+      try {
+        const ref = await RegisterMediaAsset(item.savedPath, item.thumbPath);
+        return withMediaAssetRef(item, ref);
+      } catch {
+        return item;
+      }
+    }));
     // Make sure there's always at least one workspace.
     const wsId = genId();
     const initialWorkspace: Workspace = {
@@ -830,7 +829,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       ? false
       : !activeProfile || !activeKey.trim() || !baseURL.trim();
     set({
-      apiKey: activeKey, history: trimHistory(items), promptHistory, presets, theme, fontScale,
+      apiKey: activeKey, history: items, promptHistory, presets, theme, fontScale,
       apiMode, requestPolicy, baseURL, textModelID, imageModelID, kernelRuntimeMode, noPromptRevision,
       outputFormat,
       profiles,
@@ -1200,12 +1199,20 @@ async function launchOneJob(
           const elapsedSec = (Date.now() - startedAt) / 1000;
           const rd = [elapsedSec, ...store.getState().recentDurations].slice(0, 5);
           const willNotify = typeof document !== "undefined" && document.visibilityState !== "visible";
-          const fullBlob = base64ToBlob(r.imageB64);
           const parentId = mode === "edit" ? (snapshot.sources[0]?.path || snapshot.currentImage?.savedPath) : undefined;
-          const fullItem: HistoryItem = {
-            id: cryptoIDFallback(),
-            imageB64: r.imageB64,
-            imageBlob: fullBlob,
+          const itemID = cryptoIDFallback();
+          const fallbackB64 = typeof r.imageB64 === "string" ? r.imageB64 : "";
+          const previewItem: HistoryItem = {
+            id: itemID,
+            imageId: r.imageId || undefined,
+            previewUrl: r.previewUrl || undefined,
+            thumbPath: r.thumbPath || undefined,
+            previewWidth: typeof r.previewWidth === "number" ? r.previewWidth : undefined,
+            previewHeight: typeof r.previewHeight === "number" ? r.previewHeight : undefined,
+            imageB64: fallbackB64 || undefined,
+            imageBlob: null,
+            previewBlob: null,
+            previewOnly: true,
             prompt: r.prompt,
             revisedPrompt: r.revisedPrompt,
             mode: r.mode as Mode,
@@ -1221,9 +1228,14 @@ async function launchOneJob(
             savedPath: r.savedPath,
             rawPath: r.rawPath,
           };
-          const historyItem: HistoryItem = {
-            ...fullItem,
+          const activeItem: HistoryItem = {
+            ...previewItem,
+            fullUrl: r.fullUrl || (r.imageId ? `/media/full/${r.imageId}` : undefined),
             previewOnly: false,
+          };
+          const historyItem: HistoryItem = {
+            ...previewItem,
+            previewOnly: true,
           };
           const { completed: completedNow, total: totalNow } = removeFromRunning();
           const trimmed = trimHistory([historyItem, ...store.getState().history]);
@@ -1240,7 +1252,7 @@ async function launchOneJob(
               : [...existingBatchIDs, historyItem.id];
             const nextGridOpen = gridWasOpen;
             const batchResults = state.activeWorkspaceId === snapshot.workspaceId
-              ? [...state.batchResults, fullItem]
+              ? [...state.batchResults, historyItem]
               : state.batchResults;
             return {
               history: trimmed,
@@ -1253,7 +1265,7 @@ async function launchOneJob(
               }),
               ...(state.activeWorkspaceId === snapshot.workspaceId
                 ? {
-                    currentImage: fullItem,
+                    currentImage: activeItem,
                     batchResults,
                     resultGridOpen: nextGridOpen,
                     streamPreview: null,
@@ -1266,20 +1278,19 @@ async function launchOneJob(
           });
           persistTrimmedHistory(trimmed);
           persistHistoryItem(historyItem).catch(() => undefined);
-          persistHistoryFullImage(historyItem.id, r.imageB64).catch(() => undefined);
           // 桌面通知 —— 点击拉前台 + 直达详情抽屉
           if (willNotify) {
             tryNotify("Image Studio · 已完成", r.prompt ?? "", () => {
-              store.getState().openResultDetail(fullItem);
+              store.getState().openResultDetail(historyItem);
             });
           }
           store.getState().pushToast(
             totalNow > 1
               ? `已完成 (${completedNow}/${totalNow}) · ${elapsedSec.toFixed(0)}s`
-              : `已${fullItem.mode === "edit" ? "编辑" : "生成"} · ${elapsedSec.toFixed(0)}s`,
+              : `已${historyItem.mode === "edit" ? "编辑" : "生成"} · ${elapsedSec.toFixed(0)}s`,
             "success",
             6000,
-            { label: "查看详情", onClick: () => store.getState().openResultDetail(fullItem) },
+            { label: "查看详情", onClick: () => store.getState().openResultDetail(historyItem) },
           );
           // 首次成功生图 → 延迟 2s 弹 GitHub Star 引导。localStorage 标志一旦
           // 写入就再也不弹(无论用户点 star 还是关闭)。延迟是为了让用户先看
@@ -1300,31 +1311,6 @@ async function launchOneJob(
               }, 3500);
             }
           } catch { /* localStorage 不可用 → 静默跳过 */ }
-          void (async () => {
-            try {
-              const previewB64 = await createPreviewB64(r.imageB64);
-              if (previewB64 === r.imageB64) return;
-              const previewBlob = base64ToBlob(previewB64);
-              store.setState((state) => {
-                const patchHistoryItem = (entry: HistoryItem): HistoryItem => (
-                  entry.id === historyItem.id
-                    ? { ...entry, imageB64: previewB64, previewBlob, previewOnly: true }
-                    : entry
-                );
-                return {
-                  history: state.history.map(patchHistoryItem),
-                } as Partial<StudioState>;
-              });
-              persistHistoryItem({
-                ...historyItem,
-                imageB64: previewB64,
-                previewBlob,
-                previewOnly: true,
-              }).catch(() => undefined);
-            } catch {
-              // 缩略图生成失败不影响主流程，保留全图即可。
-            }
-          })();
         } catch (err: any) {
           const patch: WorkspacePatch = {
             errorMessage: `处理结果失败:${err?.message ?? err}`,

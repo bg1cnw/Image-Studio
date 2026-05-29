@@ -19,6 +19,7 @@ import { HistoryTile } from "./HistoryTile";
 import { useHistoryContextMenu } from "./useHistoryContextMenu";
 import { WindowsHistoryRail } from "./WindowsHistoryRail";
 import { qualityLabel, sizeLabel } from "./historyLabels";
+import { toPreviewOnlyHistoryItem } from "../../state/studioStore.runtime";
 
 export type ModeFilter = "all" | Mode;
 export type DateFilter = RelativeHistoryDateFilter;
@@ -67,8 +68,6 @@ export function HistoryRail() {
 
   async function selectCurrent(h: HistoryItem) {
     const myEpoch = ++selectEpochRef.current;
-    // 1) 立即把(可能只是预览的)项摆上画布 —— 给用户即时反馈,不等磁盘 IO
-    setField("currentImage", h);
     // 2) 关键:从历史栏选图 = 显式单图选择,退出批量结果网格 overlay。否则
     //    刚生成完 9 张批量,grid 一直罩在画板上,用户在历史栏怎么点都只是
     //    切 grid 里的高亮项,视觉上像「卡在第一张」。grid 可以从工具栏的
@@ -78,11 +77,13 @@ export function HistoryRail() {
     }
     // 3) previewOnly 需要后台从磁盘 / IndexedDB 读全图;读完只在 epoch 没变
     //    时才提交全图替换。epoch 变了说明用户已经点了别的图,这次结果作废。
-    if (h.previewOnly) {
+    const previewItem = toPreviewOnlyHistoryItem(h);
+    setField("currentImage", previewItem);
+    if (h.previewOnly || h.fullUrl) {
       try {
         const full = await useStudioStore.getState().materializeCurrentImage?.(h);
         if (selectEpochRef.current === myEpoch && full) {
-          setField("currentImage", full);
+          setField("currentImage", { ...full, previewOnly: false });
         }
       } catch {
         // 读不出来就维持预览,用户可以再点一次

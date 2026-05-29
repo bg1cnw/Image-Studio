@@ -1,6 +1,7 @@
 import type { backend } from "../../wailsjs/go/models";
 import {
   ImportImageFromB64,
+  RegisterMediaAsset,
   ReadImageAsBase64,
 } from "../platform/runtime/host";
 import {
@@ -26,6 +27,45 @@ export function historyItemsByIds(history: HistoryItem[], ids: string[]): Histor
   return ids.map((id) => byID.get(id)).filter((item): item is HistoryItem => !!item);
 }
 
+export function withMediaAssetRef(
+  item: HistoryItem,
+  ref: {
+    imageId?: string;
+    savedPath?: string;
+    thumbPath?: string;
+    previewUrl?: string;
+    fullUrl?: string;
+    previewWidth?: number;
+    previewHeight?: number;
+  },
+): HistoryItem {
+  return {
+    ...item,
+    imageId: ref.imageId || item.imageId,
+    savedPath: ref.savedPath || item.savedPath,
+    thumbPath: ref.thumbPath || item.thumbPath,
+    previewUrl: ref.previewUrl || item.previewUrl,
+    fullUrl: item.fullUrl,
+    previewWidth: ref.previewWidth || item.previewWidth,
+    previewHeight: ref.previewHeight || item.previewHeight,
+  };
+}
+
+export function toPreviewOnlyHistoryItem(item: HistoryItem): HistoryItem {
+  const canUseCompactPreview = !!item.previewUrl || !!item.previewBlob;
+  return {
+    ...item,
+    fullUrl: undefined,
+    imageBlob: null,
+    imageB64: canUseCompactPreview ? undefined : item.imageB64,
+    previewOnly: true,
+  };
+}
+
+function fullUrlFromImageID(imageId?: string | null): string {
+  return imageId ? `/media/full/${imageId}` : "";
+}
+
 export async function createPreviewB64(b64: string, maxEdge = 192): Promise<string> {
   const blob = base64ToBlob(b64);
   const preview = await createPreviewBlob(blob, maxEdge);
@@ -44,6 +84,7 @@ export async function materializeHistoryItem(
     const readable = await ReadImageAsBase64(item.savedPath).then(() => true).catch(() => false);
     if (readable) return item;
   }
+  if (!item.imageB64) return item;
   const imported = await ImportImageFromB64(item.imageB64, suggestedImportNameForHistory(item));
   const next: HistoryItem = { ...item, savedPath: imported.path };
   deps.setState((state) => ({
@@ -61,6 +102,17 @@ export async function ensureFullHistoryItem(
   },
 ): Promise<HistoryItem | null> {
   if (!item) return null;
+  if ((item.fullUrl || item.imageId) && !item.imageB64 && !item.imageBlob) {
+    return { ...item, fullUrl: item.fullUrl || fullUrlFromImageID(item.imageId), previewOnly: false };
+  }
+  if (item.savedPath && item.thumbPath && !item.imageB64 && !item.imageBlob) {
+    try {
+      const ref = await RegisterMediaAsset(item.savedPath, item.thumbPath);
+      return { ...withMediaAssetRef(item, ref), fullUrl: ref.fullUrl, previewOnly: false };
+    } catch {
+      return item;
+    }
+  }
   if (!item.previewOnly) return item;
   try {
     let fullB64 = item.savedPath
@@ -73,7 +125,6 @@ export async function ensureFullHistoryItem(
     const next: HistoryItem = { ...item, imageB64: fullB64, imageBlob: base64ToBlob(fullB64), previewOnly: false };
     deps.setState((state) => ({
       currentImage: state.currentImage?.id === item.id ? next : state.currentImage,
-      resultDetail: state.resultDetail?.id === item.id ? next : state.resultDetail,
       compareB: state.compareB?.id === item.id ? next : state.compareB,
     }));
     return next;

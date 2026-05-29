@@ -1,6 +1,6 @@
 import { Ellipsis, X } from "lucide-react";
 import type React from "react";
-import { useBlobURL } from "../../lib/images";
+import { historyPreviewSrc, useBlobURL } from "../../lib/images";
 import { usePlatform } from "../../platform/context";
 import type { HistoryItem } from "../../types/domain";
 import { HistoryMetaBadges } from "./HistoryMetaBadges";
@@ -30,6 +30,7 @@ export function HistoryTile({
 }) {
   const { isMac, usesFluentUI } = usePlatform();
   const previewURL = useBlobURL(item.previewBlob ?? item.imageBlob ?? null, item.imageB64 ?? null);
+  const imageSrc = historyPreviewSrc(item, previewURL);
 
   function openMenuFromEvent(e: React.MouseEvent) {
     e.preventDefault();
@@ -64,7 +65,7 @@ export function HistoryTile({
         className={`android-history-feature-tile ${isCurrent ? "active" : ""} ${isCompare ? "compare" : ""}`}
       >
         <img
-          src={previewURL ?? `data:image/png;base64,${item.imageB64}`}
+          src={imageSrc}
           alt={item.prompt}
           loading="eager"
           decoding="async"
@@ -89,7 +90,7 @@ export function HistoryTile({
       >
         <div className="android-history-tile-image">
           <img
-            src={previewURL ?? `data:image/png;base64,${item.imageB64}`}
+            src={imageSrc}
             alt={item.prompt}
             loading="eager"
             decoding="async"
@@ -133,7 +134,7 @@ export function HistoryTile({
       >
         <div className="windows-history-feature-image">
           <img
-            src={previewURL ?? `data:image/png;base64,${item.imageB64}`}
+            src={imageSrc}
             alt={item.prompt}
             loading="eager"
             decoding="async"
@@ -166,7 +167,7 @@ export function HistoryTile({
       >
         <div className="windows-history-row-thumb">
           <img
-            src={previewURL ?? `data:image/png;base64,${item.imageB64}`}
+            src={imageSrc}
             alt={item.prompt}
             loading="eager"
             decoding="async"
@@ -218,7 +219,7 @@ export function HistoryTile({
       >
         <div className="relative aspect-[5/4] overflow-hidden">
           <img
-            src={previewURL ?? `data:image/png;base64,${item.imageB64}`}
+            src={imageSrc}
             alt={item.prompt}
             loading="eager"
             decoding="async"
@@ -280,7 +281,7 @@ export function HistoryTile({
       }`}
     >
       <img
-        src={previewURL ?? `data:image/png;base64,${item.imageB64}`}
+        src={imageSrc}
         alt={item.prompt}
         loading="eager"
         decoding="async"

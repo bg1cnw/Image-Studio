@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { HistoryMetaBadges } from "../../../components/history/HistoryMetaBadges";
 import { HistoryModeBadge } from "../../../components/history/HistoryModeBadge";
 import { qualityLabel, sizeLabel } from "../../../components/history/historyLabels";
-import { useBlobURL } from "../../../lib/images";
+import { historyPreviewSrc, useBlobURL } from "../../../lib/images";
 import type { HistoryItem } from "../../../types/domain";
 import { vibrateForPlatform } from "../bridge";
 
@@ -35,7 +35,7 @@ export function AndroidHistoryTile({
   const longPressTimerRef = useRef<number | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const suppressClickUntilRef = useRef(0);
-  const imageSrc = previewURL ?? `data:image/png;base64,${item.imageB64}`;
+  const imageSrc = historyPreviewSrc(item, previewURL);
 
   function clearLongPress() {
     if (longPressTimerRef.current !== null) {

@@ -51,7 +51,15 @@ export type JobStartedLike = { jobId: string };
 export type ImportedImageLike = { path: string; imageB64: string };
 export type ImageTransformResultLike = { path: string; acceleration?: string };
 export type SelectFileResponseLike = { path: string; size: number; imageB64?: string; previewB64?: string };
-
+export type MediaAssetRefLike = {
+  imageId?: string;
+  savedPath?: string;
+  thumbPath?: string;
+  previewUrl?: string;
+  fullUrl?: string;
+  previewWidth?: number;
+  previewHeight?: number;
+};
 export type HostKind = "wails-desktop" | "android-shell" | "browser";
 
 export type HostCapabilities = {

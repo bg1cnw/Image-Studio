@@ -101,9 +101,15 @@ export interface SourceImage {
 
 export interface HistoryItem {
   id: string;
-  // For history entries this may be a compact preview; currentImage/resultDetail
-  // may hold the full-resolution image.
-  imageB64: string;
+  imageId?: string;
+  previewUrl?: string;
+  fullUrl?: string;
+  thumbPath?: string;
+  previewWidth?: number;
+  previewHeight?: number;
+  // Legacy/import/browser fallback. New Wails result records keep this empty so
+  // full images do not live in persistent Zustand/history/batch state.
+  imageB64?: string;
   imageBlob?: Blob | null;
   previewBlob?: Blob | null;
   previewOnly?: boolean;
@@ -135,7 +141,7 @@ export interface ProgressInfo {
 
 export interface StreamPreview {
   jobId: string;
-  imageB64: string;
+  imageB64?: string;
   revisedPrompt?: string;
   partialImageIndex?: number;
   updatedAt: number;

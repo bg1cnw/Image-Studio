@@ -1,9 +1,8 @@
 import { ClipboardCopy, Folder, RotateCw, Save, Sparkles } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
-import type { HistoryItem } from "../../types/domain";
-import { SaveImageAs, OpenOutputDir } from "../../platform/runtime/host";
+import { OpenOutputDir, SaveImageAs, SaveImagePathAs } from "../../platform/runtime/host";
 import { submitShortcutLabel } from "../../platform";
-import { useBlobURL } from "../../lib/images";
+import { historyPreviewSrc, useBlobURL } from "../../lib/images";
 import { androidSaveHint, androidTarget, openOutputLocationForPlatform, saveImageForPlatform } from "../../platform/android/bridge";
 import { Modal } from "../common/Modal";
 import { usePlatform } from "../../platform/context";
@@ -20,7 +19,8 @@ export function ResultDetailDrawer() {
   const detail = item;
 
   const created = new Date(detail.createdAt).toLocaleString();
-  const previewURL = useBlobURL(detail.imageBlob ?? null, detail.previewOnly ? detail.imageB64 : null);
+  const previewURL = useBlobURL(detail.previewBlob ?? detail.imageBlob ?? null, detail.imageB64 ?? null);
+  const imageSrc = historyPreviewSrc(detail, previewURL);
 
   function copy(text: string, label: string) {
     navigator.clipboard.writeText(text).then(
@@ -37,7 +37,10 @@ export function ResultDetailDrawer() {
 
   function openSaveDialog() {
     const suggested = `image-${detail.mode}-${detail.id.slice(0, 8)}.png`;
-    saveImageForPlatform(detail.imageB64, suggested, SaveImageAs).then(
+    const savePromise = detail.savedPath
+      ? SaveImagePathAs(detail.savedPath, suggested)
+      : saveImageForPlatform(detail.imageB64 ?? "", suggested, SaveImageAs);
+    savePromise.then(
       (p) => p && pushToast(`已保存:${p.split(/[\\/]/).pop()}`, "success"),
       (e) => pushToast(`保存失败:${e?.message ?? e}`, "error"),
     );
@@ -53,7 +56,7 @@ export function ResultDetailDrawer() {
         <section className={`platform-card border border-black/[0.05] bg-white/72 p-3 shadow-[var(--shadow-card)] dark:border-white/[0.06] dark:bg-white/[0.03] ${usesFluentUI ? "rounded-[12px]" : "rounded-[18px]"}`}>
           <div className={`flex items-center justify-center border border-black/[0.08] bg-[var(--surface)] p-2 dark:border-white/[0.06] ${usesFluentUI ? "rounded-[10px]" : "rounded-[16px]"}`}>
             <img
-              src={previewURL ?? `data:image/png;base64,${detail.imageB64}`}
+              src={imageSrc}
               alt="生成结果"
               decoding="async"
               className={`max-h-[300px] max-w-full object-contain ${usesFluentUI ? "rounded-[8px]" : "rounded-[12px]"}`}

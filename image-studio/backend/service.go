@@ -41,6 +41,7 @@ type Service struct {
 	apiKeys          apiKeyStore
 
 	trustedOutputRoots map[string]struct{}
+	mediaAssets        map[string]mediaAsset
 }
 
 type job struct {
@@ -56,6 +57,7 @@ func NewService() *Service {
 		runningByAPIMode:   map[string]int{},
 		apiKeys:            keyringAPIKeyStore{},
 		trustedOutputRoots: map[string]struct{}{},
+		mediaAssets:        map[string]mediaAsset{},
 	}
 }
 
@@ -329,8 +331,13 @@ func (s *Service) runJob(ctx context.Context, jobID string, opts GenerateOptions
 	}
 	// 拆 PNG 和 raw response 到两个子目录,避免单目录文件混杂。
 	imagesDir := imagesSubdir(rootDir)
+	thumbsDir := thumbsSubdir(rootDir)
 	logDir := logSubdir(rootDir)
 	if err := os.MkdirAll(imagesDir, secureDirMode); err != nil {
+		s.emitError(jobID, err)
+		return
+	}
+	if err := os.MkdirAll(thumbsDir, secureDirMode); err != nil {
 		s.emitError(jobID, err)
 		return
 	}
@@ -377,16 +384,36 @@ func (s *Service) runJob(ctx context.Context, jobID string, opts GenerateOptions
 
 	imageName := buildImageName(mode, opts.Prompt, timestamp, opts.OutputFormat)
 	savedPath := filepath.Join(imagesDir, imageName)
-	if abs, werr := writeBase64PNG(result.ImageB64, savedPath); werr == nil {
-		savedPath = abs
+	absSaved, werr := writeBase64PNG(result.ImageB64, savedPath)
+	if werr != nil {
+		s.emitErrorWithRaw(jobID, fmt.Errorf("保存结果图片失败:%w", werr), rawPath)
+		return
+	}
+	savedPath = absSaved
+	thumbName := strings.TrimSuffix(filepath.Base(imageName), filepath.Ext(imageName)) + ".avif"
+	thumbPath := filepath.Join(thumbsDir, thumbName)
+	thumbW, thumbH, thumbErr := createAVIFThumbnail(savedPath, thumbPath, mediaThumbMaxEdge)
+	if thumbErr != nil {
+		s.emitErrorWithRaw(jobID, fmt.Errorf("生成 AVIF 缩略图失败:%w", thumbErr), rawPath)
+		return
+	}
+	asset, mediaErr := s.registerGeneratedMedia(savedPath, thumbPath, thumbW, thumbH)
+	if mediaErr != nil {
+		s.emitErrorWithRaw(jobID, fmt.Errorf("登记本地图片失败:%w", mediaErr), rawPath)
+		return
 	}
 	absRaw, _ := filepath.Abs(rawPath)
 
 	runtime.EventsEmit(s.ctx, "result:"+jobID, ResultPayload{
-		ImageB64:      result.ImageB64,
 		RevisedPrompt: result.RevisedPrompt,
 		SourceEvent:   result.SourceEvent,
+		ImageID:       asset.ID,
 		SavedPath:     savedPath,
+		ThumbPath:     asset.ThumbPath,
+		PreviewURL:    asset.PreviewURL,
+		FullURL:       asset.FullURL,
+		PreviewWidth:  asset.PreviewWidth,
+		PreviewHeight: asset.PreviewHeight,
 		RawPath:       absRaw,
 		Mode:          string(mode),
 		Prompt:        opts.Prompt,

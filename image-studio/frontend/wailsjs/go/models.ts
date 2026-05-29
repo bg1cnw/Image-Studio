@@ -90,6 +90,30 @@ export namespace backend {
 	        this.jobId = source["jobId"];
 	    }
 	}
+	export class MediaAssetRef {
+	    imageId?: string;
+	    savedPath?: string;
+	    thumbPath?: string;
+	    previewUrl?: string;
+	    fullUrl?: string;
+	    previewWidth?: number;
+	    previewHeight?: number;
+
+	    static createFrom(source: any = {}) {
+	        return new MediaAssetRef(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.imageId = source["imageId"];
+	        this.savedPath = source["savedPath"];
+	        this.thumbPath = source["thumbPath"];
+	        this.previewUrl = source["previewUrl"];
+	        this.fullUrl = source["fullUrl"];
+	        this.previewWidth = source["previewWidth"];
+	        this.previewHeight = source["previewHeight"];
+	    }
+	}
 	export class PromptOptimizeOptions {
 	    apiKey: string;
 	    prompt: string;

@@ -7,7 +7,7 @@ import type { Stroke } from "../../../state/studioStore.types";
 import { AnnotationShape } from "../../../components/canvas/AnnotationShape";
 import { BatchResultGrid } from "../../../components/canvas/BatchResultGrid";
 import { CompareOverlay } from "../../../components/canvas/CompareOverlay";
-import { copyImageB64ToClipboard, useImageFromSource } from "../../../components/canvas/canvasImage";
+import { copyImageB64ToClipboard, copyImageURLToClipboard, useImageFromSource } from "../../../components/canvas/canvasImage";
 import { StreamPreviewBadge } from "../../../components/canvas/StreamPreviewBadge";
 import { useCanvasShortcuts } from "../../../components/canvas/useCanvasShortcuts";
 import { vibrateForPlatform } from "../bridge";
@@ -47,7 +47,10 @@ export function AndroidCanvasStage() {
   const [pinching, setPinching] = useState(false);
   const effectiveTool = pinching ? "pan" : tool;
 
-  const image = useImageFromSource(currentImage?.imageBlob ?? null, currentImage?.imageB64);
+  const currentImageURL = currentImage?.previewOnly
+    ? currentImage.previewUrl
+    : (currentImage?.fullUrl || currentImage?.previewUrl);
+  const image = useImageFromSource(currentImage?.imageBlob ?? null, currentImage?.imageB64, currentImageURL);
   const [hostSize, setHostSize] = useState({ w: 0, h: 0 });
   const hostRef = useCallback((node: HTMLDivElement | null) => {
     if (roRef.current) {
@@ -364,7 +367,12 @@ export function AndroidCanvasStage() {
     compareB,
     copyCurrentImage: () => {
       if (!currentImage) return;
-      copyImageB64ToClipboard(currentImage.imageB64).then((ok) => {
+      const copyPromise = useStudioStore.getState().materializeCurrentImage(currentImage).then((full) => (
+        full.fullUrl
+          ? copyImageURLToClipboard(full.fullUrl)
+          : copyImageB64ToClipboard(full.imageB64 ?? "")
+      ));
+      copyPromise.then((ok) => {
         const pushToast = useStudioStore.getState().pushToast;
         if (ok) pushToast("已复制图片到剪贴板", "success");
         else pushToast("复制失败,当前运行环境拒绝写剪贴板", "error");
@@ -405,8 +413,10 @@ export function AndroidCanvasStage() {
         <CompareOverlay
           aBlob={currentImage.imageBlob ?? null}
           aB64={currentImage.imageB64}
+          aUrl={currentImage.fullUrl}
           bBlob={compareB.imageBlob ?? null}
           bB64={compareB.imageB64}
+          bUrl={compareB.fullUrl}
           split={compareSplit}
           onSplit={setCompareSplit}
         />

@@ -111,7 +111,7 @@ func (s *Service) allowedRoots(kind managedPathKind) []string {
 func appendManagedOutputRoot(roots []string, root string, kind managedPathKind) []string {
 	switch kind {
 	case managedImageFile:
-		return append(roots, imagesSubdir(root))
+		return append(roots, imagesSubdir(root), thumbsSubdir(root))
 	case managedRawLogFile:
 		return append(roots, logSubdir(root))
 	default:

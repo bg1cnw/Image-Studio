@@ -1,5 +1,5 @@
 import type { HistoryItem } from "../../types/domain";
-import { useBlobURL } from "../../lib/images";
+import { historyPreviewSrc, useBlobURL } from "../../lib/images";
 
 export function BatchResultGrid({
   items,
@@ -51,6 +51,7 @@ function BatchGridTile({
   onSelect: (item: HistoryItem) => void | Promise<void>;
 }) {
   const previewURL = useBlobURL(item.imageBlob ?? item.previewBlob ?? null, item.imageB64 ?? null);
+  const src = historyPreviewSrc(item, previewURL);
   return (
     <button
       type="button"
@@ -59,7 +60,7 @@ function BatchGridTile({
       title={item.prompt}
     >
       <img
-        src={previewURL ?? `data:image/png;base64,${item.imageB64}`}
+        src={src}
         alt={item.prompt || `batch result ${index + 1}`}
         loading="eager"
         decoding="async"

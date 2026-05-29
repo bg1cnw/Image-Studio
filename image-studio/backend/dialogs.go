@@ -6,6 +6,7 @@ import (
 	"fmt"
 	neturl "net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -70,6 +71,39 @@ func (s *Service) SaveImageAs(imageB64, suggestedName string) (string, error) {
 	return writeBase64PNG(imageB64, dst)
 }
 
+// SaveImagePathAs copies an existing managed image to a user-selected path.
+// Generated results use this path-first route so the frontend does not have to
+// read the full image into JS memory just to save a copy.
+func (s *Service) SaveImagePathAs(path, suggestedName string) (string, error) {
+	allowed, err := s.ensureManagedReadablePath(path, managedImageFile)
+	if err != nil {
+		return "", err
+	}
+	if suggestedName == "" {
+		suggestedName = filepath.Base(allowed)
+	}
+	dst, err := runtime.SaveFileDialog(s.ctx, runtime.SaveDialogOptions{
+		Title:           "保存图片",
+		DefaultFilename: suggestedName,
+		Filters: []runtime.FileFilter{
+			{DisplayName: "图片文件 (*.png;*.jpg;*.jpeg;*.webp;*.avif)", Pattern: "*.png;*.jpg;*.jpeg;*.webp;*.avif"},
+			{DisplayName: "所有文件 (*.*)", Pattern: "*.*"},
+		},
+	})
+	if err != nil || dst == "" {
+		return "", err
+	}
+	data, err := os.ReadFile(allowed)
+	if err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(dst, data, secureFileMode); err != nil {
+		return "", err
+	}
+	abs, _ := filepath.Abs(dst)
+	return abs, nil
+}
+
 // GetOutputDir returns the directory where generated images and raw response
 // dumps are written —— 用户自定义优先,空时回退到默认。
 func (s *Service) GetOutputDir() (string, error) {
@@ -86,6 +120,9 @@ func (s *Service) OpenOutputDir() error {
 		return err
 	}
 	if err := os.MkdirAll(imagesSubdir(dir), secureDirMode); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(thumbsSubdir(dir), secureDirMode); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(logSubdir(dir), secureDirMode); err != nil {

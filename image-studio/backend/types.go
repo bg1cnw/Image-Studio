@@ -95,11 +95,17 @@ type ProgressPayload struct {
 
 // ResultPayload is emitted as `result:<jobId>`.
 type ResultPayload struct {
-	ImageB64      string `json:"imageB64"`
+	ImageB64      string `json:"imageB64,omitempty"`
 	RevisedPrompt string `json:"revisedPrompt"`
 	SourceEvent   string `json:"sourceEvent"`
+	ImageID       string `json:"imageId,omitempty"`
 	SavedPath     string `json:"savedPath"` // absolute path in user config dir
-	RawPath       string `json:"rawPath"`   // raw SSE dump location
+	ThumbPath     string `json:"thumbPath,omitempty"`
+	PreviewURL    string `json:"previewUrl,omitempty"`
+	FullURL       string `json:"fullUrl,omitempty"`
+	PreviewWidth  int    `json:"previewWidth,omitempty"`
+	PreviewHeight int    `json:"previewHeight,omitempty"`
+	RawPath       string `json:"rawPath"` // raw SSE dump location
 	Mode          string `json:"mode"`
 	Prompt        string `json:"prompt"`
 }
@@ -138,4 +144,14 @@ type SelectFileResponse struct {
 type ImportedImage struct {
 	Path     string `json:"path"`
 	ImageB64 string `json:"imageB64"`
+}
+
+type MediaAssetRef struct {
+	ImageID       string `json:"imageId,omitempty"`
+	SavedPath     string `json:"savedPath,omitempty"`
+	ThumbPath     string `json:"thumbPath,omitempty"`
+	PreviewURL    string `json:"previewUrl,omitempty"`
+	FullURL       string `json:"fullUrl,omitempty"`
+	PreviewWidth  int    `json:"previewWidth,omitempty"`
+	PreviewHeight int    `json:"previewHeight,omitempty"`
 }

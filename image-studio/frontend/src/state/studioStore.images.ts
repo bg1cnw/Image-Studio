@@ -2,6 +2,7 @@ import {
   OpenImageDialog,
   ImportImageFromB64,
   SaveImageAs,
+  SaveImagePathAs,
 } from "../platform/runtime/host";
 import { saveImageForPlatform } from "../platform/android/bridge";
 import { base64ToBlob } from "../lib/images";
@@ -38,7 +39,7 @@ export function createImageActions(store: StateAdapter) {
         const previewB64 = res.previewB64 || imageB64;
         const imageBlob = previewB64 ? base64ToBlob(previewB64) : null;
         store.setState({
-          sources: [...existing, { path: res.path, name: baseName, size: res.size, imageB64, imageBlob }],
+          sources: [...existing, { path: res.path, name: baseName, size: res.size, imageB64: previewB64, imageBlob }],
           mode: "edit",
           errorMessage: null,
           errorRawPath: null,
@@ -86,7 +87,7 @@ export function createImageActions(store: StateAdapter) {
               path: localItem.savedPath,
               name: baseName,
               size: 0,
-              imageBlob: localItem.imageBlob ?? null,
+              imageBlob: localItem.previewBlob ?? localItem.imageBlob ?? null,
               imageB64: localItem.imageB64,
             }],
       });
@@ -133,13 +134,15 @@ export function createImageActions(store: StateAdapter) {
     },
 
     async saveCurrentImageAs() {
-      const current = await ensureFullHistoryItem(store.getState().currentImage, {
-        setState: (fn) => store.setState((state) => fn(state)),
-      });
+      const current = store.getState().currentImage;
       if (!current) return;
       const suggested = `image-${current.mode}-${current.id.slice(0, 8)}.png`;
       try {
-        const saved = await saveImageForPlatform(current.imageB64, suggested, SaveImageAs);
+        const saved = current.savedPath
+          ? await SaveImagePathAs(current.savedPath, suggested)
+          : await saveImageForPlatform((await ensureFullHistoryItem(current, {
+              setState: (fn) => store.setState((state) => fn(state)),
+            }))?.imageB64 ?? "", suggested, SaveImageAs);
         if (saved) store.getState().pushToast(`已保存:${saved.split(/[\\/]/).pop()}`, "success");
       } catch (e: any) {
         const msg = `保存失败:${e?.message ?? e}`;
@@ -185,7 +188,7 @@ export function createImageActions(store: StateAdapter) {
                 name: file.name,
                 size: file.size,
                 imageBlob: previewBlob,
-                imageB64: b64,
+                imageB64: previewB64,
               }],
           errorMessage: null,
           errorRawPath: null,

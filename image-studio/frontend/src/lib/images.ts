@@ -141,6 +141,31 @@ export function useBlobURL(blob?: Blob | null, fallbackB64?: string | null): str
   return url;
 }
 
+export function historyPreviewSrc(
+  item: {
+    previewUrl?: string | null;
+    imageBlob?: Blob | null;
+    previewBlob?: Blob | null;
+    imageB64?: string | null;
+  } | null | undefined,
+  objectURL: string | null,
+): string {
+  if (!item) return "";
+  return item.previewUrl || objectURL || (item.imageB64 ? dataURLFromBase64(item.imageB64) : "");
+}
+
+export function historyFullSrc(
+  item: {
+    fullUrl?: string | null;
+    previewUrl?: string | null;
+    imageB64?: string | null;
+  } | null | undefined,
+  objectURL: string | null,
+): string {
+  if (!item) return "";
+  return item.fullUrl || objectURL || item.previewUrl || (item.imageB64 ? dataURLFromBase64(item.imageB64) : "");
+}
+
 export async function createPreviewBlob(blob: Blob, maxEdge = 192): Promise<Blob> {
   try {
     const bitmap = await createImageBitmap(blob);

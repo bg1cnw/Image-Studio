@@ -47,6 +47,7 @@ import type {
   ImportedImageLike,
   JobStartedLike,
   KernelRuntimeMode,
+  MediaAssetRefLike,
   ProbeUpstreamOptionsLike,
   ProbeUpstreamResultLike,
   PromptOptimizeOptionsLike,
@@ -399,6 +400,20 @@ export function SaveImageAs(imageB64: string, suggestedName: string): Promise<st
       ? "image/webp"
       : "image/png";
   return Promise.resolve(saveByDownload(new Blob([Uint8Array.from(atob(imageB64), (ch) => ch.charCodeAt(0))], { type: mimeType }), suggestedName));
+}
+
+export function SaveImagePathAs(path: string, suggestedName: string): Promise<string> {
+  if (hasServiceMethod("SaveImagePathAs")) {
+    return invokeService<string>(unsupportedMessage, "SaveImagePathAs", path, suggestedName);
+  }
+  return ReadImageAsBase64(path).then((b64) => SaveImageAs(b64, suggestedName));
+}
+
+export function RegisterMediaAsset(savedPath: string, thumbPath: string): Promise<MediaAssetRefLike> {
+  if (hasServiceMethod("RegisterMediaAsset")) {
+    return invokeService<MediaAssetRefLike>(unsupportedMessage, "RegisterMediaAsset", savedPath, thumbPath);
+  }
+  return Promise.resolve({ savedPath, thumbPath });
 }
 
 export function ImportImageFromB64(imageB64: string, suggestedName: string): Promise<ImportedImageLike> {

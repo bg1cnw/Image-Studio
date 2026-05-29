@@ -1,5 +1,5 @@
 import { Clock3, Ellipsis } from "lucide-react";
-import { useBlobURL } from "../../lib/images";
+import { historyPreviewSrc, useBlobURL } from "../../lib/images";
 import { usePlatform } from "../../platform/context";
 import type { HistoryItem } from "../../types/domain";
 import { HistoryMetaBadges } from "./HistoryMetaBadges";
@@ -27,6 +27,7 @@ export function TimelineHistoryItem({
 }) {
   const { isMac, usesFluentUI } = usePlatform();
   const previewURL = useBlobURL(item.previewBlob ?? item.imageBlob ?? null, item.imageB64 ?? null);
+  const imageSrc = historyPreviewSrc(item, previewURL);
   const timeLabel = new Date(item.createdAt).toLocaleTimeString();
 
   return (
@@ -51,7 +52,7 @@ export function TimelineHistoryItem({
             className={`relative aspect-[4/3] overflow-hidden border border-black/[0.06] dark:border-white/[0.06] ${usesFluentUI ? "rounded-[10px]" : "rounded-[16px]"}`}
           >
             <img
-              src={previewURL ?? `data:image/png;base64,${item.imageB64}`}
+              src={imageSrc}
               alt={item.prompt}
               className="h-full w-full object-cover"
             />

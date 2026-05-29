@@ -24,7 +24,10 @@ import {
   ensureFullBatchItem,
   ensureFullHistoryItem,
   materializeHistoryItem,
+  toPreviewOnlyHistoryItem,
+  withMediaAssetRef,
 } from "./studioStore.runtime";
+import { RegisterMediaAsset } from "../platform/runtime/host";
 import { patchWorkspaceRuntime } from "./workspaceRuntime";
 
 type StateAdapter = {
@@ -55,6 +58,7 @@ export function createMediaActions(store: StateAdapter) {
       store.setState({
         resultGridOpen: true,
         compareB: null,
+        currentImage: state.currentImage ? toPreviewOnlyHistoryItem(state.currentImage) : null,
         workspaces: patchWorkspaceRuntime(state.workspaces, state.activeWorkspaceId, { resultGridOpen: true }),
       });
     },
@@ -73,7 +77,7 @@ export function createMediaActions(store: StateAdapter) {
       });
       const state = store.getState();
       store.setState({
-        currentImage: full,
+        currentImage: { ...full, previewOnly: false },
         resultGridOpen: false,
         compareB: null,
         maskDataURL: null,
@@ -102,10 +106,7 @@ export function createMediaActions(store: StateAdapter) {
     },
 
     async openResultDetail(item: HistoryItem) {
-      const full = await ensureFullHistoryItem(item, {
-        setState: (fn) => store.setState((state) => fn(state)),
-      });
-      store.setState({ resultDetail: full ?? item });
+      store.setState({ resultDetail: toPreviewOnlyHistoryItem(item) });
     },
 
     closeResultDetail() {
@@ -298,8 +299,18 @@ export function createMediaActions(store: StateAdapter) {
         let added = 0;
         for (const item of incoming) {
           if (!item.id || existing.has(item.id)) continue;
-          if (!item.imageB64 || !item.createdAt) continue;
-          const safeItem = sanitizeImportedHistoryItem(item);
+          if (!item.createdAt) continue;
+          const hasRenderableImage = !!(item.previewUrl || item.previewBlob || item.imageB64 || (item.savedPath && item.thumbPath));
+          if (!hasRenderableImage) continue;
+          let safeItem = sanitizeImportedHistoryItem(item);
+          if (safeItem.savedPath && safeItem.thumbPath && !safeItem.previewUrl) {
+            try {
+              const ref = await RegisterMediaAsset(safeItem.savedPath, safeItem.thumbPath);
+              safeItem = withMediaAssetRef(safeItem, ref);
+            } catch {
+              // Keep the metadata/legacy preview if the file is unavailable in this environment.
+            }
+          }
           merged.push(safeItem);
           await persistHistoryItem(safeItem).catch(() => undefined);
           added++;
@@ -323,7 +334,7 @@ async function loadTransformedAsCurrent(store: StateAdapter, path: string) {
     const baseName = path.split(/[\\/]/).pop() ?? "transformed.png";
     const current = snapshot.currentImage;
     const updated: HistoryItem = current
-      ? { ...current, imageB64: b64, savedPath: path }
+      ? { ...current, imageB64: b64, savedPath: path, previewOnly: false }
       : {
           id: genId(),
           imageB64: b64,

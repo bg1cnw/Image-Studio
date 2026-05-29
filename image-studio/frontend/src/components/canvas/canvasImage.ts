@@ -11,30 +11,46 @@ export async function copyImageB64ToClipboard(b64: string): Promise<boolean> {
   }
 }
 
+export async function copyImageURLToClipboard(url: string): Promise<boolean> {
+  try {
+    if (!url || typeof ClipboardItem === "undefined" || !navigator.clipboard?.write) return false;
+    const blob = await (await fetch(url)).blob();
+    await navigator.clipboard.write([new ClipboardItem({ [blob.type || "image/png"]: blob })]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Convert a Blob/base64 PNG to an HTMLImageElement (lazy).
 // Clears the previous image synchronously when the source changes so the rest
 // of the canvas never renders with a stale-image / new-view mismatch.
-export function useImageFromSource(blob: Blob | null | undefined, b64: string | undefined): HTMLImageElement | null {
+export function useImageFromSource(
+  blob: Blob | null | undefined,
+  b64: string | undefined,
+  url?: string | null,
+): HTMLImageElement | null {
   const [img, setImg] = useState<HTMLImageElement | null>(null);
 
   useEffect(() => {
-    if (!blob && !b64) {
+    if (!blob && !b64 && !url) {
       setImg(null);
       return;
     }
     setImg(null);
     const el = new Image();
     const objectURL = blob ? URL.createObjectURL(blob) : b64 ? b64ToObjectURL(b64) : null;
-    if (!objectURL) return;
+    const src = objectURL || url || null;
+    if (!src) return;
     el.onload = () => setImg(el);
     el.onerror = () => setImg(null);
-    el.src = objectURL;
+    el.src = src;
     return () => {
       el.onload = null;
       el.onerror = null;
-      URL.revokeObjectURL(objectURL);
+      if (objectURL) URL.revokeObjectURL(objectURL);
     };
-  }, [blob, b64]);
+  }, [blob, b64, url]);
 
   return img;
 }
