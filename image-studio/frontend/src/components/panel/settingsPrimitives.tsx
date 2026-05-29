@@ -30,7 +30,7 @@ export function SettingsSegButton({
     <button
       type="button"
       onClick={onClick}
-      className={`platform-chip flex-1 inline-flex min-h-[32px] items-center justify-center gap-1 px-3 py-2 text-[12px] font-medium leading-none whitespace-nowrap transition-colors ${
+      className={`platform-chip inline-flex min-h-[32px] min-w-0 flex-1 items-center justify-center gap-1 px-3 py-2 text-center text-[12px] font-medium leading-tight break-words [overflow-wrap:anywhere] transition-colors ${
         active
           ? "active bg-white text-zinc-900 shadow-sm dark:bg-zinc-900 dark:text-zinc-100"
           : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"

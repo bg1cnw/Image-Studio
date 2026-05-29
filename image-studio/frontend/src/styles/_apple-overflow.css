@@ -1,0 +1,34 @@
+/* Apple/mac overflow guards for dense settings flyouts. */
+
+html[data-ui-family="apple"] .upstream-config-modal,
+html[data-ui-family="apple"] .upstream-config-modal *,
+html[data-ui-family="apple"] .upstream-config-modal-body,
+html[data-ui-family="apple"] .upstream-config-modal-body * {
+  min-width: 0;
+}
+
+html[data-ui-family="apple"] .upstream-config-modal,
+html[data-ui-family="apple"] .upstream-config-modal-body {
+  overflow-wrap: anywhere;
+}
+
+html[data-ui-family="apple"] .upstream-config-modal button,
+html[data-ui-family="apple"] .upstream-config-modal input,
+html[data-ui-family="apple"] .upstream-config-modal textarea,
+html[data-ui-family="apple"] .upstream-config-modal code,
+html[data-ui-family="apple"] .upstream-config-modal p,
+html[data-ui-family="apple"] .upstream-config-modal span {
+  overflow-wrap: anywhere;
+}
+
+html[data-ui-family="apple"] .upstream-config-modal .platform-action-btn,
+html[data-ui-family="apple"] .upstream-config-modal .platform-chip,
+html[data-ui-family="apple"] .upstream-config-modal .platform-pill,
+html[data-ui-family="apple"] .upstream-config-modal .liquid-primary-button {
+  white-space: normal;
+  line-height: 1.25;
+}
+
+html[data-ui-family="apple"] .upstream-config-modal button > svg {
+  flex: 0 0 auto;
+}
