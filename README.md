@@ -18,9 +18,9 @@ Image Studio 面向 OpenAI 兼容图像上游，解决长时间图像推理在 C
 ---
 
 <p align="center">
-  <img src="./docs/screenshot1.png" alt="Image Studio 主界面 - 截图 1" width="880">
+  <img src="./docs/picture/screenshot1.png" alt="Image Studio 主界面 - 截图 1" width="880">
   <br />
-  <img src="./docs/screenshot2.png" alt="Image Studio 主界面 - 截图 2" width="880">
+  <img src="./docs/picture/screenshot2.png" alt="Image Studio 主界面 - 截图 2" width="880">
   <br />
   <sub>控制面板 · 画板工具栏 · 历史记录 · 多 workspace 工作流</sub>
 </p>
@@ -39,6 +39,7 @@ Image Studio 面向 OpenAI 兼容图像上游，解决长时间图像推理在 C
 | 原始提示词传递策略 | [docs/no-prompt-revision/README.md](./docs/no-prompt-revision/README.md) |
 | Android 壳层维护说明 | [android-shell/README.md](./android-shell/README.md) |
 | 跨平台内核计划与验证背景 | [docs/cross-platform-kernel-plan.md](./docs/cross-platform-kernel-plan.md) |
+| 反馈渠道、问题提交、QQ群讨论 | [docs/feedback.md](./docs/feedback.md) |
 
 ## 当前能力概览
 
@@ -85,16 +86,16 @@ Image Studio 面向 OpenAI 兼容图像上游，解决长时间图像推理在 C
 
 ## 致谢
 
-- <a href="https://linux.do/"><img src="./docs/linuxdo.png" alt="linux.do" height="20" align="absmiddle" /></a> [**linux.do**](https://linux.do/) —— 感谢 L 站及其社区为项目开发与交流提供的支持与启发。
+- <a href="https://linux.do/"><img src="./docs/picture/linuxdo.png" alt="linux.do" height="20" align="absmiddle" /></a> [**linux.do**](https://linux.do/) —— 感谢 L 站及其社区为项目开发与交流提供的支持与启发。
 
 ### 赞助商
 
 <p align="center">
-  <a href="https://www.fhl.mom"><img src="./docs/%E8%B5%9E%E5%8A%A9-www.FHL.mom.png" alt="赞助商 · www.fhl.mom" width="720"></a>
+  <a href="https://www.fhl.mom"><img src="./docs/picture/%E8%B5%9E%E5%8A%A9-www.FHL.mom.png" alt="赞助商 · www.fhl.mom" width="720"></a>
   <br /><br />
-  <a href="https://gptcodex.top"><img src="./docs/%E8%B5%9E%E5%8A%A9-GPTCODEX.top.png" alt="赞助商 · gptcodex.top" width="720"></a>
+  <a href="https://gptcodex.top"><img src="./docs/picture/%E8%B5%9E%E5%8A%A9-GPTCODEX.top.png" alt="赞助商 · gptcodex.top" width="720"></a>
   <br /><br />
-  <a href="https://muxueai.pro"><img src="./docs/%E8%B5%9E%E5%8A%A9-muxueai.pro.png" alt="赞助商 · muxueai.pro" width="720"></a>
+  <a href="https://muxueai.pro"><img src="./docs/picture/%E8%B5%9E%E5%8A%A9-muxueai.pro.png" alt="赞助商 · muxueai.pro" width="720"></a>
 </p>
 
 ---
