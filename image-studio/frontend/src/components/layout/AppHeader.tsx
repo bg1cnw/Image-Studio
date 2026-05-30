@@ -39,7 +39,7 @@ export function AppHeader({ onOpenSettings }: { onOpenSettings: () => void }) {
         >
           <Plus className="h-4 w-4" />
           {workspaces.length > 1 && (
-            <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[9px] font-semibold text-white">
+            <span className="absolute right-0 top-0 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-[var(--accent)] px-[3px] text-[8px] font-semibold leading-none text-white shadow-sm">
               {workspaces.length}
             </span>
           )}
