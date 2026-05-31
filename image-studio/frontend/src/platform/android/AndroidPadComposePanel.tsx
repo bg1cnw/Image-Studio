@@ -22,7 +22,11 @@ import {
   buildAndroidResolutionSizeSelection,
 } from "./parameters/androidSizeSelection";
 
-export function AndroidPadComposePanel() {
+export function AndroidPadComposePanel({
+  onSubmitStart,
+}: {
+  onSubmitStart?: () => void;
+} = {}) {
   const {
     apiKey, mode, prompt, negativePrompt, size, quality, seed, styleTag, outputFormat,
     batchCount, sources, currentImage, isRunning, isOptimizingPrompt, apiMode, requestPolicy, baseURL, imageModelID,
@@ -74,7 +78,9 @@ export function AndroidPadComposePanel() {
 
   const handleSubmit = () => {
     vibrateForPlatform(15);
-    submit();
+    void submit().then(() => {
+      if (useStudioStore.getState().isRunning) onSubmitStart?.();
+    });
   };
 
   const handleOptimize = () => {

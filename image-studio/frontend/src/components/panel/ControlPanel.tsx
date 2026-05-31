@@ -24,7 +24,11 @@ import {
   deriveResolutionPreset,
 } from "./sizeCapabilities";
 
-export function ControlPanel() {
+export function ControlPanel({
+  onAndroidSubmitStart,
+}: {
+  onAndroidSubmitStart?: () => void;
+} = {}) {
   const {
     apiKey, mode, prompt, negativePrompt, size, quality, seed, styleTag,
     outputFormat, batchCount,
@@ -43,11 +47,11 @@ export function ControlPanel() {
   const { isAndroid, isAndroidPhone, isAndroidPad, isMac, isWindows, usesAndroidUI, usesAppleUI, usesFluentUI } = usePlatform();
 
   if (isAndroidPhone) {
-    return <AndroidPhoneComposePanel />;
+    return <AndroidPhoneComposePanel onSubmitStart={onAndroidSubmitStart} />;
   }
 
   if (isAndroidPad) {
-    return <AndroidPadComposePanel />;
+    return <AndroidPadComposePanel onSubmitStart={onAndroidSubmitStart} />;
   }
 
   const promptLen = prompt.length;

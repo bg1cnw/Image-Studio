@@ -22,7 +22,11 @@ import {
 } from "./parameters/androidSizeSelection";
 import { vibrateForPlatform } from "./bridge";
 
-export function AndroidPhoneComposePanel() {
+export function AndroidPhoneComposePanel({
+  onSubmitStart,
+}: {
+  onSubmitStart?: () => void;
+} = {}) {
   const {
     apiKey, mode, prompt, negativePrompt, size, quality, seed, styleTag,
     outputFormat, batchCount, sources, currentImage, errorMessage, errorRawPath,
@@ -74,7 +78,9 @@ export function AndroidPhoneComposePanel() {
 
   const handleSubmit = () => {
     vibrateForPlatform(15);
-    submit();
+    void submit().then(() => {
+      if (useStudioStore.getState().isRunning) onSubmitStart?.();
+    });
   };
 
   const handleOptimize = () => {

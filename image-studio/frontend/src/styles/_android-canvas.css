@@ -137,9 +137,14 @@ html.dark[data-platform="android"] .android-canvas-status-chip {
 }
 
 html[data-platform="android"] .android-canvas-status-chip.primary,
-html[data-platform="android"] .android-canvas-status-chip.active {
+html[data-platform="android"] .android-canvas-status-chip.active,
+html[data-platform="android"] .android-canvas-status-chip.progress-meta-chip {
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+html[data-platform="android"] .android-canvas-status-chip.progress-meta-chip {
+  font-variant-numeric: tabular-nums;
 }
 
 html[data-platform="android"] .android-canvas-status-chip.stream-preview-chip {
@@ -315,49 +320,6 @@ html[data-platform="android"] .android-canvas-floating-meta span {
   font-size: 10px;
   font-weight: 700;
   padding: 5px 8px;
-}
-
-html[data-platform="android"] .android-canvas-progress {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  z-index: 5;
-  min-width: min(260px, calc(100% - 24px));
-  border-radius: 20px;
-  background: rgb(10 10 12 / 0.78);
-  color: white;
-  padding: 12px;
-  box-shadow: 0 16px 36px rgb(0 0 0 / 0.24);
-}
-
-html[data-platform="android"] .android-canvas-progress-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-html[data-platform="android"] .android-canvas-progress-head svg {
-  width: 16px;
-  height: 16px;
-  animation: spin-emerald 0.9s linear infinite;
-}
-
-html[data-platform="android"] .android-canvas-progress-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-html[data-platform="android"] .android-canvas-progress-meta span {
-  border-radius: 999px;
-  background: rgb(255 255 255 / 0.12);
-  color: rgb(255 255 255 / 0.82);
-  font-size: 10px;
-  font-weight: 700;
-  padding: 4px 7px;
 }
 
 html[data-platform="android"] .android-canvas-source-strip {
