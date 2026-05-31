@@ -107,10 +107,16 @@ func (a *App) closeHistoryTimeline() {
 func (a *App) openSavePromptForCurrent() {
 	a.mu.Lock()
 	src := strings.TrimSpace(a.result.SavedPath)
+	a.mu.Unlock()
+	a.openSavePromptForPath(src)
+}
+
+func (a *App) openSavePromptForPath(path string) {
+	src := strings.TrimSpace(path)
 	if src == "" {
-		a.mu.Unlock()
 		return
 	}
+	a.mu.Lock()
 	a.savePromptVisible = true
 	a.savePromptSourcePath = src
 	a.savePromptPathInput.SetText(src)

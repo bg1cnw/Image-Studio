@@ -15,12 +15,12 @@ func (a *App) field(gtx layout.Context, title string, editor *widget.Editor, hin
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return fixedHeight(gtx, height, func(gtx layout.Context) layout.Dimensions {
-				return a.borderedSurface(gtx, fluent.surface, unit.Dp(4), fluent.border2, func(gtx layout.Context) layout.Dimensions {
+				return a.borderedSurface(gtx, fluent.surface, fluentControlRadius, fluent.border2, func(gtx layout.Context) layout.Dimensions {
 					return layout.Inset{Top: 9, Bottom: 9, Left: 10, Right: 10}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						style := material.Editor(a.th, editor, hint)
 						style.Color = fluent.text
 						style.HintColor = fluent.textDim
-						style.SelectionColor = rgba(0x005fb8, 0x3d)
+						style.SelectionColor = accentAlpha(0x3d)
 						style.TextSize = unit.Sp(13)
 						return style.Layout(gtx)
 					})
@@ -32,7 +32,7 @@ func (a *App) field(gtx layout.Context, title string, editor *widget.Editor, hin
 
 func (a *App) searchField(gtx layout.Context, editor *widget.Editor, hint string) layout.Dimensions {
 	return fixedHeight(gtx, unit.Dp(34), func(gtx layout.Context) layout.Dimensions {
-		return a.borderedSurface(gtx, fluent.surface, unit.Dp(4), fluent.border2, func(gtx layout.Context) layout.Dimensions {
+		return a.borderedSurface(gtx, fluent.surface, fluentControlRadius, fluent.border2, func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: 8, Bottom: 8, Left: 10, Right: 10}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -46,7 +46,7 @@ func (a *App) searchField(gtx layout.Context, editor *widget.Editor, hint string
 						style := material.Editor(a.th, editor, hint)
 						style.Color = fluent.text
 						style.HintColor = fluent.textDim
-						style.SelectionColor = rgba(0x005fb8, 0x3d)
+						style.SelectionColor = accentAlpha(0x3d)
 						style.TextSize = unit.Sp(12)
 						return style.Layout(gtx)
 					}),
@@ -91,9 +91,9 @@ func (a *App) segmented(gtx layout.Context, options []choice, selected string, b
 				gtx,
 				&buttons[i],
 				chooseColor(active, fluent.accentSoft, fluent.surface),
-				chooseColor(active, rgba(0x005fb8, 0x28), fluent.surface2),
+				chooseColor(active, accentAlpha(0x28), fluent.surface2),
 				fluent.border,
-				unit.Dp(4),
+				fluentControlRadius,
 				layout.Inset{Top: 9, Bottom: 9, Left: 8, Right: 8},
 				func(gtx layout.Context) layout.Dimensions {
 					return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -131,9 +131,9 @@ func (a *App) segmentedGrid(gtx layout.Context, options []choice, selected strin
 						gtx,
 						&buttons[idx],
 						chooseColor(active, fluent.accentSoft, fluent.surface),
-						chooseColor(active, rgba(0x005fb8, 0x28), fluent.surface2),
+						chooseColor(active, accentAlpha(0x28), fluent.surface2),
 						fluent.border,
-						unit.Dp(4),
+						fluentControlRadius,
 						layout.Inset{Top: 9, Bottom: 9, Left: 8, Right: 8},
 						func(gtx layout.Context) layout.Dimensions {
 							return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {

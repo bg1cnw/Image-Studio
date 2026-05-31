@@ -35,28 +35,28 @@ type fluentColors struct {
 }
 
 var fluentLight = fluentColors{
-	accent:     rgb(0x005fb8),
-	accent2:    rgb(0x0a6fcb),
-	accentSoft: rgba(0x005fb8, 0x1f),
+	accent:     rgb(0x0067c0),
+	accent2:    rgb(0x0f7ad6),
+	accentSoft: rgba(0x0067c0, 0x1f),
 	bg:         rgb(0xf3f3f3),
-	bg2:        rgb(0xe9e9e9),
-	panel:      rgb(0xfbfbfb),
-	panel2:     rgb(0xf6f6f6),
-	surface:    rgb(0xffffff),
-	surface2:   rgb(0xf2f2f2),
-	sidebar:    rgb(0xfbfbfb),
-	inspector:  rgb(0xf8f8f8),
-	toolbar:    rgb(0xf7f7f7),
-	border:     rgba(0x000000, 0x14),
-	border2:    rgba(0x000000, 0x24),
+	bg2:        rgb(0xededed),
+	panel:      rgb(0xffffff),
+	panel2:     rgb(0xfafafa),
+	surface:    rgb(0xfbfbfb),
+	surface2:   rgb(0xefefef),
+	sidebar:    rgb(0xf8f8f8),
+	inspector:  rgb(0xf4f4f4),
+	toolbar:    rgb(0xf6f6f6),
+	border:     rgba(0x000000, 0x17),
+	border2:    rgba(0x000000, 0x2e),
 	text:       rgb(0x1f1f1f),
-	textMuted:  rgb(0x5f6368),
-	textDim:    rgb(0x8a8f98),
-	cardShadow: rgba(0x000000, 0x12),
-	cardGlow:   rgba(0xffffff, 0x4c),
-	bgGlow:     rgba(0xffffff, 0x46),
-	canvasBg:   rgb(0xeeeeee),
-	canvasTile: rgb(0xdedede),
+	textMuted:  rgb(0x363636),
+	textDim:    rgb(0x606060),
+	cardShadow: rgba(0x000000, 0x14),
+	cardGlow:   rgba(0xffffff, 0x55),
+	bgGlow:     rgba(0xffffff, 0x40),
+	canvasBg:   rgb(0xececec),
+	canvasTile: rgb(0xdbdbdb),
 	success:    rgb(0x0f7b0f),
 	danger:     rgb(0xc42b1c),
 	white:      rgb(0xffffff),
@@ -64,29 +64,29 @@ var fluentLight = fluentColors{
 
 var fluentDark = fluentColors{
 	accent:     rgb(0x4cc2ff),
-	accent2:    rgb(0x66ccff),
-	accentSoft: rgba(0x4cc2ff, 0x22),
-	bg:         rgb(0x181818),
-	bg2:        rgb(0x141414),
-	panel:      rgb(0x202020),
-	panel2:     rgb(0x252525),
-	surface:    rgb(0x2a2a2a),
-	surface2:   rgb(0x323232),
-	sidebar:    rgb(0x222222),
-	inspector:  rgb(0x242424),
-	toolbar:    rgb(0x202020),
-	border:     rgba(0xffffff, 0x16),
-	border2:    rgba(0xffffff, 0x2a),
+	accent2:    rgb(0x78d3ff),
+	accentSoft: rgba(0x4cc2ff, 0x2e),
+	bg:         rgb(0x202020),
+	bg2:        rgb(0x1b1b1b),
+	panel:      rgb(0x2a2a2a),
+	panel2:     rgb(0x262626),
+	surface:    rgb(0x2b2b2b),
+	surface2:   rgb(0x353535),
+	sidebar:    rgb(0x232323),
+	inspector:  rgb(0x1f1f1f),
+	toolbar:    rgb(0x252525),
+	border:     rgba(0xffffff, 0x14),
+	border2:    rgba(0xffffff, 0x2e),
 	text:       rgb(0xf5f5f5),
-	textMuted:  rgb(0xc1c1c1),
-	textDim:    rgb(0x8e8e8e),
+	textMuted:  rgb(0xd7d7d7),
+	textDim:    rgb(0xb1b1b1),
 	cardShadow: rgba(0x000000, 0x34),
-	cardGlow:   rgba(0xffffff, 0x10),
-	bgGlow:     rgba(0xffffff, 0x0c),
-	canvasBg:   rgb(0x1d1d1d),
-	canvasTile: rgb(0x262626),
-	success:    rgb(0x45d36b),
-	danger:     rgb(0xff776b),
+	cardGlow:   rgba(0xffffff, 0x12),
+	bgGlow:     rgba(0xffffff, 0x08),
+	canvasBg:   rgb(0x252526),
+	canvasTile: rgb(0x343436),
+	success:    rgb(0x6ccb5f),
+	danger:     rgb(0xff99a4),
 	white:      rgb(0xffffff),
 }
 
@@ -133,4 +133,17 @@ func rgb(v uint32) color.NRGBA {
 
 func rgba(v uint32, alpha uint8) color.NRGBA {
 	return color.NRGBA{R: uint8(v >> 16), G: uint8(v >> 8), B: uint8(v), A: alpha}
+}
+
+func withAlpha(base color.NRGBA, alpha uint8) color.NRGBA {
+	base.A = alpha
+	return base
+}
+
+func accentAlpha(alpha uint8) color.NRGBA {
+	return withAlpha(fluent.accent, alpha)
+}
+
+func dangerAlpha(alpha uint8) color.NRGBA {
+	return withAlpha(fluent.danger, alpha)
 }

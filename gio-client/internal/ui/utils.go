@@ -73,6 +73,16 @@ func compactNonEmpty(items []string) []string {
 	return out
 }
 
+func clampInt(value int, minValue int, maxValue int) int {
+	if value < minValue {
+		return minValue
+	}
+	if value > maxValue {
+		return maxValue
+	}
+	return value
+}
+
 func localDayStart(now time.Time) time.Time {
 	year, month, day := now.Date()
 	return time.Date(year, month, day, 0, 0, 0, 0, now.Location())

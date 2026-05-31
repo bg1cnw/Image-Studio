@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"strconv"
 	"strings"
+	"time"
 
 	"image-studio/gio-client/internal/kernel"
 
@@ -21,7 +22,7 @@ import (
 func (a *App) layoutCanvas(gtx layout.Context) layout.Dimensions {
 	snap := a.readSnapshot()
 	sourcePaths := kernel.ParseSourcePaths(a.sourcePathsInput.Text())
-	showSourceStrip := len(sourcePaths) > 0
+	showSourceStrip := a.mode == string(client.ModeEdit) && len(sourcePaths) > 0
 
 	children := []layout.FlexChild{
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -118,16 +119,16 @@ func (a *App) canvasToolbar(gtx layout.Context, snap snapshot) layout.Dimensions
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.compactIconButton(gtx, &a.rotateLeftButton, uiIconRotateLeft, false)
+							return a.toolbarIconButton(gtx, &a.rotateLeftButton, uiIconRotateLeft, false)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.compactIconButton(gtx, &a.rotateRightButton, uiIconRotateRight, false)
+							return a.toolbarIconButton(gtx, &a.rotateRightButton, uiIconRotateRight, false)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.compactIconButton(gtx, &a.flipHorizontalButton, uiIconFlip, false)
+							return a.toolbarIconButton(gtx, &a.flipHorizontalButton, uiIconFlip, false)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.compactIconButton(gtx, &a.flipVerticalButton, uiIconFlip, false)
+							return a.toolbarIconButton(gtx, &a.flipVerticalButton, uiIconFlip, false)
 						}),
 					)
 				}),
@@ -139,22 +140,45 @@ func (a *App) canvasToolbar(gtx layout.Context, snap snapshot) layout.Dimensions
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					children := []layout.FlexChild{
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.compactIconButton(gtx, &a.clearCurrentButton, uiIconDelete, false)
+							return a.toolbarIconButton(gtx, &a.clearCurrentButton, uiIconDelete, false)
 						}),
 					}
 					if showReturnLatest {
 						children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.compactIconButton(gtx, &a.latestResultButton, uiIconPhoto, false)
+							return a.toolbarIconButton(gtx, &a.latestResultButton, uiIconPhoto, false)
 						}))
 					}
 					if hasCurrentGroup && len(currentGroup.Items) > 1 {
 						children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.compactIconTextButton(gtx, &a.currentGroupButton, uiIconGrid, strconv.Itoa(len(currentGroup.Items)), snap.ActivePromptGroup.Key == currentGroup.Key)
+							return a.ghostIconTextButton(gtx, &a.currentGroupButton, uiIconGrid, strconv.Itoa(len(currentGroup.Items)), snap.ActivePromptGroup.Key == currentGroup.Key)
 						}))
 					}
 					return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx, children...)
 				}),
 				layout.Flexed(1, layout.Spacer{}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if !snap.Result.HasItem {
+						return layout.Dimensions{}
+					}
+					return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return a.staticPill(gtx, chooseModeLabel(snap.Result.Item.Mode), true, false)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							if strings.TrimSpace(snap.Result.Item.Size) == "" {
+								return layout.Dimensions{}
+							}
+							return a.staticPill(gtx, snap.Result.Item.Size, false, true)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							if strings.TrimSpace(snap.Result.Item.Quality) == "" {
+								return layout.Dimensions{}
+							}
+							return a.staticPill(gtx, snap.Result.Item.Quality, false, true)
+						}),
+					)
+				}),
+				layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return a.toolbarSeparator(gtx)
 				}),
@@ -170,7 +194,7 @@ func (a *App) canvasToolbar(gtx layout.Context, snap snapshot) layout.Dimensions
 					}
 					if snap.Result.HasItem {
 						children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.compactIconButton(gtx, &a.resultDetailButton, uiIconInfo, false)
+							return a.toolbarIconButton(gtx, &a.resultDetailButton, uiIconInfo, false)
 						}))
 					}
 					children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -178,7 +202,7 @@ func (a *App) canvasToolbar(gtx layout.Context, snap snapshot) layout.Dimensions
 						if snap.Fullscreen {
 							icon = uiIconFullscreenExit
 						}
-						return a.compactIconButton(gtx, &a.fullscreenButton, icon, snap.Fullscreen)
+						return a.toolbarIconButton(gtx, &a.fullscreenButton, icon, snap.Fullscreen)
 					}))
 					return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx, children...)
 				}),
@@ -230,27 +254,36 @@ func (a *App) sourceStrip(gtx layout.Context, sourcePaths []string) layout.Dimen
 	return a.borderedSurface(gtx, fluent.panel2, unit.Dp(0), fluent.border, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min = gtx.Constraints.Max
 		return layout.Inset{Top: 8, Bottom: 8, Left: 12, Right: 12}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			children := []layout.FlexChild{
+			header := []layout.FlexChild{
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return a.label(gtx, label, unit.Sp(11), fluent.textMuted, font.Medium)
 				}),
 			}
+			tiles := []layout.FlexChild{}
 			for _, path := range sourcePaths {
 				path := path
-				children = append(children,
+				tiles = append(tiles,
 					layout.Rigid(layout.Spacer{Width: unit.Dp(10)}.Layout),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return a.layoutSourceStripTile(gtx, path)
 					}),
 				)
 			}
-			children = append(children,
+			tiles = append(tiles,
 				layout.Rigid(layout.Spacer{Width: unit.Dp(10)}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return a.layoutSourceStripAddTile(gtx)
 				}),
 			)
-			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, header...)
+				}),
+				layout.Rigid(layout.Spacer{Width: unit.Dp(14)}.Layout),
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, tiles...)
+				}),
+			)
 		})
 	})
 }
@@ -260,28 +293,36 @@ func (a *App) layoutSourceStripTile(gtx layout.Context, path string) layout.Dime
 	img, _ := a.imageForPath(path)
 	return layout.Stack{}.Layout(gtx,
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-			return a.borderedSurface(gtx, fluent.surface, unit.Dp(4), fluent.border, func(gtx layout.Context) layout.Dimensions {
-				return a.imageThumbCover(gtx, img, unit.Dp(56), unit.Dp(56), unit.Dp(4))
-			})
+			return a.imageThumbCover(gtx, img, unit.Dp(56), unit.Dp(56), unit.Dp(4))
 		}),
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 			return layout.NW.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return a.badge(gtx, sourceStripIndexLabel(path, kernel.ParseSourcePaths(a.sourcePathsInput.Text())), rgba(0x111111, 0xc0), fluent.white)
+				return layout.Inset{Left: unit.Dp(2), Top: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return a.surface(gtx, rgba(0x111111, 0xb8), unit.Dp(3), func(gtx layout.Context) layout.Dimensions {
+						return layout.Inset{Top: 1, Bottom: 1, Left: 4, Right: 4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return a.label(gtx, sourceStripIndexLabel(path, kernel.ParseSourcePaths(a.sourcePathsInput.Text())), unit.Sp(8), fluent.white, font.Medium)
+						})
+					})
+				})
 			})
 		}),
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 			return layout.NE.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layout.Inset{Right: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: unit.Dp(2), Right: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return a.surfaceButton(
 						gtx,
 						btn,
 						rgba(0x111111, 0xc0),
-						rgba(0xc42b1c, 0xd8),
+						dangerAlpha(0xd8),
 						rgba(0xffffff, 0x00),
-						unit.Dp(0),
-						layout.Inset{Top: 1, Bottom: 1, Left: 4, Right: 4},
+						unit.Dp(3),
+						layout.Inset{Top: 2, Bottom: 2, Left: 2, Right: 2},
 						func(gtx layout.Context) layout.Dimensions {
-							return a.label(gtx, "×", unit.Sp(9), fluent.white, font.Medium)
+							return fixedWidth(gtx, unit.Dp(10), func(gtx layout.Context) layout.Dimensions {
+								return fixedHeight(gtx, unit.Dp(10), func(gtx layout.Context) layout.Dimensions {
+									return uiIconClose.Layout(gtx, fluent.white)
+								})
+							})
 						},
 					)
 				})
@@ -341,81 +382,73 @@ func (a *App) resultSurface(gtx layout.Context, snap snapshot) layout.Dimensions
 	return a.surface(gtx, fluent.canvasBg, unit.Dp(0), func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min = gtx.Constraints.Max
 		paintCheckerboard(gtx, clip.Rect{Max: gtx.Constraints.Max}.Op(), gtx.Dp(unit.Dp(22)), fluent.canvasBg, fluent.canvasTile)
-		return layout.UniformInset(unit.Dp(18)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return a.borderedSurface(gtx, fluent.surface, unit.Dp(8), fluent.border, func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Min = gtx.Constraints.Max
-				if snap.Result.Image == nil {
-					return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						return fixedWidth(gtx, unit.Dp(360), func(gtx layout.Context) layout.Dimensions {
-							return a.borderedSurface(gtx, rgba(0xffffff, 0xd8), unit.Dp(12), fluent.border, func(gtx layout.Context) layout.Dimensions {
-								return layout.UniformInset(unit.Dp(18)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-									children := []layout.FlexChild{
-										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-											return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-												return fixedWidth(gtx, unit.Dp(52), func(gtx layout.Context) layout.Dimensions {
-													return fixedHeight(gtx, unit.Dp(52), func(gtx layout.Context) layout.Dimensions {
-														return a.borderedSurface(gtx, fluent.accentSoft, unit.Dp(10), rgba(0x005fb8, 0x18), func(gtx layout.Context) layout.Dimensions {
-															return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-																return a.imageThumb(gtx, appLogoImage(), unit.Dp(28), unit.Dp(28), unit.Dp(6))
-															})
-														})
-													})
+		if snap.Result.Image == nil {
+			return layout.Center.Layout(gtx, a.layoutCanvasEmptyState)
+		}
+		if snap.Result.Rev != a.imageOpRev {
+			a.imageOp = paint.NewImageOp(snap.Result.Image)
+			a.imageOpRev = snap.Result.Rev
+		}
+		return layout.UniformInset(unit.Dp(28)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				img := widget.Image{
+					Src:      a.imageOp,
+					Fit:      widget.Contain,
+					Position: layout.Center,
+				}
+				return img.Layout(gtx)
+			})
+		})
+	})
+}
+
+func (a *App) layoutCanvasEmptyState(gtx layout.Context) layout.Dimensions {
+	copy := "先在左侧写提示词，再开始生成第一张图。"
+	if a.mode == string(client.ModeEdit) {
+		copy = "图生图时可先添加参考图，或从历史结果里挑一张继续编辑。"
+	}
+	return fixedWidth(gtx, unit.Dp(360), func(gtx layout.Context) layout.Dimensions {
+		return a.borderedSurface(gtx, fluent.surface, unit.Dp(16), fluent.border, func(gtx layout.Context) layout.Dimensions {
+			return layout.UniformInset(unit.Dp(22)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return fixedWidth(gtx, unit.Dp(60), func(gtx layout.Context) layout.Dimensions {
+								return fixedHeight(gtx, unit.Dp(60), func(gtx layout.Context) layout.Dimensions {
+									return a.borderedSurface(gtx, fluent.accentSoft, unit.Dp(14), accentAlpha(0x22), func(gtx layout.Context) layout.Dimensions {
+										return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+											return fixedWidth(gtx, unit.Dp(24), func(gtx layout.Context) layout.Dimensions {
+												return fixedHeight(gtx, unit.Dp(24), func(gtx layout.Context) layout.Dimensions {
+													return uiIconPhoto.Layout(gtx, fluent.accent)
 												})
 											})
-										}),
-										layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
-										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-											return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-												return a.label(gtx, "还没有图片", unit.Sp(20), fluent.text, font.SemiBold)
-											})
-										}),
-									}
-									copy := "先在左侧写提示词，再开始生成第一张图。"
-									if a.mode == string(client.ModeEdit) {
-										copy = "图生图时先在左侧添加参考图，或从历史结果里挑一张继续编辑。"
-									}
-									children = append(children,
-										layout.Rigid(layout.Spacer{Height: unit.Dp(8)}.Layout),
-										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-											return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-												return a.label(gtx, copy, unit.Sp(13), fluent.textMuted, font.Normal)
-											})
-										}),
-										layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
-										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-											return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-												return a.staticPill(gtx, "结果会常驻在这里", true, false)
-											})
-										}),
-										layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
-										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-											return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-												return fixedWidth(gtx, unit.Dp(184), func(gtx layout.Context) layout.Dimensions {
-													return a.primaryIconTextButton(gtx, &a.emptyStateImportButton, uiIconSource, "选择本地图片", fluent.accent, fluent.white)
-												})
-											})
-										}),
-									)
-									return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+										})
+									})
 								})
 							})
 						})
-					})
-				}
-				if snap.Result.Rev != a.imageOpRev {
-					a.imageOp = paint.NewImageOp(snap.Result.Image)
-					a.imageOpRev = snap.Result.Rev
-				}
-				return layout.UniformInset(unit.Dp(14)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						img := widget.Image{
-							Src:      a.imageOp,
-							Fit:      widget.Contain,
-							Position: layout.Center,
-						}
-						return img.Layout(gtx)
-					})
-				})
+					}),
+					layout.Rigid(layout.Spacer{Height: unit.Dp(14)}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return a.label(gtx, "还没有图片", unit.Sp(18), fluent.text, font.SemiBold)
+						})
+					}),
+					layout.Rigid(layout.Spacer{Height: unit.Dp(8)}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return a.singleLineLabel(gtx, copy, unit.Sp(13), fluent.textMuted, font.Normal)
+						})
+					}),
+					layout.Rigid(layout.Spacer{Height: unit.Dp(16)}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return fixedWidth(gtx, unit.Dp(188), func(gtx layout.Context) layout.Dimensions {
+								return a.primaryIconTextButton(gtx, &a.emptyStateImportButton, uiIconSource, "选择本地图片", fluent.accent, fluent.white)
+							})
+						})
+					}),
+				)
 			})
 		})
 	})
@@ -456,11 +489,15 @@ func (a *App) canvasStatusBar(gtx layout.Context, snap snapshot) layout.Dimensio
 						return a.label(gtx, snap.Status, unit.Sp(11), fluent.text, font.Medium)
 					}),
 					layout.Rigid(layout.Spacer{Width: unit.Dp(12)}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.label(gtx, time.Now().Format("15:04"), unit.Sp(11), fluent.textDim, font.Normal)
+					}),
+					layout.Rigid(layout.Spacer{Width: unit.Dp(12)}.Layout),
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 						if strings.TrimSpace(lastLog) == "" {
 							return layout.Dimensions{}
 						}
-						return a.label(gtx, lastLog, unit.Sp(11), fluent.textMuted, font.Normal)
+						return a.singleLineLabel(gtx, lastLog, unit.Sp(11), fluent.textMuted, font.Normal)
 					}),
 				)
 			}
@@ -492,7 +529,7 @@ func (a *App) canvasStatusBar(gtx layout.Context, snap snapshot) layout.Dimensio
 					}),
 					layout.Rigid(layout.Spacer{Width: unit.Dp(12)}.Layout),
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-						return a.label(gtx, revised, unit.Sp(11), fluent.textDim, font.Normal)
+						return a.singleLineLabel(gtx, revised, unit.Sp(11), fluent.textDim, font.Normal)
 					}),
 				)
 			}
@@ -513,42 +550,38 @@ func (a *App) layoutSavePrompt(gtx layout.Context) layout.Dimensions {
 		a.savePromptCopy()
 	}
 
-	paint.FillShape(gtx.Ops, rgba(0x000000, 0x52), clip.Rect{Max: gtx.Constraints.Max}.Op())
-	gtx.Constraints.Min = gtx.Constraints.Max
-	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		gtx.Constraints.Min = image.Point{}
-		return fixedWidth(gtx, unit.Dp(520), func(gtx layout.Context) layout.Dimensions {
-			return a.borderedSurface(gtx, fluent.surface, unit.Dp(8), fluent.border, func(gtx layout.Context) layout.Dimensions {
-				return layout.UniformInset(unit.Dp(18)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(12))}.Layout(gtx,
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.label(gtx, "图片已生成, 是否另存到指定位置?", unit.Sp(18), fluent.text, font.SemiBold)
+	return a.layoutStandardModal(
+		gtx,
+		unit.Dp(520),
+		0,
+		"图片已生成，是否另存到指定位置？",
+		"",
+		nil,
+		func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(12))}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return a.label(gtx, "默认目录已保存一份。需要放到项目、相册或其他目录时，可以现在填写目标路径再保存副本。", unit.Sp(13), fluent.textMuted, font.Normal)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return a.field(gtx, "保存到", &a.savePromptPathInput, "输入完整文件路径或目录", unit.Dp(48))
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					style := material.CheckBox(a.th, &a.savePromptNeverAsk, "以后不再提示")
+					style.Color = fluent.text
+					style.IconColor = fluent.accent
+					return style.Layout(gtx)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							return a.compactIconTextButton(gtx, &a.savePromptSkipButton, uiIconClose, "稍后", false)
 						}),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.label(gtx, "默认目录已保存一份。需要放到项目、相册或其他目录时, 可以现在填写目标路径再保存副本。", unit.Sp(13), fluent.textMuted, font.Normal)
-						}),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.field(gtx, "保存到", &a.savePromptPathInput, "输入完整文件路径或目录", unit.Dp(48))
-						}),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							style := material.CheckBox(a.th, &a.savePromptNeverAsk, "以后不再提示")
-							style.Color = fluent.text
-							style.IconColor = fluent.accent
-							return style.Layout(gtx)
-						}),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
-								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-									return a.compactIconTextButton(gtx, &a.savePromptSkipButton, uiIconClose, "稍后", false)
-								}),
-								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-									return a.primaryIconTextButton(gtx, &a.savePromptSaveButton, uiIconSave, "保存副本", fluent.accent, fluent.white)
-								}),
-							)
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							return a.primaryIconTextButton(gtx, &a.savePromptSaveButton, uiIconSave, "保存副本", fluent.accent, fluent.white)
 						}),
 					)
-				})
-			})
-		})
-	})
+				}),
+			)
+		},
+	)
 }

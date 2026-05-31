@@ -13,7 +13,6 @@ import (
 	sharedCompat "image-studio/shared/compat"
 
 	"gioui.org/app"
-	"gioui.org/font/gofont"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/paint"
@@ -123,80 +122,87 @@ type App struct {
 	themeMode  string
 	batchCount int
 
-	modeButtons                   []widget.Clickable
-	apiButtons                    []widget.Clickable
-	sizeButtons                   []widget.Clickable
-	aspectButtons                 []widget.Clickable
-	styleButtons                  []widget.Clickable
-	batchCountButtons             []widget.Clickable
-	resolutionButtons             []widget.Clickable
-	qualityButtons                []widget.Clickable
-	formatButtons                 []widget.Clickable
-	policyButtons                 []widget.Clickable
-	proxyButtons                  []widget.Clickable
-	historyModeButtons            []widget.Clickable
-	historyDateButtons            []widget.Clickable
-	historyTimelineModeButtons    []widget.Clickable
-	historyTimelineDateButtons    []widget.Clickable
-	runButton                     widget.Clickable
-	cancelButton                  widget.Clickable
-	clearLogButton                widget.Clickable
-	saveAsButton                  widget.Clickable
-	latestResultButton            widget.Clickable
-	currentGroupButton            widget.Clickable
-	rotateLeftButton              widget.Clickable
-	rotateRightButton             widget.Clickable
-	flipHorizontalButton          widget.Clickable
-	flipVerticalButton            widget.Clickable
-	clearCurrentButton            widget.Clickable
-	clearSourcesButton            widget.Clickable
-	useCurrentAsSourceButton      widget.Clickable
-	addSourceFilesButton          widget.Clickable
-	addSourceStripButton          widget.Clickable
-	emptyStateImportButton        widget.Clickable
-	promptHelperButton            widget.Clickable
-	closePromptHelperButton       widget.Clickable
-	optimizePromptButton          widget.Clickable
-	testUpstreamButton            widget.Clickable
-	settingsTestUpstreamButton    widget.Clickable
-	toggleAPIKeyMaskButton        widget.Clickable
-	upstreamConfigButton          widget.Clickable
-	themeButtons                  []widget.Clickable
-	headerAddWorkspaceButton      widget.Clickable
-	githubButton                  widget.Clickable
-	headerStarButton              widget.Clickable
-	settingsButton                widget.Clickable
-	fullscreenButton              widget.Clickable
-	resultDetailButton            widget.Clickable
-	footerOutputButton            widget.Clickable
-	footerGithubButton            widget.Clickable
-	footerFeedbackButton          widget.Clickable
-	addWorkspaceButton            widget.Clickable
-	workspaceRenameSaveButton     widget.Clickable
-	workspaceRenameCancelButton   widget.Clickable
-	closeSettingsButton           widget.Clickable
-	createProfileButton           widget.Clickable
-	duplicateProfileButton        widget.Clickable
-	deleteProfileButton           widget.Clickable
-	closeResultDetailButton       widget.Clickable
-	resultDetailUsePromptButton   widget.Clickable
-	resultDetailUseRevisedButton  widget.Clickable
-	resultDetailOpenPathButton    widget.Clickable
-	resultDetailCopyPromptButton  widget.Clickable
-	resultDetailCopyRevisedButton widget.Clickable
-	resultDetailCopyPathButton    widget.Clickable
-	composeToggleButton           widget.Clickable
-	advancedToggleButton          widget.Clickable
-	profilePickerButton           widget.Clickable
-	manageUpstreamButton          widget.Clickable
-	historyCollapseButton         widget.Clickable
-	closePromptGroupButton        widget.Clickable
-	openHistoryTimelineButton     widget.Clickable
-	openHistoryTimelineMoreButton widget.Clickable
-	closeHistoryTimelineButton    widget.Clickable
-	savePromptSaveButton          widget.Clickable
-	savePromptSkipButton          widget.Clickable
-	savePromptNeverAsk            widget.Bool
+	modeButtons                     []widget.Clickable
+	apiButtons                      []widget.Clickable
+	sizeButtons                     []widget.Clickable
+	aspectButtons                   []widget.Clickable
+	styleButtons                    []widget.Clickable
+	batchCountButtons               []widget.Clickable
+	resolutionButtons               []widget.Clickable
+	qualityButtons                  []widget.Clickable
+	formatButtons                   []widget.Clickable
+	policyButtons                   []widget.Clickable
+	proxyButtons                    []widget.Clickable
+	historyModeButtons              []widget.Clickable
+	historyDateButtons              []widget.Clickable
+	historyTimelineModeButtons      []widget.Clickable
+	historyTimelineDateButtons      []widget.Clickable
+	runButton                       widget.Clickable
+	cancelButton                    widget.Clickable
+	clearLogButton                  widget.Clickable
+	saveAsButton                    widget.Clickable
+	latestResultButton              widget.Clickable
+	currentGroupButton              widget.Clickable
+	rotateLeftButton                widget.Clickable
+	rotateRightButton               widget.Clickable
+	flipHorizontalButton            widget.Clickable
+	flipVerticalButton              widget.Clickable
+	clearCurrentButton              widget.Clickable
+	clearSourcesButton              widget.Clickable
+	useCurrentAsSourceButton        widget.Clickable
+	addSourceFilesButton            widget.Clickable
+	addSourceStripButton            widget.Clickable
+	emptyStateImportButton          widget.Clickable
+	promptHelperButton              widget.Clickable
+	promptHelperTemplatesButton     widget.Clickable
+	promptHelperHistoryButton       widget.Clickable
+	closePromptHelperButton         widget.Clickable
+	optimizePromptButton            widget.Clickable
+	testUpstreamButton              widget.Clickable
+	settingsTestUpstreamButton      widget.Clickable
+	historyTimelineModePickerButton widget.Clickable
+	historyTimelineDatePickerButton widget.Clickable
+	toggleAPIKeyMaskButton          widget.Clickable
+	upstreamConfigButton            widget.Clickable
+	themeButtons                    []widget.Clickable
+	headerAddWorkspaceButton        widget.Clickable
+	headerQuoteButton               widget.Clickable
+	githubButton                    widget.Clickable
+	headerStarButton                widget.Clickable
+	settingsButton                  widget.Clickable
+	fullscreenButton                widget.Clickable
+	resultDetailButton              widget.Clickable
+	footerOutputButton              widget.Clickable
+	footerGithubButton              widget.Clickable
+	footerFeedbackButton            widget.Clickable
+	addWorkspaceButton              widget.Clickable
+	workspaceRenameSaveButton       widget.Clickable
+	workspaceRenameCancelButton     widget.Clickable
+	closeSettingsButton             widget.Clickable
+	createProfileButton             widget.Clickable
+	createImagesProfileButton       widget.Clickable
+	duplicateProfileButton          widget.Clickable
+	deleteProfileButton             widget.Clickable
+	closeResultDetailButton         widget.Clickable
+	resultDetailSaveAsButton        widget.Clickable
+	resultDetailUsePromptButton     widget.Clickable
+	resultDetailUseRevisedButton    widget.Clickable
+	resultDetailOpenPathButton      widget.Clickable
+	resultDetailCopyPromptButton    widget.Clickable
+	resultDetailCopyRevisedButton   widget.Clickable
+	resultDetailCopyPathButton      widget.Clickable
+	composeToggleButton             widget.Clickable
+	advancedToggleButton            widget.Clickable
+	profilePickerButton             widget.Clickable
+	manageUpstreamButton            widget.Clickable
+	historyCollapseButton           widget.Clickable
+	closePromptGroupButton          widget.Clickable
+	openHistoryTimelineButton       widget.Clickable
+	openHistoryTimelineMoreButton   widget.Clickable
+	closeHistoryTimelineButton      widget.Clickable
+	savePromptSaveButton            widget.Clickable
+	savePromptSkipButton            widget.Clickable
+	savePromptNeverAsk              widget.Bool
 
 	mu                 sync.Mutex
 	running            bool
@@ -219,36 +225,40 @@ type App struct {
 	imageOpRev         int
 	imageCache         map[string]cachedImage
 
-	savePromptVisible         bool
-	savePromptSuppressed      bool
-	savePromptSourcePath      string
-	composeOpen               bool
-	advancedOpen              bool
-	profilePickerOpen         bool
-	historyRailCollapsed      bool
-	historyModeFilter         string
-	historyDateFilter         string
-	historyTimelineOpen       bool
-	historyTimelineModeFilter string
-	historyTimelineDateFilter string
-	profileButtons            map[string]*widget.Clickable
-	settingsProfileButtons    map[string]*widget.Clickable
-	historyButtons            map[string]*widget.Clickable
-	promptButtons             map[string]*widget.Clickable
-	sourceButtons             map[string]*widget.Clickable
-	historyActionButtons      map[string]*widget.Clickable
-	expandedPromptGroups      map[string]bool
-	promptHelperOpen          bool
-	activePromptGroup         historyPromptGroup
-	settingsModalOpen         bool
-	apiKeyVisible             bool
-	workspaces                []workspaceState
-	activeWorkspaceID         string
-	workspaceButtons          map[string]*widget.Clickable
-	closeWorkspaceButtons     map[string]*widget.Clickable
-	workspaceRenameID         string
-	workspaceLastClickID      string
-	workspaceLastClickAt      time.Time
+	savePromptVisible             bool
+	savePromptSuppressed          bool
+	savePromptSourcePath          string
+	composeOpen                   bool
+	advancedOpen                  bool
+	profilePickerOpen             bool
+	historyRailCollapsed          bool
+	historyModeFilter             string
+	historyDateFilter             string
+	historyTimelineOpen           bool
+	historyTimelineModeFilter     string
+	historyTimelineDateFilter     string
+	historyTimelineModePickerOpen bool
+	historyTimelineDatePickerOpen bool
+	profileButtons                map[string]*widget.Clickable
+	settingsProfileButtons        map[string]*widget.Clickable
+	historyButtons                map[string]*widget.Clickable
+	promptButtons                 map[string]*widget.Clickable
+	sourceButtons                 map[string]*widget.Clickable
+	historyActionButtons          map[string]*widget.Clickable
+	expandedPromptGroups          map[string]bool
+	promptHelperOpen              bool
+	promptHelperTab               string
+	activePromptGroup             historyPromptGroup
+	settingsModalOpen             bool
+	apiKeyVisible                 bool
+	workspaces                    []workspaceState
+	activeWorkspaceID             string
+	workspaceButtons              map[string]*widget.Clickable
+	closeWorkspaceButtons         map[string]*widget.Clickable
+	workspaceRenameID             string
+	workspaceLastClickID          string
+	workspaceLastClickAt          time.Time
+	headerQuoteIndex              int
 
 	invalidate func()
 	window     *app.Window
@@ -263,7 +273,7 @@ func New() *App {
 	themeMode := normalizeThemeMode(compatState.Settings.Theme)
 	fluent = themePalette(resolveThemeMode(themeMode))
 	th := material.NewTheme()
-	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
+	th.Shaper = text.NewShaper()
 	th.Palette = material.Palette{
 		Bg:         fluent.bg,
 		Fg:         fluent.text,
@@ -326,6 +336,8 @@ func New() *App {
 		closeWorkspaceButtons:      map[string]*widget.Clickable{},
 		expandedPromptGroups:       map[string]bool{},
 		promptHelperOpen:           false,
+		promptHelperTab:            "templates",
+		headerQuoteIndex:           initialHeaderQuoteIndex(time.Now()),
 	}
 	if profile, ok := gioCompat.ActiveProfile(compatState); ok {
 		a.activeProfileID = profile.ID

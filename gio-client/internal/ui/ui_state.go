@@ -426,6 +426,10 @@ func nextProfileName(profiles []sharedCompat.UpstreamProfile) string {
 }
 
 func (a *App) createBlankProfile() {
+	a.createBlankProfileWithMode(string(client.APIModeResponses))
+}
+
+func (a *App) createBlankProfileWithMode(apiMode string) {
 	a.saveCurrentConfig()
 	state, _, err := gioCompat.LoadState()
 	if err != nil {
@@ -438,7 +442,7 @@ func (a *App) createBlankProfile() {
 	profile := sharedCompat.UpstreamProfile{
 		ID:            profileID,
 		Name:          nextProfileName(state.Profiles),
-		APIMode:       string(client.APIModeResponses),
+		APIMode:       apiMode,
 		RequestPolicy: string(client.RequestPolicyOpenAI),
 		TextModelID:   client.TextModel,
 		ImageModelID:  client.ImageModel,

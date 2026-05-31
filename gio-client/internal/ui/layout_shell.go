@@ -84,6 +84,9 @@ func (a *App) layoutHeader(gtx layout.Context) layout.Dimensions {
 	for a.headerAddWorkspaceButton.Clicked(gtx) {
 		a.createWorkspace()
 	}
+	for a.headerQuoteButton.Clicked(gtx) {
+		a.headerQuoteIndex = nextHeaderQuoteIndex(a.headerQuoteIndex)
+	}
 	for a.githubButton.Clicked(gtx) {
 		if err := openExternalURL(repoURL); err != nil {
 			a.appendLog("打开 GitHub 失败: " + err.Error())
@@ -103,21 +106,7 @@ func (a *App) layoutHeader(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: 8, Bottom: 8, Left: 12, Right: 12}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.imageThumb(gtx, appLogoImage(), unit.Dp(30), unit.Dp(30), unit.Dp(6))
-						}),
-						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-							return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(1))}.Layout(gtx,
-								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return a.label(gtx, "Image Studio", unit.Sp(14), fluent.text, font.SemiBold)
-								}),
-								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return a.label(gtx, "图像工作台", unit.Sp(11), fluent.textMuted, font.Normal)
-								}),
-							)
-						}),
-					)
+					return a.layoutHeaderBrand(gtx)
 				}),
 				layout.Rigid(layout.Spacer{Width: unit.Dp(12)}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -139,17 +128,21 @@ func (a *App) layoutHeader(gtx layout.Context) layout.Dimensions {
 				}),
 				layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.headerIconButtonIcon(gtx, &a.themeButtons[0], uiIconSystem, a.themeMode == "system")
-						}),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.headerIconButtonIcon(gtx, &a.themeButtons[1], uiIconLight, a.themeMode == "light")
-						}),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.headerIconButtonIcon(gtx, &a.themeButtons[2], uiIconDark, a.themeMode == "dark")
-						}),
-					)
+					return a.borderedSurface(gtx, fluent.surface, fluentControlRadius, accentAlpha(0x12), func(gtx layout.Context) layout.Dimensions {
+						return layout.Inset{Top: 2, Bottom: 2, Left: 2, Right: 2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(2))}.Layout(gtx,
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return a.headerIconButtonIcon(gtx, &a.themeButtons[0], uiIconSystem, a.themeMode == "system")
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return a.headerIconButtonIcon(gtx, &a.themeButtons[1], uiIconLight, a.themeMode == "light")
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return a.headerIconButtonIcon(gtx, &a.themeButtons[2], uiIconDark, a.themeMode == "dark")
+								}),
+							)
+						})
+					})
 				}),
 				layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -166,6 +159,43 @@ func (a *App) layoutHeader(gtx layout.Context) layout.Dimensions {
 			)
 		})
 	})
+}
+
+func (a *App) layoutHeaderBrand(gtx layout.Context) layout.Dimensions {
+	quote := currentHeaderQuote(a.headerQuoteIndex)
+	quoteText := "图像工作台"
+	if quote.Text != "" {
+		quoteText = "“" + quote.Text + "”"
+		if quote.From != "" {
+			quoteText += " - " + quote.From
+		}
+	}
+	return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(2))}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.label(gtx, "Image Studio", unit.Sp(14), fluent.text, font.SemiBold)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.surfaceButton(
+				gtx,
+				&a.headerQuoteButton,
+				rgba(0xffffff, 0x00),
+				rgba(0x000000, 0x06),
+				rgba(0xffffff, 0x00),
+				fluentControlRadius,
+				layout.Inset{Top: 2, Bottom: 2, Left: 2, Right: 6},
+				func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return a.label(gtx, "“", unit.Sp(10), fluent.textDim, font.Medium)
+						}),
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							return a.singleLineLabel(gtx, quoteText, unit.Sp(10), fluent.textMuted, font.Normal)
+						}),
+					)
+				},
+			)
+		}),
+	)
 }
 
 func (a *App) layoutFooter(gtx layout.Context) layout.Dimensions {
@@ -193,49 +223,63 @@ func (a *App) layoutFooter(gtx layout.Context) layout.Dimensions {
 		dot = fluent.accent
 	}
 	todayCount := todayHistoryCount(snap.History, time.Now())
-	activeWorkspaceName := "当前标签"
-	for _, ws := range a.workspaces {
-		if ws.ID == a.activeWorkspaceID {
-			activeWorkspaceName = ws.Name
-			break
-		}
-	}
 	return a.borderedSurface(gtx, fluent.toolbar, unit.Dp(0), fluent.border, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min = gtx.Constraints.Max
-		return layout.Inset{Top: 8, Bottom: 8, Left: 14, Right: 14}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Top: 8, Bottom: 8, Left: 12, Right: 12}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.compactIconTextButton(gtx, &a.footerOutputButton, uiIconFolder, "输出目录", false)
+							return a.ghostIconTextButton(gtx, &a.footerOutputButton, uiIconFolder, "输出目录", false)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.compactIconTextButton(gtx, &a.footerGithubButton, uiIconLaunch, "GitHub", false)
+							return a.ghostIconTextButton(gtx, &a.footerGithubButton, uiIconLaunch, "GitHub", false)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.compactIconTextButton(gtx, &a.footerFeedbackButton, uiIconFeedback, "反馈", false)
+							return a.ghostIconTextButton(gtx, &a.footerFeedbackButton, uiIconFeedback, "反馈", false)
 						}),
 					)
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.label(gtx, fmt.Sprintf("今日已生图: %d · 总生图: %d", todayCount, len(snap.History)), unit.Sp(11), fluent.textMuted, font.Medium)
+					children := []layout.FlexChild{
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return a.label(gtx, fmt.Sprintf("今日已生图: %d", todayCount), unit.Sp(11), fluent.textMuted, font.Medium)
+						}),
+						layout.Rigid(layout.Spacer{Width: unit.Dp(10)}.Layout),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return a.label(gtx, "·", unit.Sp(11), fluent.textDim, font.Normal)
+						}),
+						layout.Rigid(layout.Spacer{Width: unit.Dp(10)}.Layout),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return a.label(gtx, fmt.Sprintf("总生图: %d", len(snap.History)), unit.Sp(11), fluent.textMuted, font.Medium)
+						}),
+					}
+					if snap.Running {
+						children = append(children,
+							layout.Rigid(layout.Spacer{Width: unit.Dp(10)}.Layout),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.label(gtx, "·", unit.Sp(11), fluent.textDim, font.Normal)
+							}),
+							layout.Rigid(layout.Spacer{Width: unit.Dp(10)}.Layout),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.label(gtx, "当前标签: 1", unit.Sp(11), fluent.accent, font.Medium)
+							}),
+						)
+					}
+					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
 				}),
 				layout.Rigid(layout.Spacer{Width: unit.Dp(14)}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.label(gtx, activeWorkspaceName, unit.Sp(11), fluent.textDim, font.Medium)
-				}),
-				layout.Rigid(layout.Spacer{Width: unit.Dp(10)}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return a.label(gtx, state, unit.Sp(11), fluent.textMuted, font.Medium)
+						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return fixedWidth(gtx, unit.Dp(7), func(gtx layout.Context) layout.Dimensions {
 								return fixedHeight(gtx, unit.Dp(7), func(gtx layout.Context) layout.Dimensions {
 									return a.surface(gtx, dot, unit.Dp(4), layout.Spacer{}.Layout)
 								})
 							})
-						}),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.label(gtx, state, unit.Sp(11), fluent.textMuted, font.Medium)
 						}),
 					)
 				}),
@@ -253,19 +297,29 @@ func (a *App) layoutBody(gtx layout.Context) layout.Dimensions {
 		return a.layoutCanvas(gtx)
 	}
 	width := gtx.Constraints.Max.X
-	rightWidth := unit.Dp(320)
-	leftWidth := unit.Dp(372)
-	if width < gtx.Dp(unit.Dp(1180)) {
-		rightWidth = unit.Dp(300)
-		leftWidth = unit.Dp(336)
+	leftMin := gtx.Dp(unit.Dp(336))
+	leftMax := gtx.Dp(unit.Dp(384))
+	rightMin := gtx.Dp(unit.Dp(300))
+	rightMax := gtx.Dp(unit.Dp(344))
+	centerMin := gtx.Dp(unit.Dp(360))
+	leftWidth := clampInt(int(float64(width)*0.25), leftMin, leftMax)
+	rightWidth := clampInt(int(float64(width)*0.22), rightMin, rightMax)
+	if overflow := leftWidth + rightWidth + centerMin - width; overflow > 0 {
+		reduceRight := min(overflow, rightWidth-rightMin)
+		rightWidth -= reduceRight
+		overflow -= reduceRight
+		if overflow > 0 {
+			reduceLeft := min(overflow, leftWidth-leftMin)
+			leftWidth -= reduceLeft
+		}
 	}
 	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return fixedWidth(gtx, leftWidth, a.layoutControls)
+			return fixedPixelWidth(gtx, leftWidth, a.layoutControls)
 		}),
 		layout.Flexed(1, a.layoutCanvas),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return fixedWidth(gtx, rightWidth, a.layoutHistoryAndLogs)
+			return fixedPixelWidth(gtx, rightWidth, a.layoutHistoryAndLogs)
 		}),
 	)
 }
@@ -283,12 +337,6 @@ func (a *App) layoutWorkspaceBar(gtx layout.Context) layout.Dimensions {
 	}
 	for a.addWorkspaceButton.Clicked(gtx) {
 		a.createWorkspace()
-	}
-	for a.workspaceRenameSaveButton.Clicked(gtx) {
-		a.commitWorkspaceRename()
-	}
-	for a.workspaceRenameCancelButton.Clicked(gtx) {
-		a.cancelWorkspaceRename()
 	}
 	for _, ws := range a.workspaces {
 		ws := ws
@@ -322,9 +370,13 @@ func (a *App) layoutWorkspaceBar(gtx layout.Context) layout.Dimensions {
 					fluent.surface2,
 					rgba(0xffffff, 0x00),
 					unit.Dp(6),
-					layout.Inset{Top: 6, Bottom: 6, Left: 10, Right: 10},
+					layout.Inset{Top: 6, Bottom: 6, Left: 8, Right: 8},
 					func(gtx layout.Context) layout.Dimensions {
-						return a.label(gtx, "+", unit.Sp(13), fluent.textMuted, font.Medium)
+						return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+							return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+								return uiIconAdd.Layout(gtx, fluent.textMuted)
+							})
+						})
 					},
 				)
 			}))
@@ -351,23 +403,13 @@ func (a *App) layoutWorkspaceTab(gtx layout.Context, ws workspaceState, active b
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 						if editing {
-							return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
-								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-									return fixedWidth(gtx, unit.Dp(144), func(gtx layout.Context) layout.Dimensions {
-										return a.borderedSurface(gtx, fluent.surface, unit.Dp(4), fluent.border2, func(gtx layout.Context) layout.Dimensions {
-											return layout.Inset{Top: 7, Bottom: 7, Left: 8, Right: 8}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-												return a.editorText(gtx, &a.workspaceNameInput, "未命名", unit.Sp(11))
-											})
-										})
+							return fixedWidth(gtx, unit.Dp(150), func(gtx layout.Context) layout.Dimensions {
+								return a.borderedSurface(gtx, fluent.surface, fluentControlRadius, fluent.border2, func(gtx layout.Context) layout.Dimensions {
+									return layout.Inset{Top: 7, Bottom: 7, Left: 8, Right: 8}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+										return a.editorText(gtx, &a.workspaceNameInput, "未命名", unit.Sp(11))
 									})
-								}),
-								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return a.compactIconTextButton(gtx, &a.workspaceRenameSaveButton, uiIconCheck, "保存", false)
-								}),
-								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return a.compactIconTextButton(gtx, &a.workspaceRenameCancelButton, uiIconCancel, "取消", false)
-								}),
-							)
+								})
+							})
 						}
 						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
