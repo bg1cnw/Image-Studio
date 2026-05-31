@@ -121,6 +121,25 @@ func (a *App) compactButton(gtx layout.Context, btn *widget.Clickable, text stri
 	)
 }
 
+func (a *App) staticPill(gtx layout.Context, text string, accent bool, dimmed bool) layout.Dimensions {
+	bg := fluent.surface
+	fg := fluent.textMuted
+	border := fluent.border
+	if accent {
+		bg = fluent.accentSoft
+		fg = fluent.accent
+	}
+	if dimmed {
+		fg = fluent.textDim
+		border = fluent.border2
+	}
+	return a.borderedSurface(gtx, bg, unit.Dp(4), border, func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Top: 7, Bottom: 7, Left: 10, Right: 10}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return a.label(gtx, text, unit.Sp(11), fg, font.Medium)
+		})
+	})
+}
+
 func (a *App) imageThumb(gtx layout.Context, img image.Image, width unit.Dp, height unit.Dp, radius unit.Dp) layout.Dimensions {
 	return fixedWidth(gtx, width, func(gtx layout.Context) layout.Dimensions {
 		return fixedHeight(gtx, height, func(gtx layout.Context) layout.Dimensions {

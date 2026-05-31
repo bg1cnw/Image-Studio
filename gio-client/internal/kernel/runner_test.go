@@ -1,6 +1,9 @@
 package kernel
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"testing"
 
@@ -45,5 +48,30 @@ func TestBuildImageNameMapsJPEGExtension(t *testing.T) {
 	want := "image-edit-a-cat-wearing-sunglasses-20260531-120000.jpg"
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
+func TestProbeUpstreamReturnsModelCount(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		if auth := r.Header.Get("Authorization"); auth != "Bearer sk-test" {
+			t.Fatalf("authorization=%q", auth)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"id":"gpt-5.5"},{"id":"gpt-image-2"}]}`))
+	}))
+	defer server.Close()
+
+	result, err := ProbeUpstream(context.Background(), Config{
+		APIKey:  "sk-test",
+		BaseURL: server.URL,
+	})
+	if err != nil {
+		t.Fatalf("ProbeUpstream: %v", err)
+	}
+	if result.ModelCount != 2 {
+		t.Fatalf("ModelCount=%d want 2", result.ModelCount)
 	}
 }

@@ -187,6 +187,8 @@ func HistoryItemFromRun(cfg kernel.Config, result kernel.Result, elapsedSec floa
 		CreatedAt:      time.Now().UnixMilli(),
 		Seed:           cfg.Seed,
 		NegativePrompt: cfg.NegativePrompt,
+		StyleTag:       cfg.StyleTag,
+		BatchIndex:     cfg.BatchIndex,
 		ElapsedSec:     elapsedSec,
 		SavedPath:      result.SavedPath,
 		RawPath:        result.RawPath,

@@ -20,6 +20,8 @@ func (a *App) startRun() {
 		return
 	}
 	cfg := a.currentConfig()
+	total := normalizeBatchCount(a.batchCount)
+	a.rememberPrompt(cfg.Prompt)
 	if err := gioCompat.SaveConfig(cfg); err != nil {
 		a.appendLog("兼容配置保存失败: " + err.Error())
 	}
@@ -27,79 +29,102 @@ func (a *App) startRun() {
 	a.mu.Lock()
 	a.running = true
 	a.cancel = cancel
-	a.status = "正在提交请求"
-	a.logs = appendBounded(a.logs, "开始任务: "+shortPrompt(cfg.Prompt))
+	a.status = fmt.Sprintf("正在提交 1/%d", total)
+	a.activePromptGroup = historyPromptGroup{}
+	a.logs = appendBounded(a.logs, fmt.Sprintf("开始任务 1/%d: %s", total, shortPrompt(cfg.Prompt)))
 	a.mu.Unlock()
 	a.invalidateNow()
 
 	go func() {
-		started := time.Now()
-		res, err := a.runner.Run(ctx, cfg, kernel.Callbacks{
-			Log: func(line string) {
-				a.appendLog(line)
-			},
-			Progress: func(stage string, elapsed int, bytes int64) {
-				a.setStatus(fmt.Sprintf("%s - %ds - %s", stage, elapsed, client.FormatBytes(bytes)))
-			},
-			Partial: func(partial client.PartialImage) {
-				a.setStatus(fmt.Sprintf("收到流式预览 #%d", partial.PartialImageIndex))
-			},
-		})
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
+		batchStarted := time.Now()
+		for i := 0; i < total; i++ {
+			if err := ctx.Err(); err != nil {
 				a.finishCancelled()
 				return
 			}
-			a.finishWithError(err, res.RawPath)
-			return
+			jobCfg := cfg
+			jobCfg.BatchIndex = i
+			jobCfg.Prompt = augmentPromptWithStyle(cfg.Prompt, cfg.StyleTag)
+			if cfg.Seed != 0 {
+				jobCfg.Seed = cfg.Seed + int64(i)
+			}
+			jobLabel := fmt.Sprintf("%d/%d", i+1, total)
+			jobStarted := time.Now()
+			res, err := a.runner.Run(ctx, jobCfg, kernel.Callbacks{
+				Log: func(line string) {
+					a.appendLog("[" + jobLabel + "] " + line)
+				},
+				Progress: func(stage string, elapsed int, bytes int64) {
+					a.setStatus(fmt.Sprintf("%s · %s · %ds · %s", jobLabel, stage, elapsed, client.FormatBytes(bytes)))
+				},
+				Partial: func(partial client.PartialImage) {
+					a.setStatus(fmt.Sprintf("%s · 收到流式预览 #%d", jobLabel, partial.PartialImageIndex))
+				},
+			})
+			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					a.finishCancelled()
+					return
+				}
+				a.finishWithError(err, res.RawPath)
+				return
+			}
+			img, err := decodeImageB64(res.ImageB64)
+			if err != nil {
+				a.finishWithError(err, res.RawPath)
+				return
+			}
+			elapsedSec := time.Since(jobStarted).Seconds()
+			if err := gioCompat.SaveConfigAndHistory(jobCfg, res, elapsedSec); err != nil {
+				a.appendLog("兼容历史保存失败: " + err.Error())
+			}
+			compatState, _, _ := gioCompat.LoadState()
+			compatState = sharedCompat.Normalize(compatState)
+			selectedItem, hasSelected := historyItemBySavedPath(compatState.History, res.SavedPath)
+			if !hasSelected {
+				selectedItem, hasSelected = newestHistoryItem(compatState.History)
+			}
+			activeProfileID := ""
+			if profile, ok := gioCompat.ActiveProfile(compatState); ok {
+				activeProfileID = profile.ID
+			}
+			a.mu.Lock()
+			a.status = fmt.Sprintf("完成 %s · %.1fs", jobLabel, time.Since(batchStarted).Seconds())
+			a.result = resultState{
+				Image:         img,
+				SavedPath:     res.SavedPath,
+				RawPath:       res.RawPath,
+				RevisedPrompt: res.RevisedPrompt,
+				SourceEvent:   res.SourceEvent,
+				Item:          selectedItem,
+				HasItem:       hasSelected,
+				Rev:           a.result.Rev + 1,
+			}
+			a.history = append([]sharedCompat.HistoryItem(nil), compatState.History...)
+			a.profiles = append([]sharedCompat.UpstreamProfile(nil), compatState.Profiles...)
+			a.activeProfileID = activeProfileID
+			if hasSelected {
+				a.selectedHistoryID = selectedItem.ID
+			}
+			if total > 1 {
+				if group, ok := findPromptGroupForItem(compatState.History, selectedItem.ID); ok && len(group.Items) > 1 {
+					a.activePromptGroup = group
+				}
+			}
+			if !a.savePromptSuppressed && res.SavedPath != "" && total == 1 {
+				a.savePromptVisible = true
+				a.savePromptSourcePath = res.SavedPath
+				a.savePromptPathInput.SetText(res.SavedPath)
+			}
+			a.logs = appendBounded(a.logs, fmt.Sprintf("生成完成 %s: %s", jobLabel, res.SavedPath))
+			if i == total-1 {
+				a.running = false
+				a.cancel = nil
+				a.status = fmt.Sprintf("完成 - %.1fs", time.Since(batchStarted).Seconds())
+			}
+			a.mu.Unlock()
+			a.invalidateNow()
 		}
-		img, err := decodeImageB64(res.ImageB64)
-		if err != nil {
-			a.finishWithError(err, res.RawPath)
-			return
-		}
-		elapsedSec := time.Since(started).Seconds()
-		if err := gioCompat.SaveConfigAndHistory(cfg, res, elapsedSec); err != nil {
-			a.appendLog("兼容历史保存失败: " + err.Error())
-		}
-		compatState, _, _ := gioCompat.LoadState()
-		compatState = sharedCompat.Normalize(compatState)
-		selectedItem, hasSelected := historyItemBySavedPath(compatState.History, res.SavedPath)
-		if !hasSelected {
-			selectedItem, hasSelected = newestHistoryItem(compatState.History)
-		}
-		activeProfileID := ""
-		if profile, ok := gioCompat.ActiveProfile(compatState); ok {
-			activeProfileID = profile.ID
-		}
-		a.mu.Lock()
-		a.running = false
-		a.cancel = nil
-		a.status = fmt.Sprintf("完成 - %.1fs", elapsedSec)
-		a.result = resultState{
-			Image:         img,
-			SavedPath:     res.SavedPath,
-			RawPath:       res.RawPath,
-			RevisedPrompt: res.RevisedPrompt,
-			SourceEvent:   res.SourceEvent,
-			Item:          selectedItem,
-			HasItem:       hasSelected,
-			Rev:           a.result.Rev + 1,
-		}
-		a.history = append([]sharedCompat.HistoryItem(nil), compatState.History...)
-		a.profiles = append([]sharedCompat.UpstreamProfile(nil), compatState.Profiles...)
-		a.activeProfileID = activeProfileID
-		if hasSelected {
-			a.selectedHistoryID = selectedItem.ID
-		}
-		if !a.savePromptSuppressed && res.SavedPath != "" {
-			a.savePromptVisible = true
-			a.savePromptSourcePath = res.SavedPath
-			a.savePromptPathInput.SetText(res.SavedPath)
-		}
-		a.logs = appendBounded(a.logs, "生成完成: "+res.SavedPath)
-		a.mu.Unlock()
-		a.invalidateNow()
 	}()
 }
 
@@ -125,5 +150,6 @@ func (a *App) currentConfig() kernel.Config {
 		Seed:           seed,
 		NegativePrompt: a.negativePromptInput.Text(),
 		PartialImages:  partial,
+		StyleTag:       a.styleTag,
 	}
 }

@@ -34,15 +34,23 @@ type resultState struct {
 }
 
 type snapshot struct {
-	Running           bool
-	Status            string
-	Logs              []string
-	History           []sharedCompat.HistoryItem
-	Profiles          []sharedCompat.UpstreamProfile
-	ActiveProfileID   string
-	SelectedHistoryID string
-	Result            resultState
-	SavePromptVisible bool
+	Running            bool
+	Status             string
+	Logs               []string
+	History            []sharedCompat.HistoryItem
+	Profiles           []sharedCompat.UpstreamProfile
+	ActiveProfileID    string
+	SelectedHistoryID  string
+	PromptHistory      []string
+	Presets            []sharedCompat.Preset
+	OptimizingPrompt   bool
+	TestingUpstream    bool
+	LastProbeSummary   string
+	ActivePromptGroup  historyPromptGroup
+	ActiveResultDetail sharedCompat.HistoryItem
+	Fullscreen         bool
+	Result             resultState
+	SavePromptVisible  bool
 }
 
 type cachedImage struct {
@@ -50,13 +58,38 @@ type cachedImage struct {
 	Failed bool
 }
 
+type workspaceState struct {
+	ID                  string
+	Name                string
+	Prompt              string
+	NegativePrompt      string
+	Mode                string
+	Size                string
+	Quality             string
+	OutputFormat        string
+	StyleTag            string
+	SeedText            string
+	BatchCount          int
+	SourcePathsText     string
+	ResultSavedPath     string
+	ResultRawPath       string
+	ResultRevisedPrompt string
+	ResultSourceEvent   string
+	ResultItem          sharedCompat.HistoryItem
+	ResultHasItem       bool
+	SelectedHistoryID   string
+}
+
 type App struct {
 	th     *material.Theme
 	runner kernel.Runner
 
-	controlsList widget.List
-	logList      widget.List
-	historyList  widget.List
+	controlsList    widget.List
+	logList         widget.List
+	historyList     widget.List
+	promptGroupList widget.List
+	settingsList    widget.List
+	workspaceList   widget.List
 
 	apiKeyInput         widget.Editor
 	baseURLInput        widget.Editor
@@ -72,62 +105,121 @@ type App struct {
 	savePromptPathInput widget.Editor
 	historyQueryInput   widget.Editor
 
-	mode    string
-	api     string
-	size    string
-	quality string
-	format  string
-	policy  string
-	proxy   string
+	mode       string
+	api        string
+	size       string
+	quality    string
+	format     string
+	policy     string
+	proxy      string
+	styleTag   string
+	themeMode  string
+	batchCount int
 
-	modeButtons           []widget.Clickable
-	apiButtons            []widget.Clickable
-	sizeButtons           []widget.Clickable
-	qualityButtons        []widget.Clickable
-	formatButtons         []widget.Clickable
-	policyButtons         []widget.Clickable
-	proxyButtons          []widget.Clickable
-	historyModeButtons    []widget.Clickable
-	historyDateButtons    []widget.Clickable
-	runButton             widget.Clickable
-	cancelButton          widget.Clickable
-	clearLogButton        widget.Clickable
-	composeToggleButton   widget.Clickable
-	advancedToggleButton  widget.Clickable
-	profilePickerButton   widget.Clickable
-	manageUpstreamButton  widget.Clickable
-	historyCollapseButton widget.Clickable
-	savePromptSaveButton  widget.Clickable
-	savePromptSkipButton  widget.Clickable
-	savePromptNeverAsk    widget.Bool
+	modeButtons              []widget.Clickable
+	apiButtons               []widget.Clickable
+	sizeButtons              []widget.Clickable
+	aspectButtons            []widget.Clickable
+	styleButtons             []widget.Clickable
+	batchCountButtons        []widget.Clickable
+	resolutionButtons        []widget.Clickable
+	qualityButtons           []widget.Clickable
+	formatButtons            []widget.Clickable
+	policyButtons            []widget.Clickable
+	proxyButtons             []widget.Clickable
+	historyModeButtons       []widget.Clickable
+	historyDateButtons       []widget.Clickable
+	runButton                widget.Clickable
+	cancelButton             widget.Clickable
+	clearLogButton           widget.Clickable
+	saveAsButton             widget.Clickable
+	latestResultButton       widget.Clickable
+	currentGroupButton       widget.Clickable
+	rotateLeftButton         widget.Clickable
+	rotateRightButton        widget.Clickable
+	flipHorizontalButton     widget.Clickable
+	flipVerticalButton       widget.Clickable
+	clearCurrentButton       widget.Clickable
+	clearSourcesButton       widget.Clickable
+	useCurrentAsSourceButton widget.Clickable
+	addSourceFilesButton     widget.Clickable
+	addSourceStripButton     widget.Clickable
+	promptHelperButton       widget.Clickable
+	closePromptHelperButton  widget.Clickable
+	optimizePromptButton     widget.Clickable
+	testUpstreamButton       widget.Clickable
+	upstreamConfigButton     widget.Clickable
+	themeButtons             []widget.Clickable
+	githubButton             widget.Clickable
+	settingsButton           widget.Clickable
+	fullscreenButton         widget.Clickable
+	resultDetailButton       widget.Clickable
+	footerOutputButton       widget.Clickable
+	footerGithubButton       widget.Clickable
+	footerFeedbackButton     widget.Clickable
+	addWorkspaceButton       widget.Clickable
+	closeSettingsButton      widget.Clickable
+	createProfileButton      widget.Clickable
+	duplicateProfileButton   widget.Clickable
+	deleteProfileButton      widget.Clickable
+	closeResultDetailButton  widget.Clickable
+	composeToggleButton      widget.Clickable
+	advancedToggleButton     widget.Clickable
+	profilePickerButton      widget.Clickable
+	manageUpstreamButton     widget.Clickable
+	historyCollapseButton    widget.Clickable
+	closePromptGroupButton   widget.Clickable
+	savePromptSaveButton     widget.Clickable
+	savePromptSkipButton     widget.Clickable
+	savePromptNeverAsk       widget.Bool
 
-	mu                sync.Mutex
-	running           bool
-	cancel            context.CancelFunc
-	status            string
-	logs              []string
-	history           []sharedCompat.HistoryItem
-	profiles          []sharedCompat.UpstreamProfile
-	activeProfileID   string
-	selectedHistoryID string
-	result            resultState
-	imageOp           paint.ImageOp
-	imageOpRev        int
-	imageCache        map[string]cachedImage
+	mu                 sync.Mutex
+	running            bool
+	cancel             context.CancelFunc
+	status             string
+	logs               []string
+	history            []sharedCompat.HistoryItem
+	profiles           []sharedCompat.UpstreamProfile
+	promptHistory      []string
+	presets            []sharedCompat.Preset
+	activeProfileID    string
+	selectedHistoryID  string
+	optimizingPrompt   bool
+	testingUpstream    bool
+	lastProbeSummary   string
+	fullscreen         bool
+	activeResultDetail sharedCompat.HistoryItem
+	result             resultState
+	imageOp            paint.ImageOp
+	imageOpRev         int
+	imageCache         map[string]cachedImage
 
-	savePromptVisible    bool
-	savePromptSuppressed bool
-	savePromptSourcePath string
-	composeOpen          bool
-	advancedOpen         bool
-	profilePickerOpen    bool
-	historyRailCollapsed bool
-	historyModeFilter    string
-	historyDateFilter    string
-	profileButtons       map[string]*widget.Clickable
-	historyButtons       map[string]*widget.Clickable
+	savePromptVisible      bool
+	savePromptSuppressed   bool
+	savePromptSourcePath   string
+	composeOpen            bool
+	advancedOpen           bool
+	profilePickerOpen      bool
+	historyRailCollapsed   bool
+	historyModeFilter      string
+	historyDateFilter      string
+	profileButtons         map[string]*widget.Clickable
+	settingsProfileButtons map[string]*widget.Clickable
+	historyButtons         map[string]*widget.Clickable
+	promptButtons          map[string]*widget.Clickable
+	sourceButtons          map[string]*widget.Clickable
+	historyActionButtons   map[string]*widget.Clickable
+	expandedPromptGroups   map[string]bool
+	promptHelperOpen       bool
+	activePromptGroup      historyPromptGroup
+	settingsModalOpen      bool
+	workspaces             []workspaceState
+	activeWorkspaceID      string
+	workspaceButtons       map[string]*widget.Clickable
+	closeWorkspaceButtons  map[string]*widget.Clickable
 
 	invalidate func()
+	window     *app.Window
 }
 
 func New() *App {
@@ -136,6 +228,8 @@ func New() *App {
 	if compatErr == nil {
 		cfg = gioCompat.ConfigFromState(cfg, compatState)
 	}
+	themeMode := normalizeThemeMode(compatState.Settings.Theme)
+	fluent = themePalette(resolveThemeMode(themeMode))
 	th := material.NewTheme()
 	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
 	th.Palette = material.Palette{
@@ -146,38 +240,56 @@ func New() *App {
 	}
 	th.TextSize = unit.Sp(14)
 	a := &App{
-		th:                   th,
-		runner:               kernel.Runner{},
-		mode:                 string(cfg.Mode),
-		api:                  string(cfg.APIMode),
-		size:                 cfg.Size,
-		quality:              cfg.Quality,
-		format:               cfg.OutputFormat,
-		policy:               string(cfg.RequestPolicy),
-		proxy:                cfg.ProxyMode,
-		modeButtons:          make([]widget.Clickable, len(modeChoices)),
-		apiButtons:           make([]widget.Clickable, len(apiChoices)),
-		sizeButtons:          make([]widget.Clickable, len(sizeChoices)),
-		qualityButtons:       make([]widget.Clickable, len(qualityChoices)),
-		formatButtons:        make([]widget.Clickable, len(formatChoices)),
-		policyButtons:        make([]widget.Clickable, len(policyChoices)),
-		proxyButtons:         make([]widget.Clickable, len(proxyChoices)),
-		historyModeButtons:   make([]widget.Clickable, 3),
-		historyDateButtons:   make([]widget.Clickable, 3),
-		status:               "Gio 原生客户端就绪",
-		logs:                 []string{"独立 Gio 高性能测试客户端已启动。"},
-		history:              append([]sharedCompat.HistoryItem(nil), compatState.History...),
-		profiles:             append([]sharedCompat.UpstreamProfile(nil), compatState.Profiles...),
-		savePromptSuppressed: gioCompat.SavePromptSuppressed(compatState),
-		imageCache:           map[string]cachedImage{},
-		composeOpen:          false,
-		advancedOpen:         false,
-		profilePickerOpen:    false,
-		historyRailCollapsed: false,
-		historyModeFilter:    "all",
-		historyDateFilter:    "all",
-		profileButtons:       map[string]*widget.Clickable{},
-		historyButtons:       map[string]*widget.Clickable{},
+		th:                     th,
+		runner:                 kernel.Runner{},
+		mode:                   string(cfg.Mode),
+		api:                    string(cfg.APIMode),
+		size:                   cfg.Size,
+		quality:                cfg.Quality,
+		format:                 cfg.OutputFormat,
+		policy:                 string(cfg.RequestPolicy),
+		proxy:                  cfg.ProxyMode,
+		styleTag:               "",
+		themeMode:              themeMode,
+		batchCount:             1,
+		themeButtons:           make([]widget.Clickable, 3),
+		modeButtons:            make([]widget.Clickable, len(modeChoices)),
+		apiButtons:             make([]widget.Clickable, len(apiChoices)),
+		sizeButtons:            make([]widget.Clickable, len(sizeChoices)),
+		aspectButtons:          make([]widget.Clickable, len(aspectChoices)),
+		styleButtons:           make([]widget.Clickable, len(styleChoices)),
+		batchCountButtons:      make([]widget.Clickable, len(batchCountChoices)),
+		resolutionButtons:      make([]widget.Clickable, len(resolutionChoices)),
+		qualityButtons:         make([]widget.Clickable, len(qualityChoices)),
+		formatButtons:          make([]widget.Clickable, len(formatChoices)),
+		policyButtons:          make([]widget.Clickable, len(policyChoices)),
+		proxyButtons:           make([]widget.Clickable, len(proxyChoices)),
+		historyModeButtons:     make([]widget.Clickable, 3),
+		historyDateButtons:     make([]widget.Clickable, 3),
+		status:                 "Gio 原生客户端就绪",
+		logs:                   []string{"独立 Gio 高性能测试客户端已启动。"},
+		history:                append([]sharedCompat.HistoryItem(nil), compatState.History...),
+		profiles:               append([]sharedCompat.UpstreamProfile(nil), compatState.Profiles...),
+		promptHistory:          append([]string(nil), compatState.Settings.PromptHistory...),
+		presets:                append([]sharedCompat.Preset(nil), compatState.Settings.Presets...),
+		savePromptSuppressed:   gioCompat.SavePromptSuppressed(compatState),
+		imageCache:             map[string]cachedImage{},
+		composeOpen:            false,
+		advancedOpen:           false,
+		profilePickerOpen:      false,
+		historyRailCollapsed:   false,
+		historyModeFilter:      "all",
+		historyDateFilter:      "all",
+		profileButtons:         map[string]*widget.Clickable{},
+		settingsProfileButtons: map[string]*widget.Clickable{},
+		historyButtons:         map[string]*widget.Clickable{},
+		promptButtons:          map[string]*widget.Clickable{},
+		sourceButtons:          map[string]*widget.Clickable{},
+		historyActionButtons:   map[string]*widget.Clickable{},
+		workspaceButtons:       map[string]*widget.Clickable{},
+		closeWorkspaceButtons:  map[string]*widget.Clickable{},
+		expandedPromptGroups:   map[string]bool{},
+		promptHelperOpen:       false,
 	}
 	if profile, ok := gioCompat.ActiveProfile(compatState); ok {
 		a.activeProfileID = profile.ID
@@ -192,6 +304,9 @@ func New() *App {
 	a.controlsList.List.Axis = layout.Vertical
 	a.logList.List.Axis = layout.Vertical
 	a.historyList.List.Axis = layout.Vertical
+	a.promptGroupList.List.Axis = layout.Vertical
+	a.settingsList.List.Axis = layout.Vertical
+	a.workspaceList.List.Axis = layout.Horizontal
 	a.configureEditors(cfg)
 	a.historyQueryInput.SingleLine = true
 	if latest, ok := newestHistoryItem(a.history); ok {
@@ -199,6 +314,7 @@ func New() *App {
 			a.logs = appendBounded(a.logs, "载入最近历史失败: "+err.Error())
 		}
 	}
+	a.initWorkspaces()
 	return a
 }
 
@@ -253,6 +369,7 @@ func (a *App) applyRuntimeConfig(cfg kernel.Config) {
 }
 
 func (a *App) Run(w *app.Window) error {
+	a.window = w
 	a.invalidate = w.Invalidate
 	var ops op.Ops
 	for {

@@ -1,10 +1,12 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"image"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,7 +14,9 @@ import (
 	"image-studio/gio-client/internal/kernel"
 	sharedCompat "image-studio/shared/compat"
 
+	"gioui.org/app"
 	"gioui.org/widget"
+	"github.com/yuanhua/image-gptcodex/pkg/client"
 )
 
 var errMissingPreview = errors.New("missing preview image")
@@ -97,6 +101,54 @@ func (a *App) historyButton(id string) *widget.Clickable {
 	}
 	btn := new(widget.Clickable)
 	a.historyButtons[id] = btn
+	return btn
+}
+
+func (a *App) settingsProfileButton(id string) *widget.Clickable {
+	if a.settingsProfileButtons == nil {
+		a.settingsProfileButtons = map[string]*widget.Clickable{}
+	}
+	if btn, ok := a.settingsProfileButtons[id]; ok {
+		return btn
+	}
+	btn := new(widget.Clickable)
+	a.settingsProfileButtons[id] = btn
+	return btn
+}
+
+func (a *App) promptButton(id string) *widget.Clickable {
+	if a.promptButtons == nil {
+		a.promptButtons = map[string]*widget.Clickable{}
+	}
+	if btn, ok := a.promptButtons[id]; ok {
+		return btn
+	}
+	btn := new(widget.Clickable)
+	a.promptButtons[id] = btn
+	return btn
+}
+
+func (a *App) sourceButton(id string) *widget.Clickable {
+	if a.sourceButtons == nil {
+		a.sourceButtons = map[string]*widget.Clickable{}
+	}
+	if btn, ok := a.sourceButtons[id]; ok {
+		return btn
+	}
+	btn := new(widget.Clickable)
+	a.sourceButtons[id] = btn
+	return btn
+}
+
+func (a *App) historyActionButton(id string) *widget.Clickable {
+	if a.historyActionButtons == nil {
+		a.historyActionButtons = map[string]*widget.Clickable{}
+	}
+	if btn, ok := a.historyActionButtons[id]; ok {
+		return btn
+	}
+	btn := new(widget.Clickable)
+	a.historyActionButtons[id] = btn
 	return btn
 }
 
@@ -213,6 +265,7 @@ func (a *App) switchActiveProfile(profileID string) {
 	if profileID == "" {
 		return
 	}
+	a.saveCurrentConfig()
 	state, _, err := gioCompat.LoadState()
 	if err != nil {
 		a.appendLog("读取上游配置失败: " + err.Error())
@@ -257,4 +310,514 @@ func activeProfileName(profiles []sharedCompat.UpstreamProfile, profileID string
 		}
 	}
 	return ""
+}
+
+func nextProfileName(profiles []sharedCompat.UpstreamProfile) string {
+	used := map[int]struct{}{}
+	for _, profile := range profiles {
+		raw := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(profile.Name), "配置"))
+		n, err := strconv.Atoi(raw)
+		if err == nil && n > 0 {
+			used[n] = struct{}{}
+		}
+	}
+	for i := 1; ; i++ {
+		if _, ok := used[i]; !ok {
+			return "配置" + strconv.Itoa(i)
+		}
+	}
+}
+
+func (a *App) createBlankProfile() {
+	a.saveCurrentConfig()
+	state, _, err := gioCompat.LoadState()
+	if err != nil {
+		a.appendLog("创建配置失败: " + err.Error())
+		return
+	}
+	state = sharedCompat.Normalize(state)
+	now := time.Now().UnixMilli()
+	profileID := fmt.Sprintf("gio-%d", now)
+	profile := sharedCompat.UpstreamProfile{
+		ID:            profileID,
+		Name:          nextProfileName(state.Profiles),
+		APIMode:       string(client.APIModeResponses),
+		RequestPolicy: string(client.RequestPolicyOpenAI),
+		TextModelID:   client.TextModel,
+		ImageModelID:  client.ImageModel,
+		CreatedAt:     now,
+		LastUsedAt:    now,
+	}
+	state.Profiles = append(state.Profiles, profile)
+	state.ActiveProfile = profileID
+	state.UpdatedAt = now
+	if err := gioCompat.SaveState(state); err != nil {
+		a.appendLog("创建配置失败: " + err.Error())
+		return
+	}
+	cfg := gioCompat.ConfigFromState(kernel.DefaultConfig(), state)
+	a.applyRuntimeConfig(cfg)
+	a.mu.Lock()
+	a.profiles = append([]sharedCompat.UpstreamProfile(nil), state.Profiles...)
+	a.activeProfileID = profileID
+	a.status = "已创建配置: " + profile.Name
+	a.logs = appendBounded(a.logs, "已创建配置: "+profile.Name)
+	a.mu.Unlock()
+	a.invalidateNow()
+}
+
+func (a *App) duplicateActiveProfile() {
+	a.saveCurrentConfig()
+	state, _, err := gioCompat.LoadState()
+	if err != nil {
+		a.appendLog("复制配置失败: " + err.Error())
+		return
+	}
+	state = sharedCompat.Normalize(state)
+	current, ok := currentActiveProfile(state)
+	if !ok {
+		return
+	}
+	now := time.Now().UnixMilli()
+	profileID := fmt.Sprintf("gio-%d", now)
+	clone := current
+	clone.ID = profileID
+	clone.Name = nextProfileName(state.Profiles)
+	clone.CreatedAt = now
+	clone.LastUsedAt = now
+	state.Profiles = append(state.Profiles, clone)
+	state.ActiveProfile = profileID
+	state.UpdatedAt = now
+	if key, _ := gioCompat.ReadAPIKey(current.ID); strings.TrimSpace(key) != "" {
+		_ = gioCompat.WriteAPIKey(profileID, key)
+	}
+	if err := gioCompat.SaveState(state); err != nil {
+		a.appendLog("复制配置失败: " + err.Error())
+		return
+	}
+	cfg := gioCompat.ConfigFromState(kernel.DefaultConfig(), state)
+	a.applyRuntimeConfig(cfg)
+	a.mu.Lock()
+	a.profiles = append([]sharedCompat.UpstreamProfile(nil), state.Profiles...)
+	a.activeProfileID = profileID
+	a.status = "已复制配置: " + clone.Name
+	a.logs = appendBounded(a.logs, "已复制配置: "+clone.Name)
+	a.mu.Unlock()
+	a.invalidateNow()
+}
+
+func (a *App) deleteActiveProfile() {
+	a.saveCurrentConfig()
+	state, _, err := gioCompat.LoadState()
+	if err != nil {
+		a.appendLog("删除配置失败: " + err.Error())
+		return
+	}
+	state = sharedCompat.Normalize(state)
+	if len(state.Profiles) == 0 {
+		return
+	}
+	current, ok := currentActiveProfile(state)
+	if !ok {
+		return
+	}
+	nextProfiles := make([]sharedCompat.UpstreamProfile, 0, len(state.Profiles)-1)
+	for _, profile := range state.Profiles {
+		if profile.ID == current.ID {
+			continue
+		}
+		nextProfiles = append(nextProfiles, profile)
+	}
+	state.Profiles = nextProfiles
+	if len(nextProfiles) > 0 {
+		state.ActiveProfile = nextProfiles[0].ID
+	} else {
+		state.ActiveProfile = ""
+	}
+	state.UpdatedAt = time.Now().UnixMilli()
+	_ = gioCompat.WriteAPIKey(current.ID, "")
+	if err := gioCompat.SaveState(state); err != nil {
+		a.appendLog("删除配置失败: " + err.Error())
+		return
+	}
+	cfg := gioCompat.ConfigFromState(kernel.DefaultConfig(), state)
+	a.applyRuntimeConfig(cfg)
+	a.mu.Lock()
+	a.profiles = append([]sharedCompat.UpstreamProfile(nil), state.Profiles...)
+	a.activeProfileID = state.ActiveProfile
+	a.status = "已删除配置: " + current.Name
+	a.logs = appendBounded(a.logs, "已删除配置: "+current.Name)
+	a.mu.Unlock()
+	a.invalidateNow()
+}
+
+func currentActiveProfile(state sharedCompat.State) (sharedCompat.UpstreamProfile, bool) {
+	if strings.TrimSpace(state.ActiveProfile) != "" {
+		for _, profile := range state.Profiles {
+			if profile.ID == state.ActiveProfile {
+				return profile, true
+			}
+		}
+	}
+	if len(state.Profiles) == 0 {
+		return sharedCompat.UpstreamProfile{}, false
+	}
+	return state.Profiles[0], true
+}
+
+func augmentPromptWithStyle(prompt string, styleTag string) string {
+	prompt = strings.TrimSpace(prompt)
+	suffix := strings.TrimSpace(styleSuffixes[strings.TrimSpace(styleTag)])
+	if prompt == "" || suffix == "" {
+		return prompt
+	}
+	return prompt + ", " + suffix
+}
+
+func buildPromptSuggestions(promptHistory []string, history []sharedCompat.HistoryItem) []string {
+	out := make([]string, 0, 8)
+	seen := map[string]struct{}{}
+	push := func(text string) {
+		text = strings.Join(strings.Fields(strings.TrimSpace(text)), " ")
+		if text == "" {
+			return
+		}
+		if _, ok := seen[text]; ok {
+			return
+		}
+		seen[text] = struct{}{}
+		out = append(out, text)
+	}
+	for _, text := range promptHistory {
+		push(text)
+		if len(out) >= 8 {
+			return out
+		}
+	}
+	for _, item := range history {
+		push(item.Prompt)
+		if len(out) >= 8 {
+			return out
+		}
+	}
+	return out
+}
+
+func (a *App) applyPromptSuggestion(text string) {
+	current := strings.TrimSpace(a.promptInput.Text())
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return
+	}
+	if current == "" {
+		a.promptInput.SetText(text)
+	} else {
+		a.promptInput.SetText(current + "\n" + text)
+	}
+	a.invalidateNow()
+}
+
+func (a *App) applyPreset(preset sharedCompat.Preset) {
+	if strings.TrimSpace(preset.Size) != "" {
+		a.size = preset.Size
+	}
+	if strings.TrimSpace(preset.Quality) != "" {
+		a.quality = preset.Quality
+	}
+	if strings.TrimSpace(preset.OutputFormat) != "" {
+		a.format = preset.OutputFormat
+	}
+	a.negativePromptInput.SetText(strings.TrimSpace(preset.NegativePrompt))
+	a.batchCount = normalizeBatchCount(preset.BatchCount)
+	a.invalidateNow()
+}
+
+func (a *App) rememberPrompt(text string) {
+	text = strings.Join(strings.Fields(strings.TrimSpace(text)), " ")
+	if text == "" {
+		return
+	}
+	state, _, err := gioCompat.LoadState()
+	if err != nil {
+		a.appendLog("更新提示词历史失败: " + err.Error())
+		return
+	}
+	next := []string{text}
+	for _, existing := range state.Settings.PromptHistory {
+		normalized := strings.Join(strings.Fields(strings.TrimSpace(existing)), " ")
+		if normalized == "" || normalized == text {
+			continue
+		}
+		next = append(next, normalized)
+		if len(next) >= 50 {
+			break
+		}
+	}
+	state.Settings.PromptHistory = next
+	state.UpdatedAt = time.Now().UnixMilli()
+	if err := gioCompat.SaveState(state); err != nil {
+		a.appendLog("保存提示词历史失败: " + err.Error())
+		return
+	}
+	a.mu.Lock()
+	a.promptHistory = append([]string(nil), next...)
+	a.presets = append([]sharedCompat.Preset(nil), state.Settings.Presets...)
+	a.mu.Unlock()
+	a.invalidateNow()
+}
+
+func (a *App) sourcePaths() []string {
+	return kernel.ParseSourcePaths(a.sourcePathsInput.Text())
+}
+
+func (a *App) setSourcePaths(paths []string) {
+	a.sourcePathsInput.SetText(strings.Join(paths, "\n"))
+	a.invalidateNow()
+}
+
+func (a *App) removeSourcePath(target string) {
+	target = strings.TrimSpace(target)
+	if target == "" {
+		return
+	}
+	next := make([]string, 0, len(a.sourcePaths()))
+	for _, path := range a.sourcePaths() {
+		if strings.TrimSpace(path) == target {
+			continue
+		}
+		next = append(next, path)
+	}
+	a.setSourcePaths(next)
+}
+
+func (a *App) appendSourcePath(path string) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return
+	}
+	paths := a.sourcePaths()
+	for _, existing := range paths {
+		if strings.TrimSpace(existing) == path {
+			return
+		}
+	}
+	paths = append(paths, path)
+	a.setSourcePaths(paths)
+}
+
+func (a *App) reuseHistoryItemAsSource(item sharedCompat.HistoryItem) {
+	if strings.TrimSpace(item.SavedPath) == "" {
+		return
+	}
+	a.appendSourcePath(item.SavedPath)
+}
+
+func (a *App) deleteHistoryItem(id string) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return
+	}
+	state, _, err := gioCompat.LoadState()
+	if err != nil {
+		a.appendLog("删除历史失败: " + err.Error())
+		return
+	}
+	next := make([]sharedCompat.HistoryItem, 0, len(state.History))
+	for _, item := range state.History {
+		if item.ID == id {
+			continue
+		}
+		next = append(next, item)
+	}
+	state.History = next
+	state.UpdatedAt = time.Now().UnixMilli()
+	if err := gioCompat.SaveState(state); err != nil {
+		a.appendLog("删除历史失败: " + err.Error())
+		return
+	}
+	a.mu.Lock()
+	a.history = append([]sharedCompat.HistoryItem(nil), next...)
+	if a.selectedHistoryID == id {
+		a.selectedHistoryID = ""
+	}
+	if a.result.Item.ID == id {
+		a.result = resultState{Rev: a.result.Rev + 1}
+	}
+	if a.activePromptGroup.Key != "" && historyPromptGroupContains(a.activePromptGroup, id) {
+		a.activePromptGroup = historyPromptGroup{}
+	}
+	a.logs = appendBounded(a.logs, "已删除历史项: "+id)
+	a.mu.Unlock()
+	a.invalidateNow()
+}
+
+func (a *App) persistThemeMode(mode string) {
+	state, _, err := gioCompat.LoadState()
+	if err != nil {
+		a.appendLog("保存主题失败: " + err.Error())
+		return
+	}
+	state.Settings.Theme = normalizeThemeMode(mode)
+	state.UpdatedAt = time.Now().UnixMilli()
+	if err := gioCompat.SaveState(state); err != nil {
+		a.appendLog("保存主题失败: " + err.Error())
+		return
+	}
+	a.applyThemeMode(state.Settings.Theme)
+}
+
+func (a *App) openPromptGroup(group historyPromptGroup) {
+	a.mu.Lock()
+	a.activePromptGroup = group
+	a.mu.Unlock()
+	a.invalidateNow()
+}
+
+func (a *App) closePromptGroup() {
+	a.mu.Lock()
+	a.activePromptGroup = historyPromptGroup{}
+	a.mu.Unlock()
+	a.invalidateNow()
+}
+
+func (a *App) startPromptOptimize() {
+	if a.isRunning() {
+		return
+	}
+	cfg := a.currentConfig()
+	a.mu.Lock()
+	if a.optimizingPrompt {
+		a.mu.Unlock()
+		return
+	}
+	a.optimizingPrompt = true
+	a.logs = appendBounded(a.logs, "开始优化提示词")
+	a.mu.Unlock()
+	a.invalidateNow()
+
+	go func() {
+		optimized, err := kernel.OptimizePrompt(context.Background(), cfg)
+		a.mu.Lock()
+		a.optimizingPrompt = false
+		a.mu.Unlock()
+		if err != nil {
+			a.appendLog("优化提示词失败: " + err.Error())
+			return
+		}
+		optimized = strings.TrimSpace(optimized)
+		if optimized == "" {
+			a.appendLog("优化提示词失败: 上游返回空结果")
+			return
+		}
+		a.promptInput.SetText(optimized)
+		a.rememberPrompt(optimized)
+		a.appendLog("提示词已优化")
+		a.invalidateNow()
+	}()
+}
+
+func (a *App) startUpstreamProbe() {
+	if a.isRunning() {
+		return
+	}
+	cfg := a.currentConfig()
+	a.mu.Lock()
+	if a.testingUpstream {
+		a.mu.Unlock()
+		return
+	}
+	a.testingUpstream = true
+	a.lastProbeSummary = ""
+	a.logs = appendBounded(a.logs, "开始测试上游连接")
+	a.mu.Unlock()
+	a.invalidateNow()
+
+	go func() {
+		result, err := kernel.ProbeUpstream(context.Background(), cfg)
+		a.mu.Lock()
+		a.testingUpstream = false
+		if err != nil {
+			a.lastProbeSummary = "测试失败"
+			a.mu.Unlock()
+			a.appendLog("上游测试失败: " + err.Error())
+			return
+		}
+		a.lastProbeSummary = fmt.Sprintf("已连接 · %d models", result.ModelCount)
+		a.logs = appendBounded(a.logs, fmt.Sprintf("上游测试成功: 发现 %d 个 models", result.ModelCount))
+		a.mu.Unlock()
+		a.invalidateNow()
+	}()
+}
+
+func (a *App) replaceCurrentResultWithPath(path string, sourceEvent string) error {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return errors.New("变换输出路径为空")
+	}
+	img, err := decodeImageFile(path)
+	if err != nil {
+		return err
+	}
+	a.mu.Lock()
+	item := a.result.Item
+	item.SavedPath = path
+	if item.ID == "" {
+		item.ID = "derived:" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	}
+	a.result = resultState{
+		Image:         img,
+		SavedPath:     path,
+		RawPath:       a.result.RawPath,
+		RevisedPrompt: a.result.RevisedPrompt,
+		SourceEvent:   sourceEvent,
+		Item:          item,
+		HasItem:       true,
+		Rev:           a.result.Rev + 1,
+	}
+	a.selectedHistoryID = ""
+	a.mu.Unlock()
+	a.invalidateNow()
+	return nil
+}
+
+func (a *App) clearCurrentResult() {
+	a.mu.Lock()
+	a.result = resultState{Rev: a.result.Rev + 1}
+	a.selectedHistoryID = ""
+	a.activePromptGroup = historyPromptGroup{}
+	a.mu.Unlock()
+	a.invalidateNow()
+}
+
+func (a *App) toggleFullscreen() {
+	a.mu.Lock()
+	next := !a.fullscreen
+	a.fullscreen = next
+	window := a.window
+	a.mu.Unlock()
+	if window != nil {
+		if next {
+			window.Option(app.Fullscreen.Option())
+		} else {
+			window.Option(app.Windowed.Option())
+		}
+	}
+	a.invalidateNow()
+}
+
+func (a *App) openResultDetail(item sharedCompat.HistoryItem) {
+	if strings.TrimSpace(item.ID) == "" && strings.TrimSpace(item.SavedPath) == "" {
+		return
+	}
+	a.mu.Lock()
+	a.activeResultDetail = item
+	a.mu.Unlock()
+	a.invalidateNow()
+}
+
+func (a *App) closeResultDetail() {
+	a.mu.Lock()
+	a.activeResultDetail = sharedCompat.HistoryItem{}
+	a.mu.Unlock()
+	a.invalidateNow()
 }

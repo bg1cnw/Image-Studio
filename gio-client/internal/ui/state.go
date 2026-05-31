@@ -84,6 +84,20 @@ func (a *App) closeSavePrompt() {
 	a.invalidateNow()
 }
 
+func (a *App) openSavePromptForCurrent() {
+	a.mu.Lock()
+	src := strings.TrimSpace(a.result.SavedPath)
+	if src == "" {
+		a.mu.Unlock()
+		return
+	}
+	a.savePromptVisible = true
+	a.savePromptSourcePath = src
+	a.savePromptPathInput.SetText(src)
+	a.mu.Unlock()
+	a.invalidateNow()
+}
+
 func (a *App) setSavePromptSuppressed(value bool) {
 	a.mu.Lock()
 	a.savePromptSuppressed = value
@@ -115,16 +129,26 @@ func (a *App) readSnapshot() snapshot {
 	logs := append([]string(nil), a.logs...)
 	history := append([]sharedCompat.HistoryItem(nil), a.history...)
 	profiles := append([]sharedCompat.UpstreamProfile(nil), a.profiles...)
+	promptHistory := append([]string(nil), a.promptHistory...)
+	presets := append([]sharedCompat.Preset(nil), a.presets...)
 	return snapshot{
-		Running:           a.running,
-		Status:            a.status,
-		Logs:              logs,
-		History:           history,
-		Profiles:          profiles,
-		ActiveProfileID:   a.activeProfileID,
-		SelectedHistoryID: a.selectedHistoryID,
-		Result:            a.result,
-		SavePromptVisible: a.savePromptVisible,
+		Running:            a.running,
+		Status:             a.status,
+		Logs:               logs,
+		History:            history,
+		Profiles:           profiles,
+		ActiveProfileID:    a.activeProfileID,
+		SelectedHistoryID:  a.selectedHistoryID,
+		PromptHistory:      promptHistory,
+		Presets:            presets,
+		OptimizingPrompt:   a.optimizingPrompt,
+		TestingUpstream:    a.testingUpstream,
+		LastProbeSummary:   a.lastProbeSummary,
+		ActivePromptGroup:  a.activePromptGroup,
+		ActiveResultDetail: a.activeResultDetail,
+		Fullscreen:         a.fullscreen,
+		Result:             a.result,
+		SavePromptVisible:  a.savePromptVisible,
 	}
 }
 

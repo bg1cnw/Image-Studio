@@ -31,6 +31,8 @@ type Config struct {
 	Seed           int64
 	NegativePrompt string
 	PartialImages  int
+	StyleTag       string
+	BatchIndex     int
 }
 
 type Callbacks struct {

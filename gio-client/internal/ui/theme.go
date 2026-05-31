@@ -1,6 +1,10 @@
 package ui
 
-import "image/color"
+import (
+	"image/color"
+
+	"gioui.org/widget/material"
+)
 
 type fluentColors struct {
 	accent     color.NRGBA
@@ -27,7 +31,7 @@ type fluentColors struct {
 	white      color.NRGBA
 }
 
-var fluent = fluentColors{
+var fluentLight = fluentColors{
 	accent:     rgb(0x005fb8),
 	accent2:    rgb(0x0a6fcb),
 	accentSoft: rgba(0x005fb8, 0x1f),
@@ -50,6 +54,68 @@ var fluent = fluentColors{
 	success:    rgb(0x0f7b0f),
 	danger:     rgb(0xc42b1c),
 	white:      rgb(0xffffff),
+}
+
+var fluentDark = fluentColors{
+	accent:     rgb(0x4cc2ff),
+	accent2:    rgb(0x66ccff),
+	accentSoft: rgba(0x4cc2ff, 0x22),
+	bg:         rgb(0x181818),
+	bg2:        rgb(0x141414),
+	panel:      rgb(0x202020),
+	panel2:     rgb(0x252525),
+	surface:    rgb(0x2a2a2a),
+	surface2:   rgb(0x323232),
+	sidebar:    rgb(0x222222),
+	inspector:  rgb(0x242424),
+	toolbar:    rgb(0x202020),
+	border:     rgba(0xffffff, 0x16),
+	border2:    rgba(0xffffff, 0x2a),
+	text:       rgb(0xf5f5f5),
+	textMuted:  rgb(0xc1c1c1),
+	textDim:    rgb(0x8e8e8e),
+	canvasBg:   rgb(0x1d1d1d),
+	canvasTile: rgb(0x262626),
+	success:    rgb(0x45d36b),
+	danger:     rgb(0xff776b),
+	white:      rgb(0xffffff),
+}
+
+var fluent = fluentLight
+
+func themePalette(mode string) fluentColors {
+	if mode == "dark" {
+		return fluentDark
+	}
+	return fluentLight
+}
+
+func normalizeThemeMode(mode string) string {
+	switch mode {
+	case "dark", "light", "system":
+		return mode
+	default:
+		return "system"
+	}
+}
+
+func resolveThemeMode(mode string) string {
+	if normalizeThemeMode(mode) == "dark" {
+		return "dark"
+	}
+	return "light"
+}
+
+func (a *App) applyThemeMode(mode string) {
+	a.themeMode = normalizeThemeMode(mode)
+	fluent = themePalette(resolveThemeMode(a.themeMode))
+	a.th.Palette = material.Palette{
+		Bg:         fluent.bg,
+		Fg:         fluent.text,
+		ContrastBg: fluent.accent,
+		ContrastFg: fluent.white,
+	}
+	a.invalidateNow()
 }
 
 func rgb(v uint32) color.NRGBA {
