@@ -117,6 +117,25 @@ type RuntimeGenerateOptions = backend.GenerateOptions & {
   sourceImages?: SourceImage[];
 };
 
+const SAVE_PROMPT_SUPPRESSED_KEY = "gptcodex.savePromptSuppressed";
+
+function readSavePromptSuppressed(): boolean {
+  try {
+    return localStorage.getItem(SAVE_PROMPT_SUPPRESSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeSavePromptSuppressed(value: boolean): void {
+  try {
+    if (value) localStorage.setItem(SAVE_PROMPT_SUPPRESSED_KEY, "1");
+    else localStorage.removeItem(SAVE_PROMPT_SUPPRESSED_KEY);
+  } catch {
+    // localStorage can be unavailable in tests/previews.
+  }
+}
+
 async function writeBase64ToTempFile(b64: string, _name: string): Promise<string> {
   // Backend doesn't currently expose a "write temp file from b64" binding,
   // but reuseAsSource needs a path for edit mode. Workaround: use SaveImageAs
@@ -236,6 +255,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   fullscreen: false,
   starPromptOpen: false,
   starPromptSource: "auto",
+  savePromptItem: null,
+  savePromptQueue: [],
+  savePromptSuppressed: readSavePromptSuppressed(),
   promptHistory: [],
   batchCount: 1,
   presets: [],
@@ -268,6 +290,26 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   dismissStarPrompt: () => {
     set({ starPromptOpen: false });
     try { localStorage.setItem("gptcodex.starPrompted", "1"); } catch {}
+  },
+  enqueueSavePrompt: (item) => {
+    if (get().savePromptSuppressed) return;
+    set((state) => {
+      if (!state.savePromptItem) return { savePromptItem: item };
+      return { savePromptQueue: [...state.savePromptQueue, item].slice(-12) };
+    });
+  },
+  closeSavePrompt: () => {
+    set((state) => {
+      const [next, ...rest] = state.savePromptQueue;
+      return {
+        savePromptItem: next ?? null,
+        savePromptQueue: rest,
+      };
+    });
+  },
+  setSavePromptSuppressed: (value) => {
+    writeSavePromptSuppressed(value);
+    set(value ? { savePromptSuppressed: true, savePromptQueue: [] } : { savePromptSuppressed: false });
   },
   workspaces: [],
   activeWorkspaceId: "",
@@ -650,6 +692,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         upstreamReturnTarget: "app",
         starPromptOpen: false,
         starPromptSource: "auto",
+        savePromptItem: null,
+        savePromptQueue: [],
+        savePromptSuppressed: readSavePromptSuppressed(),
       });
       return;
     }
@@ -867,6 +912,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       settingsOpen: shouldAutoOpenSettings,
       upstreamModalOpen: false,
       upstreamReturnTarget: shouldAutoOpenSettings ? "settings" : "app",
+      savePromptItem: null,
+      savePromptQueue: [],
+      savePromptSuppressed: readSavePromptSuppressed(),
     });
     enableCompatibilityExport();
   },
@@ -1333,6 +1381,7 @@ async function launchOneJob(
             6000,
             { label: "查看详情", onClick: () => store.getState().openResultDetail(historyItem) },
           );
+          store.getState().enqueueSavePrompt(historyItem);
           // 首次成功生图 → 延迟 2s 弹 GitHub Star 引导。localStorage 标志一旦
           // 写入就再也不弹(无论用户点 star 还是关闭)。延迟是为了让用户先看
           // 到图,然后再被礼貌打扰。

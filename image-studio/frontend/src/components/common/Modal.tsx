@@ -35,6 +35,9 @@ export function Modal({
     >
       <div
         style={{ width }}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title ?? "弹窗"}
         onClick={(e) => e.stopPropagation()}
         className={`app-modal-card ${usesAppleUI ? "liquid-glass-panel" : ""} ${isAndroidPhone ? "app-modal-card-phone" : "app-modal-card-desktop"} ${usesFluentUI ? "app-modal-card-windows" : ""} ${cardClassName}`}
       >

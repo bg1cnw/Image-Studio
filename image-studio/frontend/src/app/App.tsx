@@ -8,6 +8,7 @@ import { DropImportOverlay } from "./components/DropImportOverlay";
 import { PlatformWorkspace } from "./components/PlatformWorkspace";
 import { HistoryTimelineModal } from "../components/history/HistoryTimelineModal";
 import { ResultDetailGate } from "./gates/ResultDetailGate";
+import { SavePromptGate } from "./gates/SavePromptGate";
 import { SettingsPanelGate } from "./gates/SettingsPanelGate";
 import { StarPromptGate } from "./gates/StarPromptGate";
 import { UpstreamConfigGate } from "./gates/UpstreamConfigGate";
@@ -47,6 +48,7 @@ export default function App() {
       <SettingsPanelGate open={settingsOpen} onClose={closeSettings} />
       <HistoryTimelineModal />
       <ResultDetailGate />
+      <SavePromptGate />
       <StarPromptGate />
     </div>
   );

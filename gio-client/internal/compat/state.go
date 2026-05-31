@@ -104,6 +104,20 @@ func SaveConfig(cfg kernel.Config) error {
 	return SaveState(state)
 }
 
+func SavePromptSuppressed(state shared.State) bool {
+	return state.Settings.SavePromptSuppressed
+}
+
+func SetSavePromptSuppressed(value bool) error {
+	state, _, err := LoadState()
+	if err != nil {
+		return err
+	}
+	state.Settings.SavePromptSuppressed = value
+	state.UpdatedAt = time.Now().UnixMilli()
+	return SaveState(state)
+}
+
 func UpsertConfig(state shared.State, cfg kernel.Config) shared.State {
 	state = shared.Normalize(state)
 	now := time.Now().UnixMilli()

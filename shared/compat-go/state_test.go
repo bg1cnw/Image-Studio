@@ -29,12 +29,13 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 		Client:    "test",
 		UpdatedAt: 123,
 		Settings: Settings{
-			ProxyMode:     "custom",
-			ProxyURL:      "http://127.0.0.1:7890",
-			Theme:         "dark",
-			OutputFormat:  "webp",
-			OutputDir:     "/tmp/images",
-			PromptHistory: []string{"cat"},
+			ProxyMode:            "custom",
+			ProxyURL:             "http://127.0.0.1:7890",
+			Theme:                "dark",
+			OutputFormat:         "webp",
+			OutputDir:            "/tmp/images",
+			PromptHistory:        []string{"cat"},
+			SavePromptSuppressed: true,
 		},
 		Profiles: []UpstreamProfile{{
 			ID:            "p1",
@@ -66,7 +67,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if loaded.Client != "test" || loaded.ActiveProfile != "p1" || loaded.Settings.OutputDir != "/tmp/images" {
+	if loaded.Client != "test" || loaded.ActiveProfile != "p1" || loaded.Settings.OutputDir != "/tmp/images" || !loaded.Settings.SavePromptSuppressed {
 		t.Fatalf("unexpected state: %#v", loaded)
 	}
 	if len(loaded.Profiles) != 1 || loaded.Profiles[0].BaseURL != "https://upstream.example" {

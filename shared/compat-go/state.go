@@ -22,16 +22,17 @@ type State struct {
 }
 
 type Settings struct {
-	ProxyMode          string   `json:"proxyMode,omitempty"`
-	ProxyURL           string   `json:"proxyURL,omitempty"`
-	Theme              string   `json:"theme,omitempty"`
-	FontScale          float64  `json:"fontScale,omitempty"`
-	OutputFormat       string   `json:"outputFormat,omitempty"`
-	OutputDir          string   `json:"outputDir,omitempty"`
-	PromptHistory      []string `json:"promptHistory,omitempty"`
-	Presets            []Preset `json:"presets,omitempty"`
-	KernelRuntimeMode  string   `json:"kernelRuntimeMode,omitempty"`
-	TrustedOutputRoots []string `json:"trustedOutputRoots,omitempty"`
+	ProxyMode            string   `json:"proxyMode,omitempty"`
+	ProxyURL             string   `json:"proxyURL,omitempty"`
+	Theme                string   `json:"theme,omitempty"`
+	FontScale            float64  `json:"fontScale,omitempty"`
+	OutputFormat         string   `json:"outputFormat,omitempty"`
+	OutputDir            string   `json:"outputDir,omitempty"`
+	PromptHistory        []string `json:"promptHistory,omitempty"`
+	Presets              []Preset `json:"presets,omitempty"`
+	KernelRuntimeMode    string   `json:"kernelRuntimeMode,omitempty"`
+	TrustedOutputRoots   []string `json:"trustedOutputRoots,omitempty"`
+	SavePromptSuppressed bool     `json:"savePromptSuppressed,omitempty"`
 }
 
 type UpstreamProfile struct {

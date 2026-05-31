@@ -171,6 +171,12 @@ export interface StudioState {
   resultDetail: HistoryItem | null;
   openResultDetail: (item: HistoryItem) => Promise<void>;
   closeResultDetail: () => void;
+  savePromptItem: HistoryItem | null;
+  savePromptQueue: HistoryItem[];
+  savePromptSuppressed: boolean;
+  enqueueSavePrompt: (item: HistoryItem) => void;
+  closeSavePrompt: () => void;
+  setSavePromptSuppressed: (value: boolean) => void;
   materializeCurrentImage: (item: HistoryItem) => Promise<HistoryItem>;
   retryLast: () => Promise<void>;
   setHistoryRailCollapsed: (collapsed: boolean) => void;

@@ -35,6 +35,7 @@ export type CompatibilityState = {
     presets?: Preset[];
     kernelRuntimeMode?: KernelRuntimeMode;
     trustedOutputRoots?: string[];
+    savePromptSuppressed?: boolean;
   };
   profiles: UpstreamProfile[];
   activeProfileId: string;
@@ -100,6 +101,7 @@ export function compatibilityExportFingerprint(input: CompatibilityExportInput):
     kernelRuntimeMode: input.kernelRuntimeMode,
     outputDir: readLocalStorageString("gptcodex.outputDir"),
     trustedOutputRoots: loadTrustedOutputRoots(),
+    savePromptSuppressed: readLocalStorageString("gptcodex.savePromptSuppressed") === "1",
     history: input.history.map(historyFingerprint),
   });
 }
@@ -121,6 +123,7 @@ function buildCompatibilityState(input: CompatibilityExportInput): Compatibility
       presets: normalizePresets(input.presets),
       kernelRuntimeMode: normalizeKernelRuntimeMode(input.kernelRuntimeMode),
       trustedOutputRoots: loadTrustedOutputRoots(),
+      savePromptSuppressed: readLocalStorageString("gptcodex.savePromptSuppressed") === "1",
     },
     profiles: normalizeProfiles(input.profiles),
     activeProfileId: input.activeProfileId || "",
@@ -148,6 +151,8 @@ function applyCompatibilityLocalStorage(state: CompatibilityState): void {
   writeLocalStorageJSON("gptcodex.promptHistory", cleanStringList(settings.promptHistory ?? [], 50));
   writeLocalStorageJSON("gptcodex.presets", normalizePresets(settings.presets ?? []));
   writeLocalStorageJSON("gptcodex.trustedOutputRoots", cleanStringList(settings.trustedOutputRoots ?? [], 100));
+  if (settings.savePromptSuppressed) writeLocalStorageString("gptcodex.savePromptSuppressed", "1");
+  else removeLocalStorage("gptcodex.savePromptSuppressed");
 }
 
 async function persistCompatibilityHistory(state: CompatibilityState): Promise<void> {
@@ -200,6 +205,7 @@ function normalizeSettings(raw: unknown): CompatibilityState["settings"] {
     presets: normalizePresets(source.presets ?? []),
     kernelRuntimeMode: normalizeKernelRuntimeMode(source.kernelRuntimeMode),
     trustedOutputRoots: cleanStringList(source.trustedOutputRoots ?? [], 100),
+    savePromptSuppressed: source.savePromptSuppressed === true,
   };
 }
 

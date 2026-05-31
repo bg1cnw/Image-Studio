@@ -10,6 +10,9 @@ import (
 	"image/color"
 	_ "image/jpeg"
 	_ "image/png"
+	"io"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -96,11 +99,12 @@ type resultState struct {
 }
 
 type snapshot struct {
-	Running bool
-	Status  string
-	Logs    []string
-	History []sharedCompat.HistoryItem
-	Result  resultState
+	Running           bool
+	Status            string
+	Logs              []string
+	History           []sharedCompat.HistoryItem
+	Result            resultState
+	SavePromptVisible bool
 }
 
 type App struct {
@@ -122,6 +126,7 @@ type App struct {
 	negativePromptInput widget.Editor
 	partialImagesInput  widget.Editor
 	proxyURLInput       widget.Editor
+	savePromptPathInput widget.Editor
 
 	mode    string
 	api     string
@@ -131,16 +136,19 @@ type App struct {
 	policy  string
 	proxy   string
 
-	modeButtons    []widget.Clickable
-	apiButtons     []widget.Clickable
-	sizeButtons    []widget.Clickable
-	qualityButtons []widget.Clickable
-	formatButtons  []widget.Clickable
-	policyButtons  []widget.Clickable
-	proxyButtons   []widget.Clickable
-	runButton      widget.Clickable
-	cancelButton   widget.Clickable
-	clearLogButton widget.Clickable
+	modeButtons          []widget.Clickable
+	apiButtons           []widget.Clickable
+	sizeButtons          []widget.Clickable
+	qualityButtons       []widget.Clickable
+	formatButtons        []widget.Clickable
+	policyButtons        []widget.Clickable
+	proxyButtons         []widget.Clickable
+	runButton            widget.Clickable
+	cancelButton         widget.Clickable
+	clearLogButton       widget.Clickable
+	savePromptSaveButton widget.Clickable
+	savePromptSkipButton widget.Clickable
+	savePromptNeverAsk   widget.Bool
 
 	mu         sync.Mutex
 	running    bool
@@ -151,6 +159,10 @@ type App struct {
 	result     resultState
 	imageOp    paint.ImageOp
 	imageOpRev int
+
+	savePromptVisible    bool
+	savePromptSuppressed bool
+	savePromptSourcePath string
 
 	invalidate func()
 }
@@ -171,26 +183,28 @@ func New() *App {
 	}
 	th.TextSize = unit.Sp(14)
 	a := &App{
-		th:             th,
-		runner:         kernel.Runner{},
-		mode:           string(cfg.Mode),
-		api:            string(cfg.APIMode),
-		size:           cfg.Size,
-		quality:        cfg.Quality,
-		format:         cfg.OutputFormat,
-		policy:         string(cfg.RequestPolicy),
-		proxy:          cfg.ProxyMode,
-		modeButtons:    make([]widget.Clickable, len(modeChoices)),
-		apiButtons:     make([]widget.Clickable, len(apiChoices)),
-		sizeButtons:    make([]widget.Clickable, len(sizeChoices)),
-		qualityButtons: make([]widget.Clickable, len(qualityChoices)),
-		formatButtons:  make([]widget.Clickable, len(formatChoices)),
-		policyButtons:  make([]widget.Clickable, len(policyChoices)),
-		proxyButtons:   make([]widget.Clickable, len(proxyChoices)),
-		status:         "Gio 原生客户端就绪",
-		logs:           []string{"独立 Gio 高性能测试客户端已启动。"},
-		history:        append([]sharedCompat.HistoryItem(nil), compatState.History...),
+		th:                   th,
+		runner:               kernel.Runner{},
+		mode:                 string(cfg.Mode),
+		api:                  string(cfg.APIMode),
+		size:                 cfg.Size,
+		quality:              cfg.Quality,
+		format:               cfg.OutputFormat,
+		policy:               string(cfg.RequestPolicy),
+		proxy:                cfg.ProxyMode,
+		modeButtons:          make([]widget.Clickable, len(modeChoices)),
+		apiButtons:           make([]widget.Clickable, len(apiChoices)),
+		sizeButtons:          make([]widget.Clickable, len(sizeChoices)),
+		qualityButtons:       make([]widget.Clickable, len(qualityChoices)),
+		formatButtons:        make([]widget.Clickable, len(formatChoices)),
+		policyButtons:        make([]widget.Clickable, len(policyChoices)),
+		proxyButtons:         make([]widget.Clickable, len(proxyChoices)),
+		status:               "Gio 原生客户端就绪",
+		logs:                 []string{"独立 Gio 高性能测试客户端已启动。"},
+		history:              append([]sharedCompat.HistoryItem(nil), compatState.History...),
+		savePromptSuppressed: gioCompat.SavePromptSuppressed(compatState),
 	}
+	a.savePromptNeverAsk.Value = a.savePromptSuppressed
 	if compatPath != "" {
 		a.logs = append(a.logs, "兼容状态文件: "+compatPath)
 	}
@@ -214,6 +228,7 @@ func (a *App) configureEditors(cfg kernel.Config) {
 		&a.seedInput,
 		&a.partialImagesInput,
 		&a.proxyURLInput,
+		&a.savePromptPathInput,
 	}
 	for _, editor := range singleLine {
 		editor.SingleLine = true
@@ -260,12 +275,16 @@ func (a *App) layout(gtx layout.Context) layout.Dimensions {
 	}
 
 	paint.FillShape(gtx.Ops, rgb(0x0d1016), clip.Rect{Max: gtx.Constraints.Max}.Op())
-	return layout.UniformInset(unit.Dp(14)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+	dims := layout.UniformInset(unit.Dp(14)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(12))}.Layout(gtx,
 			layout.Rigid(a.layoutHeader),
 			layout.Flexed(1, a.layoutBody),
 		)
 	})
+	if a.readSnapshot().SavePromptVisible {
+		a.layoutSavePrompt(gtx)
+	}
+	return dims
 }
 
 func (a *App) layoutHeader(gtx layout.Context) layout.Dimensions {
@@ -476,6 +495,57 @@ func (a *App) resultSurface(gtx layout.Context, snap snapshot) layout.Dimensions
 				Position: layout.Center,
 			}
 			return img.Layout(gtx)
+		})
+	})
+}
+
+func (a *App) layoutSavePrompt(gtx layout.Context) layout.Dimensions {
+	if a.savePromptNeverAsk.Update(gtx) {
+		a.setSavePromptSuppressed(a.savePromptNeverAsk.Value)
+	}
+	for a.savePromptSkipButton.Clicked(gtx) {
+		a.closeSavePrompt()
+	}
+	for a.savePromptSaveButton.Clicked(gtx) {
+		a.savePromptCopy()
+	}
+
+	paint.FillShape(gtx.Ops, rgba(0x000000, 0x96), clip.Rect{Max: gtx.Constraints.Max}.Op())
+	gtx.Constraints.Min = gtx.Constraints.Max
+	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		gtx.Constraints.Min = image.Point{}
+		return fixedWidth(gtx, unit.Dp(520), func(gtx layout.Context) layout.Dimensions {
+			return a.surface(gtx, rgb(0x151a22), unit.Dp(10), func(gtx layout.Context) layout.Dimensions {
+				return layout.UniformInset(unit.Dp(18)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(12))}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return a.label(gtx, "图片已生成,是否另存到指定位置?", unit.Sp(18), rgb(0xf8fafc), font.SemiBold)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return a.label(gtx, "默认目录已保存一份。需要放到项目、相册或其他目录时,可以现在填写目标路径再保存副本。", unit.Sp(13), rgb(0xaab8ca), font.Normal)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return a.field(gtx, "保存到", &a.savePromptPathInput, "输入完整文件路径或目录", unit.Dp(48))
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							style := material.CheckBox(a.th, &a.savePromptNeverAsk, "以后不再提示")
+							style.Color = rgb(0xdbe7f5)
+							style.IconColor = rgb(0x60a5fa)
+							return style.Layout(gtx)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
+								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+									return a.button(gtx, &a.savePromptSkipButton, "稍后", rgb(0x202938), rgb(0xdbe7f5))
+								}),
+								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+									return a.button(gtx, &a.savePromptSaveButton, "保存副本", rgb(0x2563eb), rgb(0xffffff))
+								}),
+							)
+						}),
+					)
+				})
+			})
 		})
 	})
 }
@@ -812,6 +882,11 @@ func (a *App) startRun() {
 			Rev:           a.result.Rev + 1,
 		}
 		a.history = append([]sharedCompat.HistoryItem(nil), compatState.History...)
+		if !a.savePromptSuppressed && res.SavedPath != "" {
+			a.savePromptVisible = true
+			a.savePromptSourcePath = res.SavedPath
+			a.savePromptPathInput.SetText(res.SavedPath)
+		}
 		a.logs = appendBounded(a.logs, "生成完成: "+res.SavedPath)
 		a.mu.Unlock()
 		a.invalidateNow()
@@ -912,17 +987,51 @@ func (a *App) clearLogs() {
 	a.invalidateNow()
 }
 
+func (a *App) closeSavePrompt() {
+	a.mu.Lock()
+	a.savePromptVisible = false
+	a.savePromptSourcePath = ""
+	a.mu.Unlock()
+	a.invalidateNow()
+}
+
+func (a *App) setSavePromptSuppressed(value bool) {
+	a.mu.Lock()
+	a.savePromptSuppressed = value
+	a.savePromptNeverAsk.Value = value
+	a.mu.Unlock()
+	if err := gioCompat.SetSavePromptSuppressed(value); err != nil {
+		a.appendLog("保存提示设置失败: " + err.Error())
+	}
+	a.invalidateNow()
+}
+
+func (a *App) savePromptCopy() {
+	a.mu.Lock()
+	src := a.savePromptSourcePath
+	dst := a.savePromptPathInput.Text()
+	a.mu.Unlock()
+	saved, err := copyImageFile(src, dst)
+	if err != nil {
+		a.appendLog("另存失败: " + err.Error())
+		return
+	}
+	a.appendLog("已另存图片: " + saved)
+	a.closeSavePrompt()
+}
+
 func (a *App) readSnapshot() snapshot {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	logs := append([]string(nil), a.logs...)
 	history := append([]sharedCompat.HistoryItem(nil), a.history...)
 	return snapshot{
-		Running: a.running,
-		Status:  a.status,
-		Logs:    logs,
-		History: history,
-		Result:  a.result,
+		Running:           a.running,
+		Status:            a.status,
+		Logs:              logs,
+		History:           history,
+		Result:            a.result,
+		SavePromptVisible: a.savePromptVisible,
 	}
 }
 
@@ -978,6 +1087,64 @@ func compactNonEmpty(items []string) []string {
 		}
 	}
 	return out
+}
+
+func copyImageFile(src, dst string) (string, error) {
+	src = strings.TrimSpace(src)
+	dst = strings.TrimSpace(strings.Trim(dst, `"'`))
+	if src == "" {
+		return "", errors.New("源图片路径为空")
+	}
+	if dst == "" {
+		return "", errors.New("目标路径为空")
+	}
+	if strings.HasSuffix(dst, string(os.PathSeparator)) || strings.HasSuffix(dst, "/") || strings.HasSuffix(dst, `\`) {
+		dst = filepath.Join(dst, filepath.Base(src))
+	}
+	if info, err := os.Stat(dst); err == nil && info.IsDir() {
+		dst = filepath.Join(dst, filepath.Base(src))
+	}
+	if filepath.Ext(dst) == "" {
+		dst += filepath.Ext(src)
+	}
+	absSrc, err := filepath.Abs(src)
+	if err != nil {
+		return "", err
+	}
+	absDst, err := filepath.Abs(dst)
+	if err != nil {
+		return "", err
+	}
+	if filepath.Clean(absSrc) == filepath.Clean(absDst) {
+		return absDst, nil
+	}
+	if err := os.MkdirAll(filepath.Dir(absDst), 0o700); err != nil {
+		return "", err
+	}
+	in, err := os.Open(absSrc)
+	if err != nil {
+		return "", err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(absDst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+	if err != nil {
+		return "", err
+	}
+	ok := false
+	defer func() {
+		_ = out.Close()
+		if !ok {
+			_ = os.Remove(absDst)
+		}
+	}()
+	if _, err := io.Copy(out, in); err != nil {
+		return "", err
+	}
+	if err := out.Close(); err != nil {
+		return "", err
+	}
+	ok = true
+	return absDst, nil
 }
 
 func rgb(v uint32) color.NRGBA {
