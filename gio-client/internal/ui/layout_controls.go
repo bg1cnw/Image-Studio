@@ -1137,59 +1137,66 @@ func (a *App) layoutComposeCard(gtx layout.Context) layout.Dimensions {
 		sourceLabel,
 	}), " · ")
 
-	return a.card(gtx, func(gtx layout.Context) layout.Dimensions {
-		children := []layout.FlexChild{
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return a.layoutDisclosureHeader(gtx, &a.composeToggleButton, "创作参数", summary, a.composeOpen)
-			}),
-		}
-		if a.composeOpen {
-			children = append(children,
-				layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
+	return a.elevatedBorderedSurface(gtx, fluent.surfaceElevated, fluentCardRadius, fluent.border, image.Pt(0, 1), func(gtx layout.Context) layout.Dimensions {
+		return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			children := []layout.FlexChild{
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.composeSectionCard(gtx, a.layoutStyleSection)
+					return a.layoutComposeAccordionHeader(gtx, summary, a.composeOpen)
 				}),
-				layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.composeSectionCard(gtx, func(gtx layout.Context) layout.Dimensions {
-						return a.layoutAspectSection(gtx, activeAspect, activeResolution)
-					})
-				}),
-				layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.composeSectionCard(gtx, func(gtx layout.Context) layout.Dimensions {
-						return a.layoutResolutionSection(gtx, activeAspect, activeResolution)
-					})
-				}),
-				layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					if a.mode != string(client.ModeEdit) {
-						return layout.Dimensions{}
-					}
-					return a.composeSectionCard(gtx, func(gtx layout.Context) layout.Dimensions {
-						return a.layoutSourceInputSection(gtx, sourcePaths, currentSaved)
-					})
-				}),
-				layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.composeSectionCard(gtx, func(gtx layout.Context) layout.Dimensions {
-						return a.segmentedWithTitle(gtx, "质量", qualityChoices, a.quality, a.qualityButtons, func(value string) { a.quality = value })
-					})
-				}),
-				layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.composeSectionCard(gtx, a.layoutBatchCountSection)
-				}),
-			)
-		}
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+			}
+			if a.composeOpen {
+				children = append(children,
+					layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.composeSectionCard(gtx, a.layoutStyleSection)
+					}),
+					layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.composeSectionCard(gtx, func(gtx layout.Context) layout.Dimensions {
+							return a.layoutAspectSection(gtx, activeAspect, activeResolution)
+						})
+					}),
+					layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.composeSectionCard(gtx, func(gtx layout.Context) layout.Dimensions {
+							return a.layoutResolutionSection(gtx, activeAspect, activeResolution)
+						})
+					}),
+					layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if a.mode != string(client.ModeEdit) {
+							return layout.Dimensions{}
+						}
+						return a.composeSectionCard(gtx, func(gtx layout.Context) layout.Dimensions {
+							return a.layoutSourceInputSection(gtx, sourcePaths, currentSaved)
+						})
+					}),
+					layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.composeSectionCard(gtx, func(gtx layout.Context) layout.Dimensions {
+							return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return a.sectionEyebrow(gtx, "质量")
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return a.segmented(gtx, qualityChoices, a.quality, a.qualityButtons, func(value string) { a.quality = value })
+								}),
+							)
+						})
+					}),
+					layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.composeSectionCard(gtx, a.layoutBatchCountSection)
+					}),
+				)
+			}
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+		})
 	})
 }
 
 func (a *App) composeSectionCard(gtx layout.Context, body layout.Widget) layout.Dimensions {
-	return a.borderedSurface(gtx, fluent.surface, fluentCardRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {
-		return layout.UniformInset(unit.Dp(10)).Layout(gtx, body)
-	})
+	return a.card(gtx, body)
 }
 
 func (a *App) layoutAspectSection(gtx layout.Context, activeAspect string, currentResolution string) layout.Dimensions {
@@ -1740,6 +1747,51 @@ func (a *App) layoutDisclosureHeader(gtx layout.Context, btn *widget.Clickable, 
 			)
 		},
 	)
+}
+
+func (a *App) layoutComposeAccordionHeader(gtx layout.Context, summary string, open bool) layout.Dimensions {
+	stateText := "展开"
+	stateIcon := uiIconExpand
+	if open {
+		stateText = "收起"
+		stateIcon = uiIconCollapse
+	}
+	return a.composeToggleButton.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		fg := fluent.textMuted
+		if a.composeToggleButton.Hovered() {
+			fg = fluent.text
+		}
+		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.sectionEyebrow(gtx, "创作参数")
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.singleLineLabel(gtx, summary, unit.Sp(12), fluent.textMuted, font.Normal)
+					}),
+				)
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return a.surface(gtx, chooseColor(a.composeToggleButton.Hovered(), fluent.toolHoverBg, rgba(0xffffff, 0x00)), fluentBadgeRadius, func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Top: 6, Bottom: 6, Left: 8, Right: 8}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(4))}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return fixedWidth(gtx, unit.Dp(12), func(gtx layout.Context) layout.Dimensions {
+									return fixedHeight(gtx, unit.Dp(12), func(gtx layout.Context) layout.Dimensions {
+										return stateIcon.Layout(gtx, fg)
+									})
+								})
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.label(gtx, stateText, unit.Sp(12), fg, font.Normal)
+							}),
+						)
+					})
+				})
+			}),
+		)
+	})
 }
 
 func (a *App) advancedSectionCard(gtx layout.Context, title string, hint string, body layout.Widget) layout.Dimensions {
