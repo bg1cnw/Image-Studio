@@ -579,6 +579,8 @@ func (a *App) layoutPromptGroupModal(gtx layout.Context) layout.Dimensions {
 		return layout.Dimensions{}
 	}
 	latest := group.Representative
+	currentGroup := historyPromptGroupContains(group, snap.SelectedHistoryID)
+	compareGroup := historyPromptGroupContains(group, snap.Compare.Item.ID)
 	for a.closePromptGroupButton.Clicked(gtx) {
 		a.closePromptGroup()
 	}
@@ -620,56 +622,58 @@ func (a *App) layoutPromptGroupModal(gtx layout.Context) layout.Dimensions {
 		func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(12))}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.card(gtx, func(gtx layout.Context) layout.Dimensions {
-						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(14))}.Layout(gtx,
-							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								return a.layoutHistoryGroupPile(gtx, group)
-							}),
-							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-								return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
-									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
-											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-												return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
-													return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
-														return uiIconGrid.Layout(gtx, fluent.accent)
+					return a.borderedSurface(gtx, chooseColor(currentGroup || compareGroup, fluent.surface2, fluent.surfaceElevated), fluentCardRadius, chooseColor(currentGroup || compareGroup, accentAlpha(0x48), fluent.border), func(gtx layout.Context) layout.Dimensions {
+						return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(14))}.Layout(gtx,
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return a.layoutHistoryGroupPile(gtx, group)
+								}),
+								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+									return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+												layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+													return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+														return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+															return uiIconGrid.Layout(gtx, fluent.accent)
+														})
 													})
-												})
-											}),
-											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-												return a.sectionEyebrow(gtx, "同提示词")
-											}),
-											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-												return a.metaBadge(gtx, strconv.Itoa(len(group.Items))+" 张", true)
-											}),
-										)
-									}),
-									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										return a.clampedLabel(gtx, choosePromptGroupTitle(group), unit.Sp(13), fluent.text, font.SemiBold, 2)
-									}),
-									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										return a.metaBadgeRow(gtx, compactNonEmpty([]string{
-											formatHistoryDateTime(latest.CreatedAt),
-											latest.Size,
-											latest.Quality,
-										}), true)
-									}),
-									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
-											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-												return a.compactButton(gtx, latestBtn, "查看最新", true)
-											}),
-											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-												return a.compactIconTextButton(gtx, latestCompareBtn, uiIconCompare, chooseCompareButtonLabel(a.isCompareItem(latest)), a.isCompareItem(latest))
-											}),
-											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-												return a.compactIconTextButton(gtx, latestDetailBtn, uiIconMoreHoriz, "更多", false)
-											}),
-										)
-									}),
-								)
-							}),
-						)
+												}),
+												layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+													return a.sectionEyebrow(gtx, "同提示词")
+												}),
+												layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+													return a.metaBadge(gtx, strconv.Itoa(len(group.Items))+" 张", true)
+												}),
+											)
+										}),
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											return a.clampedLabel(gtx, choosePromptGroupTitle(group), unit.Sp(13), fluent.text, font.SemiBold, 2)
+										}),
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											return a.metaBadgeRow(gtx, compactNonEmpty([]string{
+												formatHistoryDateTime(latest.CreatedAt),
+												sizeDisplayLabel(latest.Size),
+												qualityDisplayLabel(latest.Quality),
+											}), true)
+										}),
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+												layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+													return a.compactButton(gtx, latestBtn, "查看最新", true)
+												}),
+												layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+													return a.compactIconTextButton(gtx, latestCompareBtn, uiIconCompare, chooseCompareButtonLabel(a.isCompareItem(latest)), a.isCompareItem(latest))
+												}),
+												layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+													return a.compactIconTextButton(gtx, latestDetailBtn, uiIconMoreHoriz, "更多", false)
+												}),
+											)
+										}),
+									)
+								}),
+							)
+						})
 					})
 				}),
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -903,7 +907,7 @@ func (a *App) layoutHistoryGroupRow(gtx layout.Context, group historyPromptGroup
 		meta = strconv.Itoa(len(group.Items)) + " 张 · " + meta
 	}
 
-	return a.borderedSurface(gtx, chooseColor(active, fluent.surface2, fluent.surface), unit.Dp(6), chooseColor(active, accentAlpha(0x48), fluent.border), func(gtx layout.Context) layout.Dimensions {
+	return a.borderedSurface(gtx, chooseColor(active || compareActive, fluent.surface2, fluent.surface), unit.Dp(6), chooseColor(active || compareActive, accentAlpha(0x48), fluent.border), func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(7)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(7))}.Layout(gtx,
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -913,7 +917,24 @@ func (a *App) layoutHistoryGroupRow(gtx layout.Context, group historyPromptGroup
 								return a.layoutHistoryGroupPile(gtx, group)
 							}),
 							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-								return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(3))}.Layout(gtx,
+								return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(4))}.Layout(gtx,
+									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+										return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+												return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+													return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+														return uiIconGrid.Layout(gtx, fluent.accent)
+													})
+												})
+											}),
+											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+												return a.sectionEyebrow(gtx, "同提示词")
+											}),
+											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+												return a.metaBadge(gtx, strconv.Itoa(len(group.Items))+" 张", true)
+											}),
+										)
+									}),
 									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 										return a.singleLineLabel(gtx, shortPrompt(prompt), unit.Sp(12), fluent.text, font.Medium)
 									}),
