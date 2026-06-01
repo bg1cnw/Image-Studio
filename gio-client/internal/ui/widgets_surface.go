@@ -811,16 +811,9 @@ func (a *App) monoLabel(gtx layout.Context, text string, size unit.Sp, color col
 }
 
 func (a *App) card(gtx layout.Context, w layout.Widget) layout.Dimensions {
-	return a.elevatedBorderedSurface(
-		gtx,
-		fluent.surfaceElevated,
-		fluentCardRadius,
-		fluent.border,
-		image.Pt(0, 1),
-		func(gtx layout.Context) layout.Dimensions {
-			return layout.UniformInset(unit.Dp(12)).Layout(gtx, w)
-		},
-	)
+	return a.borderedSurface(gtx, fluent.surfaceElevated, fluentCardRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {
+		return layout.UniformInset(unit.Dp(12)).Layout(gtx, w)
+	})
 }
 
 func (a *App) layoutStandardModal(
@@ -838,11 +831,11 @@ func (a *App) layoutStandardModal(
 		gtx.Constraints.Min = image.Point{}
 		return fixedWidth(gtx, width, func(gtx layout.Context) layout.Dimensions {
 			frame := func(gtx layout.Context) layout.Dimensions {
-				return a.elevatedBorderedSurface(gtx, fluent.surface, fluentModalRadius, fluent.border, image.Pt(0, 4), func(gtx layout.Context) layout.Dimensions {
+				return a.borderedSurface(gtx, fluent.surface, fluentModalRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {
 					return layout.UniformInset(unit.Dp(0)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						children := []layout.FlexChild{
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								return layout.Inset{Top: unit.Dp(14), Bottom: unit.Dp(12), Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return layout.Inset{Top: unit.Dp(12), Bottom: unit.Dp(10), Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 									return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 										layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 											return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(3))}.Layout(gtx,
@@ -872,7 +865,7 @@ func (a *App) layoutStandardModal(
 								})
 							}),
 							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-								return layout.Inset{Top: unit.Dp(14), Bottom: unit.Dp(16), Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx, body)
+								return layout.Inset{Top: unit.Dp(16), Bottom: unit.Dp(16), Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx, body)
 							}),
 						}
 						return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)

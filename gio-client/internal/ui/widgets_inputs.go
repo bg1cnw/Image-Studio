@@ -105,7 +105,7 @@ func (a *App) segmentedGridWithTitle(gtx layout.Context, title string, options [
 }
 
 func (a *App) segmented(gtx layout.Context, options []choice, selected string, buttons []widget.Clickable, set func(string)) layout.Dimensions {
-	return a.borderedSurface(gtx, accentAlpha(0x06), unit.Dp(10), fluent.border, func(gtx layout.Context) layout.Dimensions {
+	return a.borderedSurface(gtx, fluent.surface2, unit.Dp(10), fluent.border, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(2)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			children := make([]layout.FlexChild, 0, len(options))
 			for i := range options {
@@ -124,7 +124,7 @@ func (a *App) segmented(gtx layout.Context, options []choice, selected string, b
 						bg = fluent.surface
 						hoverBg = fluent.surface
 						fg = fluent.text
-						border = accentAlpha(0x14)
+						border = withAlpha(fluent.border2, 0x7a)
 						weight = font.SemiBold
 					}
 					return a.surfaceButton(
@@ -137,7 +137,7 @@ func (a *App) segmented(gtx layout.Context, options []choice, selected string, b
 						layout.Inset{Top: 9, Bottom: 9, Left: 8, Right: 8},
 						func(gtx layout.Context) layout.Dimensions {
 							return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-								return a.label(gtx, options[i].Label, unit.Sp(11), fg, weight)
+								return a.label(gtx, options[i].Label, unit.Sp(12), fg, weight)
 							})
 						},
 					)
@@ -153,7 +153,7 @@ func (a *App) segmentedGrid(gtx layout.Context, options []choice, selected strin
 		columns = 2
 	}
 	rows := (len(options) + columns - 1) / columns
-	return a.borderedSurface(gtx, accentAlpha(0x06), unit.Dp(10), fluent.border, func(gtx layout.Context) layout.Dimensions {
+	return a.borderedSurface(gtx, fluent.surface2, unit.Dp(10), fluent.border, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(2)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			children := make([]layout.FlexChild, 0, rows)
 			for row := 0; row < rows; row++ {
@@ -180,7 +180,7 @@ func (a *App) segmentedGrid(gtx layout.Context, options []choice, selected strin
 								bg = fluent.surface
 								hoverBg = fluent.surface
 								fg = fluent.text
-								border = accentAlpha(0x14)
+								border = withAlpha(fluent.border2, 0x7a)
 								weight = font.SemiBold
 							}
 							return a.surfaceButton(
@@ -193,7 +193,7 @@ func (a *App) segmentedGrid(gtx layout.Context, options []choice, selected strin
 								layout.Inset{Top: 9, Bottom: 9, Left: 8, Right: 8},
 								func(gtx layout.Context) layout.Dimensions {
 									return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-										return a.label(gtx, options[idx].Label, unit.Sp(11), fg, weight)
+										return a.label(gtx, options[idx].Label, unit.Sp(12), fg, weight)
 									})
 								},
 							)

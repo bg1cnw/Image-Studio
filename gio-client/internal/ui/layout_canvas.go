@@ -152,7 +152,7 @@ func (a *App) canvasToolbar(gtx layout.Context, snap snapshot) layout.Dimensions
 						return layout.Dimensions{}
 					}
 					return a.toolbarCluster(gtx, func(gtx layout.Context) layout.Dimensions {
-						return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(2))}.Layout(gtx,
+						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(2))}.Layout(gtx,
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								return a.toolbarStaticIcon(gtx, uiIconPanTool, true, false)
 							}),
@@ -300,9 +300,7 @@ func (a *App) toolbarSeparator(gtx layout.Context) layout.Dimensions {
 }
 
 func (a *App) toolbarCluster(gtx layout.Context, body layout.Widget) layout.Dimensions {
-	return a.borderedSurface(gtx, withAlpha(fluent.surface, 0xf4), unit.Dp(4), fluent.border, func(gtx layout.Context) layout.Dimensions {
-		return layout.Inset{Top: 2, Bottom: 2, Left: 4, Right: 4}.Layout(gtx, body)
-	})
+	return body(gtx)
 }
 
 func (a *App) sourceStrip(gtx layout.Context, sourcePaths []string) layout.Dimensions {

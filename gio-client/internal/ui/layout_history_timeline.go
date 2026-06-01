@@ -9,7 +9,6 @@ import (
 
 	"gioui.org/font"
 	"gioui.org/layout"
-	"gioui.org/op"
 	"gioui.org/unit"
 	"gioui.org/widget"
 )
@@ -22,28 +21,14 @@ func (a *App) layoutHistoryTimelineModal(gtx layout.Context) layout.Dimensions {
 	for clearCompareBtn.Clicked(gtx) {
 		a.clearCompare()
 	}
-	for a.historyTimelineModePickerButton.Clicked(gtx) {
-		a.historyTimelineModePickerOpen = !a.historyTimelineModePickerOpen
-		if a.historyTimelineModePickerOpen {
-			a.historyTimelineDatePickerOpen = false
-		}
-	}
-	for a.historyTimelineDatePickerButton.Clicked(gtx) {
-		a.historyTimelineDatePickerOpen = !a.historyTimelineDatePickerOpen
-		if a.historyTimelineDatePickerOpen {
-			a.historyTimelineModePickerOpen = false
-		}
-	}
 	for idx, value := range []string{"all", "generate", "edit"} {
 		for a.historyTimelineModeButtons[idx].Clicked(gtx) {
 			a.historyTimelineModeFilter = value
-			a.historyTimelineModePickerOpen = false
 		}
 	}
 	for idx, value := range []string{"all", "today", "week"} {
 		for a.historyTimelineDateButtons[idx].Clicked(gtx) {
 			a.historyTimelineDateFilter = value
-			a.historyTimelineDatePickerOpen = false
 		}
 	}
 
@@ -142,46 +127,29 @@ func (a *App) layoutHistoryTimelineModal(gtx layout.Context) layout.Dimensions {
 		countText+" 项",
 		&a.closeHistoryTimelineButton,
 		func(gtx layout.Context) layout.Dimensions {
-			base := func(gtx layout.Context) layout.Dimensions {
-				children := []layout.FlexChild{
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.layoutTimelineFilterRow(gtx)
-					}),
-				}
-				if snap.Compare.HasItem {
-					children = append(children,
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.compactIconTextButton(gtx, clearCompareBtn, uiIconCompare, "退出对比", true)
-						}),
-					)
-				}
-				children = append(children, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					if len(dayGroups) == 0 {
-						return a.emptyPanel(gtx, "没有匹配的历史记录")
-					}
-					return a.historyTimelineList.Layout(gtx, len(dayGroups), func(gtx layout.Context, index int) layout.Dimensions {
-						return layout.Inset{Bottom: unit.Dp(14)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return a.layoutHistoryTimelineDayGroup(gtx, dayGroups[index], snap.SelectedHistoryID)
-						})
-					})
-				}))
-				return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(12))}.Layout(gtx, children...)
-			}
-			if !a.historyTimelineModePickerOpen && !a.historyTimelineDatePickerOpen {
-				return base(gtx)
-			}
-			return layout.Stack{}.Layout(gtx,
-				layout.Stacked(base),
-				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-					macro := op.Record(gtx.Ops)
-					overlayDims := layout.Inset{Top: unit.Dp(44)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						return a.layoutTimelineFilterMenus(gtx)
-					})
-					call := macro.Stop()
-					call.Add(gtx.Ops)
-					return overlayDims
+			children := []layout.FlexChild{
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return a.layoutTimelineFilterRow(gtx)
 				}),
-			)
+			}
+			if snap.Compare.HasItem {
+				children = append(children,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.compactIconTextButton(gtx, clearCompareBtn, uiIconCompare, "退出对比", true)
+					}),
+				)
+			}
+			children = append(children, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+				if len(dayGroups) == 0 {
+					return a.emptyPanel(gtx, "没有匹配的历史记录")
+				}
+				return a.historyTimelineList.Layout(gtx, len(dayGroups), func(gtx layout.Context, index int) layout.Dimensions {
+					return layout.Inset{Bottom: unit.Dp(14)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return a.layoutHistoryTimelineDayGroup(gtx, dayGroups[index], snap.SelectedHistoryID)
+					})
+				})
+			}))
+			return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(12))}.Layout(gtx, children...)
 		},
 	)
 }
@@ -245,24 +213,22 @@ func (a *App) layoutTimelineFilterRow(gtx layout.Context) layout.Dimensions {
 			return a.searchField(gtx, &a.historyTimelineQueryInput, "搜索 prompt / revised prompt...")
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
-				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					return a.timelineFilterButton(
-						gtx,
-						&a.historyTimelineModePickerButton,
-						timelineModeFilterLabel(a.historyTimelineModeFilter),
-						a.historyTimelineModePickerOpen,
-					)
-				}),
-				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					return a.timelineFilterButton(
-						gtx,
-						&a.historyTimelineDatePickerButton,
-						timelineDateFilterLabel(a.historyTimelineDateFilter),
-						a.historyTimelineDatePickerOpen,
-					)
-				}),
-			)
+			return a.segmented(gtx, []choice{
+				{Label: "全部模式", Value: "all"},
+				{Label: "文生图", Value: "generate"},
+				{Label: "图生图", Value: "edit"},
+			}, a.historyTimelineModeFilter, a.historyTimelineModeButtons, func(value string) {
+				a.historyTimelineModeFilter = value
+			})
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.segmented(gtx, []choice{
+				{Label: "全部日期", Value: "all"},
+				{Label: "今天", Value: "today"},
+				{Label: "近 7 天", Value: "week"},
+			}, a.historyTimelineDateFilter, a.historyTimelineDateButtons, func(value string) {
+				a.historyTimelineDateFilter = value
+			})
 		}),
 	)
 }
@@ -496,13 +462,7 @@ func (a *App) layoutTimelinePromptThumbGrid(gtx layout.Context, items []sharedCo
 
 func (a *App) layoutTimelinePromptThumb(gtx layout.Context, item sharedCompat.HistoryItem, index int, active bool) layout.Dimensions {
 	btn := a.historyButton("timeline-group-thumb:" + item.ID)
-	compareBtn := a.historyActionButton("timeline-group-compare-thumb:" + item.ID)
 	compareActive := a.isCompareItem(item)
-	for compareBtn.Clicked(gtx) {
-		if err := a.toggleCompareItem(item); err != nil && !isMissingPreview(err) {
-			a.appendLog("载入对比图失败: " + err.Error())
-		}
-	}
 	img, _ := a.imageForHistoryItem(item)
 	return a.surfaceButton(
 		gtx,
@@ -539,8 +499,8 @@ func (a *App) layoutTimelinePromptThumb(gtx layout.Context, item sharedCompat.Hi
 						return layout.Inset{Top: unit.Dp(6), Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return a.surfaceButton(
 								gtx,
-								compareBtn,
-								chooseColor(compareActive, accentAlpha(0xe6), rgba(0x111111, 0xb2)),
+								btn,
+								rgba(0x111111, 0xb2),
 								accentAlpha(0xe6),
 								rgba(0xffffff, 0x00),
 								unit.Dp(4),

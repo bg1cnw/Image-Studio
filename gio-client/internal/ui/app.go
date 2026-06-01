@@ -34,34 +34,35 @@ type resultState struct {
 }
 
 type snapshot struct {
-	Running               bool
-	Status                string
-	Logs                  []string
-	History               []sharedCompat.HistoryItem
-	BatchResults          []sharedCompat.HistoryItem
-	BatchTotal            int
-	Profiles              []sharedCompat.UpstreamProfile
-	ActiveProfileID       string
-	SelectedHistoryID     string
-	PromptHistory         []string
-	Presets               []sharedCompat.Preset
-	OptimizingPrompt      bool
-	TestingUpstream       bool
-	LastProbeSummary      string
-	ActivePromptGroup     historyPromptGroup
-	ActiveResultDetail    sharedCompat.HistoryItem
-	HistoryTimelineOpen   bool
-	Fullscreen            bool
-	LastErrorMessage      string
-	LastRunAvailable      bool
-	RawResponseModalPath  string
-	RawResponseModalText  string
-	RawResponseModalError string
-	ResultGridOpen        bool
-	Compare               resultState
-	CompareSplit          float32
-	Result                resultState
-	SavePromptVisible     bool
+	Running                   bool
+	Status                    string
+	Logs                      []string
+	History                   []sharedCompat.HistoryItem
+	BatchResults              []sharedCompat.HistoryItem
+	BatchTotal                int
+	Profiles                  []sharedCompat.UpstreamProfile
+	ActiveProfileID           string
+	SettingsSelectedProfileID string
+	SelectedHistoryID         string
+	PromptHistory             []string
+	Presets                   []sharedCompat.Preset
+	OptimizingPrompt          bool
+	TestingUpstream           bool
+	LastProbeSummary          string
+	ActivePromptGroup         historyPromptGroup
+	ActiveResultDetail        sharedCompat.HistoryItem
+	HistoryTimelineOpen       bool
+	Fullscreen                bool
+	LastErrorMessage          string
+	LastRunAvailable          bool
+	RawResponseModalPath      string
+	RawResponseModalText      string
+	RawResponseModalError     string
+	ResultGridOpen            bool
+	Compare                   resultState
+	CompareSplit              float32
+	Result                    resultState
+	SavePromptVisible         bool
 }
 
 type cachedImage struct {
@@ -213,6 +214,7 @@ type App struct {
 	createImagesProfileButton       widget.Clickable
 	duplicateProfileButton          widget.Clickable
 	deleteProfileButton             widget.Clickable
+	settingsActivateProfileButton   widget.Clickable
 	closeResultDetailButton         widget.Clickable
 	resultDetailSaveAsButton        widget.Clickable
 	resultDetailUseSourceButton     widget.Clickable
@@ -294,6 +296,7 @@ type App struct {
 	activePromptGroup             historyPromptGroup
 	settingsModalOpen             bool
 	settingsHelpOpen              bool
+	settingsSelectedProfileID     string
 	apiKeyVisible                 bool
 	workspaces                    []workspaceState
 	activeWorkspaceID             string

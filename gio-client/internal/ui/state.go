@@ -9,6 +9,9 @@ import (
 )
 
 func (a *App) saveCurrentConfig() {
+	if a.settingsModalOpen && strings.TrimSpace(a.settingsSelectedProfileID) != "" && a.settingsSelectedProfileID != a.activeProfileID {
+		_ = a.restoreActiveRuntimeConfig(false)
+	}
 	if err := gioCompat.SaveConfig(a.currentConfig()); err != nil {
 		a.appendLog("兼容配置保存失败: " + err.Error())
 	}
@@ -231,34 +234,35 @@ func (a *App) readSnapshot() snapshot {
 	promptHistory := append([]string(nil), a.promptHistory...)
 	presets := append([]sharedCompat.Preset(nil), a.presets...)
 	return snapshot{
-		Running:               a.running,
-		Status:                a.status,
-		Logs:                  logs,
-		History:               history,
-		BatchResults:          batchResults,
-		BatchTotal:            a.lastRunBatchCount,
-		Profiles:              profiles,
-		ActiveProfileID:       a.activeProfileID,
-		SelectedHistoryID:     a.selectedHistoryID,
-		PromptHistory:         promptHistory,
-		Presets:               presets,
-		OptimizingPrompt:      a.optimizingPrompt,
-		TestingUpstream:       a.testingUpstream,
-		LastProbeSummary:      a.lastProbeSummary,
-		ActivePromptGroup:     a.activePromptGroup,
-		ActiveResultDetail:    a.activeResultDetail,
-		HistoryTimelineOpen:   a.historyTimelineOpen,
-		Fullscreen:            a.fullscreen,
-		LastErrorMessage:      a.lastErrorMessage,
-		LastRunAvailable:      a.lastRunValid,
-		RawResponseModalPath:  a.rawResponseModalPath,
-		RawResponseModalText:  a.rawResponseModalText,
-		RawResponseModalError: a.rawResponseModalError,
-		ResultGridOpen:        a.resultGridOpen,
-		Compare:               a.compare,
-		CompareSplit:          a.compareSplitSlider.Value,
-		Result:                a.result,
-		SavePromptVisible:     a.savePromptVisible,
+		Running:                   a.running,
+		Status:                    a.status,
+		Logs:                      logs,
+		History:                   history,
+		BatchResults:              batchResults,
+		BatchTotal:                a.lastRunBatchCount,
+		Profiles:                  profiles,
+		ActiveProfileID:           a.activeProfileID,
+		SettingsSelectedProfileID: a.settingsSelectedProfileID,
+		SelectedHistoryID:         a.selectedHistoryID,
+		PromptHistory:             promptHistory,
+		Presets:                   presets,
+		OptimizingPrompt:          a.optimizingPrompt,
+		TestingUpstream:           a.testingUpstream,
+		LastProbeSummary:          a.lastProbeSummary,
+		ActivePromptGroup:         a.activePromptGroup,
+		ActiveResultDetail:        a.activeResultDetail,
+		HistoryTimelineOpen:       a.historyTimelineOpen,
+		Fullscreen:                a.fullscreen,
+		LastErrorMessage:          a.lastErrorMessage,
+		LastRunAvailable:          a.lastRunValid,
+		RawResponseModalPath:      a.rawResponseModalPath,
+		RawResponseModalText:      a.rawResponseModalText,
+		RawResponseModalError:     a.rawResponseModalError,
+		ResultGridOpen:            a.resultGridOpen,
+		Compare:                   a.compare,
+		CompareSplit:              a.compareSplitSlider.Value,
+		Result:                    a.result,
+		SavePromptVisible:         a.savePromptVisible,
 	}
 }
 

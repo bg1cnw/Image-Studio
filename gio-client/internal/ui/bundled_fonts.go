@@ -10,9 +10,9 @@ import (
 const (
 	uiFallbackSansTypeface = font.Typeface("HarmonyOS Sans SC")
 	uiFallbackMonoTypeface = font.Typeface("JetBrains Mono")
-	uiSansTypeface         = font.Typeface(`"Segoe UI Variable Text", "Segoe UI", "HarmonyOS Sans SC", sans-serif`)
-	uiTitleTypeface        = font.Typeface(`"Segoe UI Variable Display", "Segoe UI", "HarmonyOS Sans SC", sans-serif`)
-	uiMonoTypeface         = font.Typeface(`"JetBrains Mono", "Cascadia Code", Consolas, monospace`)
+	uiSansTypeface         = font.Typeface(`"Segoe UI Variable Text", "Segoe UI", "HarmonyOS Sans SC"`)
+	uiTitleTypeface        = font.Typeface(`"Segoe UI Variable Display", "Segoe UI", "HarmonyOS Sans SC"`)
+	uiMonoTypeface         = font.Typeface(`"Cascadia Code", "JetBrains Mono", Consolas`)
 )
 
 //go:embed assets/HarmonyOS_SansSC_Regular.ttf

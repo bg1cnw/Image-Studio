@@ -31,7 +31,7 @@ func (a *App) layoutRawResponseModal(gtx layout.Context) layout.Dimensions {
 
 	return a.layoutStandardModal(
 		gtx,
-		unit.Dp(720),
+		unit.Dp(760),
 		unit.Dp(620),
 		"原始上游响应",
 		"",
@@ -41,11 +41,7 @@ func (a *App) layoutRawResponseModal(gtx layout.Context) layout.Dimensions {
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-							return a.borderedSurface(gtx, fluent.surface2, unit.Dp(10), fluent.border, func(gtx layout.Context) layout.Dimensions {
-								return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-									return a.singleLineLabel(gtx, path, unit.Sp(10), fluent.textDim, font.Normal)
-								})
-							})
+							return a.monoLabel(gtx, path, unit.Sp(10), fluent.textDim, font.Normal)
 						}),
 						layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"gioui.org/f32"
 	"gioui.org/font"
 	"gioui.org/layout"
 	"gioui.org/op/clip"
@@ -33,10 +34,29 @@ func (a *App) layout(gtx layout.Context) layout.Dimensions {
 
 	paint.FillShape(gtx.Ops, fluent.bg, clip.Rect{Max: gtx.Constraints.Max}.Op())
 	if gtx.Constraints.Max.X > 0 && gtx.Constraints.Max.Y > 0 {
-		paintLinearGradient(gtx, image.Rect(0, 0, gtx.Constraints.Max.X, gtx.Constraints.Max.Y), 0, withAlpha(fluent.panel, 0x30), rgba(0xffffff, 0x00))
+		diagStart := withAlpha(fluent.panel2, 0xe8)
+		diagEnd := withAlpha(fluent.bg2, 0xc8)
+		if resolveThemeMode(a.themeMode) == "dark" {
+			diagStart = withAlpha(fluent.panel2, 0xb8)
+			diagEnd = withAlpha(fluent.bg2, 0xd8)
+		}
+		paint.LinearGradientOp{
+			Stop1:  f32.Pt(0, 0),
+			Color1: diagStart,
+			Stop2:  f32.Pt(float32(gtx.Constraints.Max.X), float32(gtx.Constraints.Max.Y)),
+			Color2: diagEnd,
+		}.Add(gtx.Ops)
+		bgStack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
+		paint.PaintOp{}.Add(gtx.Ops)
+		bgStack.Pop()
+
+		topGlow := withAlpha(fluent.white, 0x3a)
+		if resolveThemeMode(a.themeMode) == "dark" {
+			topGlow = withAlpha(fluent.white, 0x06)
+		}
 		glowHeight := min(gtx.Dp(unit.Dp(220)), gtx.Constraints.Max.Y)
 		if glowHeight > 0 {
-			paintLinearGradient(gtx, image.Rect(0, 0, gtx.Constraints.Max.X, glowHeight), 0, fluent.bgGlow, rgba(0xffffff, 0x00))
+			paintLinearGradient(gtx, image.Rect(0, 0, gtx.Constraints.Max.X, glowHeight), 0, topGlow, rgba(0xffffff, 0x00))
 		}
 	}
 	children := []layout.FlexChild{}
@@ -106,7 +126,7 @@ func (a *App) layoutHeader(gtx layout.Context) layout.Dimensions {
 		}
 	}
 	for a.settingsButton.Clicked(gtx) {
-		a.settingsModalOpen = true
+		a.openSettingsModal()
 	}
 
 	return a.borderedSurface(gtx, fluent.toolbar, unit.Dp(0), fluent.border, func(gtx layout.Context) layout.Dimensions {
@@ -187,37 +207,16 @@ func (a *App) layoutHeaderBrand(gtx layout.Context) layout.Dimensions {
 						gtx,
 						&a.headerQuoteButton,
 						rgba(0xffffff, 0x00),
-						fluent.toolHoverBg,
+						rgba(0xffffff, 0x00),
 						rgba(0xffffff, 0x00),
 						fluentControlRadius,
-						layout.Inset{Top: 1, Bottom: 1, Left: 0, Right: 4},
+						layout.Inset{Top: 0, Bottom: 0, Left: 0, Right: 0},
 						func(gtx layout.Context) layout.Dimensions {
-							return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(5))}.Layout(gtx,
-								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return fixedWidth(gtx, unit.Dp(6), func(gtx layout.Context) layout.Dimensions {
-										return fixedHeight(gtx, unit.Dp(6), func(gtx layout.Context) layout.Dimensions {
-											return a.surface(gtx, fluent.accent, unit.Dp(3), layout.Spacer{}.Layout)
-										})
-									})
-								}),
-								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-									text := quoteText
-									if quoteFrom != "" {
-										text += " · " + quoteFrom
-									}
-									return a.singleLineLabel(gtx, text, unit.Sp(10), fluent.textMuted, font.Normal)
-								}),
-								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									if !a.headerQuoteButton.Hovered() {
-										return layout.Dimensions{}
-									}
-									return fixedWidth(gtx, unit.Dp(12), func(gtx layout.Context) layout.Dimensions {
-										return fixedHeight(gtx, unit.Dp(12), func(gtx layout.Context) layout.Dimensions {
-											return uiIconRefresh.Layout(gtx, fluent.textDim)
-										})
-									})
-								}),
-							)
+							text := quoteText
+							if quoteFrom != "" {
+								text += " · " + quoteFrom
+							}
+							return a.singleLineLabel(gtx, text, unit.Sp(10), fluent.textMuted, font.Normal)
 						},
 					)
 				}),
@@ -252,9 +251,9 @@ func (a *App) layoutFooter(gtx layout.Context) layout.Dimensions {
 	}
 	todayCount := todayHistoryCount(snap.History, time.Now())
 	totalCount := len(snap.History)
-	return a.borderedSurface(gtx, fluent.bg2, unit.Dp(0), fluent.border, func(gtx layout.Context) layout.Dimensions {
+	return a.borderedSurface(gtx, withAlpha(fluent.toolbar, 0xf2), unit.Dp(0), fluent.border, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min = gtx.Constraints.Max
-		return layout.Inset{Top: 9, Bottom: 9, Left: 18, Right: 18}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Top: 8, Bottom: 8, Left: 16, Right: 16}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
@@ -327,10 +326,10 @@ func (a *App) layoutBody(gtx layout.Context) layout.Dimensions {
 	}
 	width := gtx.Constraints.Max.X
 	centerMin := gtx.Dp(unit.Dp(360))
-	leftWidth := gtx.Dp(unit.Dp(360))
-	rightWidth := gtx.Dp(unit.Dp(320))
+	leftWidth := gtx.Dp(unit.Dp(372))
+	rightWidth := gtx.Dp(unit.Dp(332))
 	if width <= gtx.Dp(unit.Dp(1180)) {
-		leftWidth = gtx.Dp(unit.Dp(336))
+		leftWidth = gtx.Dp(unit.Dp(344))
 		rightWidth = gtx.Dp(unit.Dp(300))
 	}
 	if overflow := leftWidth + rightWidth + centerMin - width; overflow > 0 {
@@ -381,14 +380,14 @@ func (a *App) layoutWorkspaceBar(gtx layout.Context) layout.Dimensions {
 		}
 	}
 
-	return a.borderedSurface(gtx, fluent.bg, unit.Dp(0), fluent.border, func(gtx layout.Context) layout.Dimensions {
+	return a.borderedSurface(gtx, withAlpha(fluent.toolbar, 0xf2), unit.Dp(0), fluent.border, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min = gtx.Constraints.Max
-		return layout.Inset{Top: 6, Bottom: 0, Left: 10, Right: 10}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Top: 6, Bottom: 7, Left: 12, Right: 12}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			children := make([]layout.FlexChild, 0, len(a.workspaces)+1)
 			for _, ws := range a.workspaces {
 				ws := ws
 				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Inset{Right: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						return a.layoutWorkspaceTab(gtx, ws, ws.ID == a.activeWorkspaceID)
 					})
 				}))
@@ -428,7 +427,7 @@ func (a *App) layoutWorkspaceTab(gtx layout.Context, ws workspaceState, active b
 	editing := a.workspaceRenameID == ws.ID
 	running := a.isRunning() && ws.ID == a.activeWorkspaceID
 	bg := chooseColor(active, fluent.surface, rgba(0xffffff, 0x00))
-	hoverBg := chooseColor(active, fluent.surface, withAlpha(fluent.surface, 0xd2))
+	hoverBg := chooseColor(active, fluent.surface, withAlpha(fluent.surface, 0xc6))
 	border := chooseColor(active, fluent.border, rgba(0xffffff, 0x00))
 	return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		fill := bg
@@ -523,10 +522,10 @@ func (a *App) footerIconTextButton(gtx layout.Context, btn *widget.Clickable, ic
 		gtx,
 		btn,
 		rgba(0xffffff, 0x00),
-		withAlpha(fluent.surface, 0xbc),
+		fluent.toolHoverBg,
 		rgba(0xffffff, 0x00),
-		unit.Dp(6),
-		layout.Inset{Top: 4, Bottom: 4, Left: 8, Right: 8},
+		unit.Dp(4),
+		layout.Inset{Top: 4, Bottom: 4, Left: 6, Right: 6},
 		func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(5))}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -537,7 +536,7 @@ func (a *App) footerIconTextButton(gtx layout.Context, btn *widget.Clickable, ic
 					})
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.label(gtx, text, unit.Sp(11), fg, font.Medium)
+					return a.label(gtx, text, unit.Sp(10), fg, font.Medium)
 				}),
 			)
 		},

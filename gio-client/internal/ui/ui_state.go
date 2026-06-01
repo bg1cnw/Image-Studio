@@ -295,6 +295,7 @@ func (a *App) switchActiveProfile(profileID string) {
 	a.mu.Lock()
 	a.profiles = append([]sharedCompat.UpstreamProfile(nil), state.Profiles...)
 	a.activeProfileID = profileID
+	a.settingsSelectedProfileID = profileID
 	a.status = "已切换上游: " + activeProfileName(state.Profiles, profileID)
 	a.logs = appendBounded(a.logs, "切换上游配置: "+activeProfileName(state.Profiles, profileID))
 	a.mu.Unlock()
@@ -333,6 +334,387 @@ func activeProfileConcurrencyLimit(profiles []sharedCompat.UpstreamProfile, prof
 		}
 	}
 	return 0
+}
+
+func profileByID(profiles []sharedCompat.UpstreamProfile, profileID string) (sharedCompat.UpstreamProfile, bool) {
+	for _, profile := range profiles {
+		if profile.ID == profileID {
+			return profile, true
+		}
+	}
+	return sharedCompat.UpstreamProfile{}, false
+}
+
+func normalizeProfileAPIMode(mode string) string {
+	if strings.TrimSpace(mode) == string(client.APIModeImages) {
+		return string(client.APIModeImages)
+	}
+	return string(client.APIModeResponses)
+}
+
+func normalizeProfilePolicy(policy string) string {
+	if strings.TrimSpace(policy) == string(client.RequestPolicyCompat) {
+		return string(client.RequestPolicyCompat)
+	}
+	return string(client.RequestPolicyOpenAI)
+}
+
+func normalizeSettingsSelectedProfileID(state sharedCompat.State, profileID string) string {
+	profileID = strings.TrimSpace(profileID)
+	if profileID != "" {
+		if _, ok := profileByID(state.Profiles, profileID); ok {
+			return profileID
+		}
+	}
+	if strings.TrimSpace(state.ActiveProfile) != "" {
+		if _, ok := profileByID(state.Profiles, state.ActiveProfile); ok {
+			return state.ActiveProfile
+		}
+	}
+	if len(state.Profiles) > 0 {
+		return state.Profiles[0].ID
+	}
+	return ""
+}
+
+func (a *App) settingsDraftReady() bool {
+	return strings.TrimSpace(a.baseURLInput.Text()) != "" && strings.TrimSpace(a.apiKeyInput.Text()) != ""
+}
+
+func (a *App) applySettingsProfileDraft(state sharedCompat.State, profile sharedCompat.UpstreamProfile) {
+	a.settingsSelectedProfileID = profile.ID
+	a.profileNameInput.SetText(strings.TrimSpace(profile.Name))
+	a.api = normalizeProfileAPIMode(profile.APIMode)
+	a.policy = normalizeProfilePolicy(profile.RequestPolicy)
+	a.baseURLInput.SetText(strings.TrimSpace(profile.BaseURL))
+	a.textModelInput.SetText(strings.TrimSpace(profile.TextModelID))
+	a.imageModelInput.SetText(strings.TrimSpace(profile.ImageModelID))
+	if profile.ConcurrencyLimit > 0 {
+		a.concurrencyLimitInput.SetText(strconv.Itoa(profile.ConcurrencyLimit))
+	} else {
+		a.concurrencyLimitInput.SetText("")
+	}
+	key, _ := gioCompat.ReadAPIKey(profile.ID)
+	a.apiKeyInput.SetText(key)
+	a.proxy = strings.TrimSpace(state.Settings.ProxyMode)
+	if a.proxy == "" {
+		a.proxy = client.ProxyModeSystem
+	}
+	a.proxyURLInput.SetText(strings.TrimSpace(state.Settings.ProxyURL))
+	outputDir := strings.TrimSpace(state.Settings.OutputDir)
+	if outputDir == "" {
+		outputDir = kernel.DefaultOutputDir()
+	}
+	a.outputDirInput.SetText(outputDir)
+	a.apiKeyVisible = false
+}
+
+func (a *App) loadSettingsProfileDraft(profileID string) error {
+	state, _, err := gioCompat.LoadState()
+	if err != nil {
+		return err
+	}
+	state = sharedCompat.Normalize(state)
+	selectedID := normalizeSettingsSelectedProfileID(state, profileID)
+	if selectedID == "" {
+		a.settingsSelectedProfileID = ""
+		a.profileNameInput.SetText("")
+		a.baseURLInput.SetText("")
+		a.apiKeyInput.SetText("")
+		a.textModelInput.SetText(client.TextModel)
+		a.imageModelInput.SetText(client.ImageModel)
+		a.concurrencyLimitInput.SetText("")
+		a.proxy = strings.TrimSpace(state.Settings.ProxyMode)
+		if a.proxy == "" {
+			a.proxy = client.ProxyModeSystem
+		}
+		a.proxyURLInput.SetText(strings.TrimSpace(state.Settings.ProxyURL))
+		outputDir := strings.TrimSpace(state.Settings.OutputDir)
+		if outputDir == "" {
+			outputDir = kernel.DefaultOutputDir()
+		}
+		a.outputDirInput.SetText(outputDir)
+		a.api = string(client.APIModeResponses)
+		a.policy = string(client.RequestPolicyOpenAI)
+		a.apiKeyVisible = false
+		return nil
+	}
+	profile, ok := profileByID(state.Profiles, selectedID)
+	if !ok {
+		return nil
+	}
+	a.applySettingsProfileDraft(state, profile)
+	return nil
+}
+
+func (a *App) restoreActiveRuntimeConfig(logErrors bool) error {
+	state, _, err := gioCompat.LoadState()
+	if err != nil {
+		if logErrors {
+			a.appendLog("读取上游配置失败: " + err.Error())
+		}
+		return err
+	}
+	state = sharedCompat.Normalize(state)
+	cfg := gioCompat.ConfigFromState(kernel.DefaultConfig(), state)
+	a.applyRuntimeConfig(cfg)
+	a.profileNameInput.SetText(activeProfileName(state.Profiles, state.ActiveProfile))
+	if limit := activeProfileConcurrencyLimit(state.Profiles, state.ActiveProfile); limit > 0 {
+		a.concurrencyLimitInput.SetText(strconv.Itoa(limit))
+	} else {
+		a.concurrencyLimitInput.SetText("")
+	}
+	a.mu.Lock()
+	a.profiles = append([]sharedCompat.UpstreamProfile(nil), state.Profiles...)
+	a.activeProfileID = state.ActiveProfile
+	a.settingsSelectedProfileID = state.ActiveProfile
+	a.mu.Unlock()
+	a.apiKeyVisible = false
+	return nil
+}
+
+func (a *App) openSettingsModal() {
+	a.settingsModalOpen = true
+	a.settingsHelpOpen = false
+	if err := a.loadSettingsProfileDraft(a.activeProfileID); err != nil {
+		a.appendLog("读取上游配置失败: " + err.Error())
+	}
+	a.invalidateNow()
+}
+
+func (a *App) closeSettingsModal() {
+	a.settingsModalOpen = false
+	a.settingsHelpOpen = false
+	_ = a.restoreActiveRuntimeConfig(false)
+	a.invalidateNow()
+}
+
+func (a *App) saveSettingsSelection() error {
+	state, _, err := gioCompat.LoadState()
+	if err != nil {
+		return err
+	}
+	state = sharedCompat.Normalize(state)
+	selectedID := normalizeSettingsSelectedProfileID(state, a.settingsSelectedProfileID)
+	if selectedID == "" {
+		return nil
+	}
+	now := time.Now().UnixMilli()
+	updated := false
+	for i := range state.Profiles {
+		if state.Profiles[i].ID != selectedID {
+			continue
+		}
+		name := strings.TrimSpace(a.profileNameInput.Text())
+		if name == "" {
+			name = strings.TrimSpace(state.Profiles[i].Name)
+		}
+		if name == "" {
+			name = nextProfileName(state.Profiles)
+		}
+		concurrencyLimit := 0
+		if raw := strings.TrimSpace(a.concurrencyLimitInput.Text()); raw != "" {
+			if value, err := strconv.Atoi(raw); err == nil && value > 0 {
+				concurrencyLimit = value
+			}
+		}
+		state.Profiles[i].Name = name
+		state.Profiles[i].APIMode = normalizeProfileAPIMode(a.api)
+		state.Profiles[i].RequestPolicy = normalizeProfilePolicy(a.policy)
+		state.Profiles[i].BaseURL = strings.TrimSpace(a.baseURLInput.Text())
+		state.Profiles[i].TextModelID = strings.TrimSpace(a.textModelInput.Text())
+		state.Profiles[i].ImageModelID = strings.TrimSpace(a.imageModelInput.Text())
+		state.Profiles[i].ConcurrencyLimit = concurrencyLimit
+		updated = true
+		break
+	}
+	if !updated {
+		return nil
+	}
+	state.Settings.ProxyMode = strings.TrimSpace(a.proxy)
+	if state.Settings.ProxyMode == "" {
+		state.Settings.ProxyMode = client.ProxyModeSystem
+	}
+	state.Settings.ProxyURL = strings.TrimSpace(a.proxyURLInput.Text())
+	state.Settings.OutputDir = strings.TrimSpace(a.outputDirInput.Text())
+	state.UpdatedAt = now
+	if err := gioCompat.SaveState(state); err != nil {
+		return err
+	}
+	if err := gioCompat.WriteAPIKey(selectedID, a.apiKeyInput.Text()); err != nil {
+		return err
+	}
+	a.mu.Lock()
+	a.profiles = append([]sharedCompat.UpstreamProfile(nil), state.Profiles...)
+	a.settingsSelectedProfileID = selectedID
+	a.status = "已保存配置: " + activeProfileName(state.Profiles, selectedID)
+	a.logs = appendBounded(a.logs, "已保存配置: "+activeProfileName(state.Profiles, selectedID))
+	a.mu.Unlock()
+	if selectedID == state.ActiveProfile {
+		_ = a.restoreActiveRuntimeConfig(false)
+	}
+	return nil
+}
+
+func (a *App) activateStoredProfile(profileID string) error {
+	state, _, err := gioCompat.LoadState()
+	if err != nil {
+		return err
+	}
+	state = sharedCompat.Normalize(state)
+	selectedID := normalizeSettingsSelectedProfileID(state, profileID)
+	if selectedID == "" {
+		return nil
+	}
+	name := activeProfileName(state.Profiles, selectedID)
+	state.ActiveProfile = selectedID
+	for i := range state.Profiles {
+		if state.Profiles[i].ID == selectedID {
+			state.Profiles[i].LastUsedAt = time.Now().UnixMilli()
+			break
+		}
+	}
+	state.UpdatedAt = time.Now().UnixMilli()
+	if err := gioCompat.SaveState(state); err != nil {
+		return err
+	}
+	if err := a.restoreActiveRuntimeConfig(false); err != nil {
+		return err
+	}
+	a.mu.Lock()
+	a.status = "已切换上游: " + name
+	a.logs = appendBounded(a.logs, "切换上游配置: "+name)
+	a.mu.Unlock()
+	a.profilePickerOpen = false
+	return nil
+}
+
+func (a *App) createSettingsProfile(apiMode string) error {
+	state, _, err := gioCompat.LoadState()
+	if err != nil {
+		return err
+	}
+	state = sharedCompat.Normalize(state)
+	now := time.Now().UnixMilli()
+	profileID := fmt.Sprintf("gio-%d", now)
+	profile := sharedCompat.UpstreamProfile{
+		ID:            profileID,
+		Name:          nextProfileName(state.Profiles),
+		APIMode:       normalizeProfileAPIMode(apiMode),
+		RequestPolicy: string(client.RequestPolicyOpenAI),
+		TextModelID:   client.TextModel,
+		ImageModelID:  client.ImageModel,
+		CreatedAt:     now,
+		LastUsedAt:    now,
+	}
+	state.Profiles = append(state.Profiles, profile)
+	activate := len(state.Profiles) == 1 || strings.TrimSpace(state.ActiveProfile) == ""
+	if activate {
+		state.ActiveProfile = profileID
+	}
+	state.UpdatedAt = now
+	if err := gioCompat.SaveState(state); err != nil {
+		return err
+	}
+	a.mu.Lock()
+	a.profiles = append([]sharedCompat.UpstreamProfile(nil), state.Profiles...)
+	if activate {
+		a.activeProfileID = profileID
+	}
+	a.settingsSelectedProfileID = profileID
+	a.status = "已创建配置: " + profile.Name
+	a.logs = appendBounded(a.logs, "已创建配置: "+profile.Name)
+	a.mu.Unlock()
+	if activate {
+		if err := a.restoreActiveRuntimeConfig(false); err != nil {
+			return err
+		}
+	} else if err := a.loadSettingsProfileDraft(profileID); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (a *App) duplicateSettingsProfile() error {
+	state, _, err := gioCompat.LoadState()
+	if err != nil {
+		return err
+	}
+	state = sharedCompat.Normalize(state)
+	selectedID := normalizeSettingsSelectedProfileID(state, a.settingsSelectedProfileID)
+	current, ok := profileByID(state.Profiles, selectedID)
+	if !ok {
+		return nil
+	}
+	now := time.Now().UnixMilli()
+	profileID := fmt.Sprintf("gio-%d", now)
+	clone := current
+	clone.ID = profileID
+	clone.Name = nextProfileName(state.Profiles)
+	clone.CreatedAt = now
+	clone.LastUsedAt = now
+	state.Profiles = append(state.Profiles, clone)
+	state.UpdatedAt = now
+	if key, _ := gioCompat.ReadAPIKey(current.ID); strings.TrimSpace(key) != "" {
+		_ = gioCompat.WriteAPIKey(profileID, key)
+	}
+	if err := gioCompat.SaveState(state); err != nil {
+		return err
+	}
+	a.mu.Lock()
+	a.profiles = append([]sharedCompat.UpstreamProfile(nil), state.Profiles...)
+	a.settingsSelectedProfileID = profileID
+	a.status = "已复制配置: " + clone.Name
+	a.logs = appendBounded(a.logs, "已复制配置: "+clone.Name)
+	a.mu.Unlock()
+	return a.loadSettingsProfileDraft(profileID)
+}
+
+func (a *App) deleteSettingsProfile() error {
+	state, _, err := gioCompat.LoadState()
+	if err != nil {
+		return err
+	}
+	state = sharedCompat.Normalize(state)
+	selectedID := normalizeSettingsSelectedProfileID(state, a.settingsSelectedProfileID)
+	current, ok := profileByID(state.Profiles, selectedID)
+	if !ok {
+		return nil
+	}
+	nextProfiles := make([]sharedCompat.UpstreamProfile, 0, len(state.Profiles)-1)
+	for _, profile := range state.Profiles {
+		if profile.ID == current.ID {
+			continue
+		}
+		nextProfiles = append(nextProfiles, profile)
+	}
+	state.Profiles = nextProfiles
+	if current.ID == state.ActiveProfile {
+		if len(nextProfiles) > 0 {
+			state.ActiveProfile = nextProfiles[0].ID
+		} else {
+			state.ActiveProfile = ""
+		}
+	}
+	state.UpdatedAt = time.Now().UnixMilli()
+	_ = gioCompat.WriteAPIKey(current.ID, "")
+	if err := gioCompat.SaveState(state); err != nil {
+		return err
+	}
+	a.mu.Lock()
+	a.profiles = append([]sharedCompat.UpstreamProfile(nil), state.Profiles...)
+	a.activeProfileID = state.ActiveProfile
+	a.status = "已删除配置: " + current.Name
+	a.logs = appendBounded(a.logs, "已删除配置: "+current.Name)
+	a.mu.Unlock()
+	nextSelectedID := ""
+	if len(state.Profiles) > 0 {
+		nextSelectedID = state.Profiles[0].ID
+	}
+	if state.ActiveProfile != "" {
+		_ = a.restoreActiveRuntimeConfig(false)
+	}
+	return a.loadSettingsProfileDraft(nextSelectedID)
 }
 
 func (a *App) saveActiveProfileMetadata() error {
