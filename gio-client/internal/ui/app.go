@@ -50,6 +50,8 @@ type snapshot struct {
 	ActiveResultDetail  sharedCompat.HistoryItem
 	HistoryTimelineOpen bool
 	Fullscreen          bool
+	LastErrorMessage    string
+	LastRunAvailable    bool
 	Result              resultState
 	SavePromptVisible   bool
 }
@@ -142,6 +144,9 @@ type App struct {
 	historyTimelineDateButtons      []widget.Clickable
 	runButton                       widget.Clickable
 	cancelButton                    widget.Clickable
+	retryLastRunButton              widget.Clickable
+	openRawResponseButton           widget.Clickable
+	dismissErrorButton              widget.Clickable
 	clearLogButton                  widget.Clickable
 	saveAsButton                    widget.Clickable
 	latestResultButton              widget.Clickable
@@ -231,6 +236,10 @@ type App struct {
 	imageOp            paint.ImageOp
 	imageOpRev         int
 	imageCache         map[string]cachedImage
+	lastRunConfig      kernel.Config
+	lastRunBatchCount  int
+	lastRunValid       bool
+	lastErrorMessage   string
 
 	savePromptVisible             bool
 	savePromptSuppressed          bool

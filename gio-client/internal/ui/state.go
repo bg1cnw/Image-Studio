@@ -37,6 +37,7 @@ func (a *App) finishWithError(err error, rawPath string) {
 	a.running = false
 	a.cancel = nil
 	a.status = "失败"
+	a.lastErrorMessage = strings.TrimSpace(err.Error())
 	if rawPath != "" {
 		a.result.RawPath = rawPath
 	}
@@ -174,9 +175,25 @@ func (a *App) readSnapshot() snapshot {
 		ActiveResultDetail:  a.activeResultDetail,
 		HistoryTimelineOpen: a.historyTimelineOpen,
 		Fullscreen:          a.fullscreen,
+		LastErrorMessage:    a.lastErrorMessage,
+		LastRunAvailable:    a.lastRunValid,
 		Result:              a.result,
 		SavePromptVisible:   a.savePromptVisible,
 	}
+}
+
+func (a *App) dismissFailureState() {
+	a.mu.Lock()
+	a.lastErrorMessage = ""
+	if a.status == "失败" {
+		if a.result.HasItem {
+			a.status = "已载入历史结果"
+		} else {
+			a.status = "准备就绪"
+		}
+	}
+	a.mu.Unlock()
+	a.invalidateNow()
 }
 
 func (a *App) isRunning() bool {

@@ -16,11 +16,26 @@ import (
 )
 
 func (a *App) startRun() {
+	a.startRunWithConfig(a.currentConfig(), normalizeBatchCount(a.batchCount))
+}
+
+func (a *App) retryLastRun() {
+	a.mu.Lock()
+	cfg := a.lastRunConfig
+	total := a.lastRunBatchCount
+	ok := a.lastRunValid
+	a.mu.Unlock()
+	if !ok {
+		return
+	}
+	a.startRunWithConfig(cfg, total)
+}
+
+func (a *App) startRunWithConfig(cfg kernel.Config, total int) {
 	if a.isRunning() {
 		return
 	}
-	cfg := a.currentConfig()
-	total := normalizeBatchCount(a.batchCount)
+	total = normalizeBatchCount(total)
 	a.rememberPrompt(cfg.Prompt)
 	if err := gioCompat.SaveConfig(cfg); err != nil {
 		a.appendLog("兼容配置保存失败: " + err.Error())
@@ -29,6 +44,10 @@ func (a *App) startRun() {
 	a.mu.Lock()
 	a.running = true
 	a.cancel = cancel
+	a.lastRunConfig = cfg
+	a.lastRunBatchCount = total
+	a.lastRunValid = true
+	a.lastErrorMessage = ""
 	a.status = fmt.Sprintf("正在提交 1/%d", total)
 	a.activePromptGroup = historyPromptGroup{}
 	a.logs = appendBounded(a.logs, fmt.Sprintf("开始任务 1/%d: %s", total, shortPrompt(cfg.Prompt)))
@@ -90,6 +109,7 @@ func (a *App) startRun() {
 			}
 			a.mu.Lock()
 			a.status = fmt.Sprintf("完成 %s · %.1fs", jobLabel, time.Since(batchStarted).Seconds())
+			a.lastErrorMessage = ""
 			a.result = resultState{
 				Image:         img,
 				SavedPath:     res.SavedPath,
