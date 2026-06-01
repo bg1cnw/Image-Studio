@@ -8,8 +8,11 @@ import (
 )
 
 const (
-	uiSansTypeface = font.Typeface("HarmonyOS Sans SC")
-	uiMonoTypeface = font.Typeface("monospace")
+	uiFallbackSansTypeface = font.Typeface("HarmonyOS Sans SC")
+	uiFallbackMonoTypeface = font.Typeface("JetBrains Mono")
+	uiSansTypeface         = font.Typeface(`"Segoe UI Variable Text", "Segoe UI", "HarmonyOS Sans SC", sans-serif`)
+	uiTitleTypeface        = font.Typeface(`"Segoe UI Variable Display", "Segoe UI", "HarmonyOS Sans SC", sans-serif`)
+	uiMonoTypeface         = font.Typeface(`"JetBrains Mono", "Cascadia Code", Consolas, monospace`)
 )
 
 //go:embed assets/HarmonyOS_SansSC_Regular.ttf
@@ -20,8 +23,8 @@ var jetBrainsMono []byte
 
 func bundledFontCollection() []font.FontFace {
 	out := make([]font.FontFace, 0, 4)
-	out = append(out, parseBundledFont(harmonySansSC, uiSansTypeface)...)
-	out = append(out, parseBundledFont(jetBrainsMono, uiMonoTypeface)...)
+	out = append(out, parseBundledFont(harmonySansSC, uiFallbackSansTypeface)...)
+	out = append(out, parseBundledFont(jetBrainsMono, uiFallbackMonoTypeface)...)
 	return out
 }
 

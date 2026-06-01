@@ -80,7 +80,7 @@ func (a *App) layoutWorkbenchCard(gtx layout.Context) layout.Dimensions {
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(4))}.Layout(gtx,
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								return a.label(gtx, "图像工作台", unit.Sp(18), fluent.text, font.SemiBold)
+								return a.titleLabel(gtx, "图像工作台", unit.Sp(18))
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								return a.label(gtx, "保持界面简洁，把注意力留给 prompt、参考图和结果。", unit.Sp(11), fluent.textMuted, font.Normal)

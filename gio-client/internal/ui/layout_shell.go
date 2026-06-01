@@ -179,7 +179,7 @@ func (a *App) layoutHeaderBrand(gtx layout.Context) layout.Dimensions {
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(1))}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.label(gtx, "Image Studio", unit.Sp(14), fluent.text, font.SemiBold)
+					return a.titleLabel(gtx, "Image Studio", unit.Sp(14))
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return a.surfaceButton(

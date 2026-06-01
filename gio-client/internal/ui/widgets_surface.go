@@ -25,11 +25,25 @@ const (
 )
 
 func (a *App) sectionTitle(gtx layout.Context, text string) layout.Dimensions {
-	return a.label(gtx, text, unit.Sp(15), fluent.text, font.SemiBold)
+	style := material.Label(a.th, unit.Sp(15), text)
+	style.Color = fluent.text
+	style.Font.Weight = font.SemiBold
+	style.Font.Typeface = uiTitleTypeface
+	style.WrapPolicy = textWrapWords
+	return style.Layout(gtx)
 }
 
 func (a *App) sectionEyebrow(gtx layout.Context, text string) layout.Dimensions {
 	return a.label(gtx, text, unit.Sp(11), fluent.textMuted, font.SemiBold)
+}
+
+func (a *App) titleLabel(gtx layout.Context, text string, size unit.Sp) layout.Dimensions {
+	style := material.Label(a.th, size, text)
+	style.Color = fluent.text
+	style.Font.Weight = font.SemiBold
+	style.Font.Typeface = uiTitleTypeface
+	style.WrapPolicy = textWrapWords
+	return style.Layout(gtx)
 }
 
 func (a *App) button(gtx layout.Context, btn *widget.Clickable, text string, bg color.NRGBA, fg color.NRGBA) layout.Dimensions {
