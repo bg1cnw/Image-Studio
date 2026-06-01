@@ -659,13 +659,34 @@ func (a *App) layoutSettingsEmptyState(gtx layout.Context) layout.Dimensions {
 						func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return a.label(gtx, "Responses API", unit.Sp(13), fluent.text, font.SemiBold)
+									return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											return a.badge(gtx, "R", fluent.accentSoft, fluent.accent)
+										}),
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											return a.label(gtx, "Responses API", unit.Sp(13), fluent.text, font.SemiBold)
+										}),
+									)
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 									return a.label(gtx, "首选。支持 SSE 保活，长任务更稳。", unit.Sp(11), fluent.textMuted, font.Normal)
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 									return a.label(gtx, "适合 GPT 图像链路和提示词优化。", unit.Sp(10), fluent.textDim, font.Normal)
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(5))}.Layout(gtx,
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											return fixedWidth(gtx, unit.Dp(12), func(gtx layout.Context) layout.Dimensions {
+												return fixedHeight(gtx, unit.Dp(12), func(gtx layout.Context) layout.Dimensions {
+													return uiIconAdd.Layout(gtx, fluent.accent)
+												})
+											})
+										}),
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											return a.label(gtx, "新建这类配置", unit.Sp(11), fluent.accent, font.Medium)
+										}),
+									)
 								}),
 							)
 						},
@@ -683,13 +704,34 @@ func (a *App) layoutSettingsEmptyState(gtx layout.Context) layout.Dimensions {
 						func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return a.label(gtx, "Images API", unit.Sp(13), fluent.text, font.SemiBold)
+									return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											return a.badge(gtx, "I", fluent.accentSoft, fluent.accent)
+										}),
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											return a.label(gtx, "Images API", unit.Sp(13), fluent.text, font.SemiBold)
+										}),
+									)
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 									return a.label(gtx, "兼容性更广，接标准 generations / edits。", unit.Sp(11), fluent.textMuted, font.Normal)
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 									return a.label(gtx, "适合只想尽快接上常规生图接口。", unit.Sp(10), fluent.textDim, font.Normal)
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(5))}.Layout(gtx,
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											return fixedWidth(gtx, unit.Dp(12), func(gtx layout.Context) layout.Dimensions {
+												return fixedHeight(gtx, unit.Dp(12), func(gtx layout.Context) layout.Dimensions {
+													return uiIconAdd.Layout(gtx, fluent.accent)
+												})
+											})
+										}),
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											return a.label(gtx, "新建这类配置", unit.Sp(11), fluent.accent, font.Medium)
+										}),
+									)
 								}),
 							)
 						},
@@ -1053,7 +1095,7 @@ func (a *App) layoutSettingsEditorPane(gtx layout.Context, snap snapshot) layout
 						return layout.Dimensions{}
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.ghostIconTextButton(gtx, &a.settingsHelpButton, uiIconFeedback, "接口说明", false)
+						return a.textActionButton(gtx, &a.settingsHelpButton, "接口说明", true)
 					}),
 				)
 			},
