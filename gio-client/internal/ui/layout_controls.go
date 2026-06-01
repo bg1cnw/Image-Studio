@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"image"
+	"image/color"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -67,8 +68,50 @@ func (a *App) layoutControls(gtx layout.Context) layout.Dimensions {
 }
 
 func (a *App) layoutSubmitDock(gtx layout.Context) layout.Dimensions {
-	return layout.Inset{Top: 6, Bottom: 2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return a.layoutActions(gtx)
+	return layout.Stack{}.Layout(gtx,
+		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+			size := gtx.Constraints.Min
+			if size.X == 0 {
+				size.X = gtx.Constraints.Max.X
+			}
+			if size.Y == 0 {
+				size.Y = gtx.Dp(unit.Dp(156))
+			}
+			paintLinearGradient(gtx, image.Rect(0, 0, size.X, size.Y), 0, rgba(0xffffff, 0x00), withAlpha(fluent.sidebar, 0xf4))
+			return layout.Dimensions{Size: size}
+		}),
+		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: 10, Bottom: 2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return a.layoutActions(gtx)
+			})
+		}),
+	)
+}
+
+func (a *App) submitActionButton(
+	gtx layout.Context,
+	btn *widget.Clickable,
+	text string,
+	bg color.NRGBA,
+	hoverBg color.NRGBA,
+	border color.NRGBA,
+	fg color.NRGBA,
+) layout.Dimensions {
+	return fixedHeight(gtx, unit.Dp(48), func(gtx layout.Context) layout.Dimensions {
+		return a.surfaceButton(
+			gtx,
+			btn,
+			bg,
+			hoverBg,
+			border,
+			unit.Dp(10),
+			layout.Inset{Top: 0, Bottom: 0, Left: 12, Right: 12},
+			func(gtx layout.Context) layout.Dimensions {
+				return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return a.label(gtx, text, unit.Sp(13), fg, font.SemiBold)
+				})
+			},
+		)
 	})
 }
 
@@ -1688,7 +1731,7 @@ func (a *App) layoutActions(gtx layout.Context) layout.Dimensions {
 	children := make([]layout.FlexChild, 0, 6)
 	if strings.TrimSpace(snap.LastErrorMessage) != "" {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return a.borderedSurface(gtx, dangerAlpha(0x16), unit.Dp(8), dangerAlpha(0x2f), func(gtx layout.Context) layout.Dimensions {
+			return a.borderedSurface(gtx, dangerAlpha(0x16), unit.Dp(10), dangerAlpha(0x2f), func(gtx layout.Context) layout.Dimensions {
 				return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					rows := []layout.FlexChild{
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -1786,16 +1829,16 @@ func (a *App) layoutActions(gtx layout.Context) layout.Dimensions {
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		if !ready {
-			return a.primaryButton(gtx, &a.manageUpstreamButton, "配置上游", fluent.accent, fluent.white)
+			return a.submitActionButton(gtx, &a.manageUpstreamButton, "配置上游", fluent.accent, fluent.accent2, accentAlpha(0x58), fluent.white)
 		}
 		if snap.Running {
-			return a.primaryButton(gtx, &a.cancelButton, "取消生成", fluent.dangerSoft, fluent.danger)
+			return a.submitActionButton(gtx, &a.cancelButton, "取消生成", fluent.dangerSoft, dangerAlpha(0x2a), dangerAlpha(0x30), fluent.danger)
 		}
 		label := "生成"
 		if a.mode == string(client.ModeEdit) {
 			label = "编辑"
 		}
-		return a.primaryButton(gtx, &a.runButton, label, fluent.accent, fluent.white)
+		return a.submitActionButton(gtx, &a.runButton, label, fluent.accent, fluent.accent2, accentAlpha(0x58), fluent.white)
 	}))
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
