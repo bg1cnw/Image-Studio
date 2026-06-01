@@ -871,7 +871,7 @@ func (a *App) layoutSettingsProfileRail(gtx layout.Context, snap snapshot) layou
 						return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							if len(snap.Profiles) == 0 {
 								return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-									return a.label(gtx, "还没有可用上游配置。", unit.Sp(10), fluent.textDim, font.Normal)
+									return a.label(gtx, "还没有配置,点下方新建开始。", unit.Sp(10), fluent.textDim, font.Normal)
 								})
 							}
 							return a.settingsProfileList.Layout(gtx, len(snap.Profiles), func(gtx layout.Context, index int) layout.Dimensions {
@@ -884,14 +884,10 @@ func (a *App) layoutSettingsProfileRail(gtx layout.Context, snap snapshot) layou
 										btn,
 										chooseColor(active, fluent.accentSoft, rgba(0xffffff, 0x00)),
 										chooseColor(active, accentAlpha(0x28), fluent.surface2),
-										rgba(0xffffff, 0x00),
+										chooseColor(active, accentAlpha(0x24), rgba(0xffffff, 0x00)),
 										unit.Dp(8),
 										layout.Inset{Top: 8, Bottom: 8, Left: 8, Right: 8},
 										func(gtx layout.Context) layout.Dimensions {
-											modeTag := "R"
-											if strings.TrimSpace(profile.APIMode) == "images" {
-												modeTag = "I"
-											}
 											return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 												layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 													dot := fluent.textDim
@@ -910,7 +906,11 @@ func (a *App) layoutSettingsProfileRail(gtx layout.Context, snap snapshot) layou
 													return a.singleLineLabel(gtx, strings.TrimSpace(profile.Name), unit.Sp(12), chooseColor(active, fluent.accent, fluent.text), font.Medium)
 												}),
 												layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-													return a.label(gtx, modeTag, unit.Sp(10), fluent.textDim, font.Medium)
+													modeTag := "R"
+													if strings.TrimSpace(profile.APIMode) == "images" {
+														modeTag = "I"
+													}
+													return a.metaBadge(gtx, modeTag, true)
 												}),
 											)
 										},

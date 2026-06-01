@@ -529,17 +529,52 @@ func (a *App) layoutSavePrompt(gtx layout.Context) layout.Dimensions {
 		a.savePromptCopy()
 	}
 
+	snap := a.readSnapshot()
+	item := snap.Result.Item
+	img := snap.Result.Image
 	return a.layoutStandardModal(
 		gtx,
 		unit.Dp(520),
 		0,
-		"图片已生成，是否另存到指定位置？",
+		"是否另存这张图片?",
 		"",
 		nil,
 		func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(12))}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.label(gtx, "默认目录已保存一份。需要放到项目、相册或其他目录时，可以现在填写目标路径再保存副本。", unit.Sp(13), fluent.textMuted, font.Normal)
+					return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(12))}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return a.borderedSurface(gtx, fluent.surface, unit.Dp(10), fluent.border, func(gtx layout.Context) layout.Dimensions {
+								return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									return a.imageThumb(gtx, img, unit.Dp(116), unit.Dp(116), unit.Dp(8))
+								})
+							})
+						}),
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return a.label(gtx, "图片已生成并保存在默认输出目录。", unit.Sp(13), fluent.text, font.Medium)
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return a.label(gtx, "需要放到项目、相册或其他目录时，可以现在填写目标位置另存一份。", unit.Sp(11), fluent.textMuted, font.Normal)
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									path := strings.TrimSpace(item.SavedPath)
+									if path == "" {
+										path = strings.TrimSpace(a.savePromptSourcePath)
+									}
+									if path == "" {
+										return layout.Dimensions{}
+									}
+									return a.borderedSurface(gtx, fluent.surface2, unit.Dp(8), fluent.border, func(gtx layout.Context) layout.Dimensions {
+										return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+											return a.label(gtx, path, unit.Sp(10), fluent.textDim, font.Normal)
+										})
+									})
+								}),
+							)
+						}),
+					)
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return a.technicalField(gtx, "保存到", &a.savePromptPathInput, "输入完整文件路径或目录", unit.Dp(48))
@@ -552,11 +587,16 @@ func (a *App) layoutSavePrompt(gtx layout.Context) layout.Dimensions {
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
-						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-							return a.compactButton(gtx, &a.savePromptSkipButton, "稍后", false)
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return fixedWidth(gtx, unit.Dp(110), func(gtx layout.Context) layout.Dimensions {
+								return a.compactButton(gtx, &a.savePromptSkipButton, "稍后", false)
+							})
 						}),
-						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-							return a.primaryButton(gtx, &a.savePromptSaveButton, "保存副本", fluent.accent, fluent.white)
+						layout.Flexed(1, layout.Spacer{}.Layout),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return fixedWidth(gtx, unit.Dp(152), func(gtx layout.Context) layout.Dimensions {
+								return a.primaryIconTextButton(gtx, &a.savePromptSaveButton, uiIconFolder, "保存到指定位置", fluent.accent, fluent.white)
+							})
 						}),
 					)
 				}),
