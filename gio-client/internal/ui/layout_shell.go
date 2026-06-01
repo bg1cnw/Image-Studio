@@ -326,19 +326,21 @@ func (a *App) layoutBody(gtx layout.Context) layout.Dimensions {
 		return a.layoutCanvas(gtx)
 	}
 	width := gtx.Constraints.Max.X
-	leftMin := gtx.Dp(unit.Dp(320))
-	leftMax := gtx.Dp(unit.Dp(360))
-	rightMin := gtx.Dp(unit.Dp(280))
-	rightMax := gtx.Dp(unit.Dp(320))
 	centerMin := gtx.Dp(unit.Dp(360))
-	leftWidth := clampInt(int(float64(width)*0.24), leftMin, leftMax)
-	rightWidth := clampInt(int(float64(width)*0.22), rightMin, rightMax)
+	leftWidth := gtx.Dp(unit.Dp(360))
+	rightWidth := gtx.Dp(unit.Dp(320))
+	if width <= gtx.Dp(unit.Dp(1180)) {
+		leftWidth = gtx.Dp(unit.Dp(336))
+		rightWidth = gtx.Dp(unit.Dp(300))
+	}
 	if overflow := leftWidth + rightWidth + centerMin - width; overflow > 0 {
-		reduceRight := min(overflow, rightWidth-rightMin)
+		rightMin := gtx.Dp(unit.Dp(280))
+		leftMin := gtx.Dp(unit.Dp(320))
+		reduceRight := min(overflow, max(rightWidth-rightMin, 0))
 		rightWidth -= reduceRight
 		overflow -= reduceRight
 		if overflow > 0 {
-			reduceLeft := min(overflow, leftWidth-leftMin)
+			reduceLeft := min(overflow, max(leftWidth-leftMin, 0))
 			leftWidth -= reduceLeft
 		}
 	}

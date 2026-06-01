@@ -39,6 +39,7 @@ type snapshot struct {
 	Logs                  []string
 	History               []sharedCompat.HistoryItem
 	BatchResults          []sharedCompat.HistoryItem
+	BatchTotal            int
 	Profiles              []sharedCompat.UpstreamProfile
 	ActiveProfileID       string
 	SelectedHistoryID     string

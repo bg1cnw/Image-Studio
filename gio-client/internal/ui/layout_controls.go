@@ -57,16 +57,25 @@ func (a *App) layoutControls(gtx layout.Context) layout.Dimensions {
 	return a.borderedSurface(gtx, fluent.sidebar, unit.Dp(0), fluent.border, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min = gtx.Constraints.Max
 		return layout.Inset{Top: 14, Bottom: 12, Left: 16, Right: 16}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			snap := a.readSnapshot()
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					return a.controlsList.Layout(gtx, 1, func(gtx layout.Context, _ int) layout.Dimensions {
-						return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(12))}.Layout(gtx,
+						children := []layout.FlexChild{
 							layout.Rigid(a.layoutWorkbenchCard),
+						}
+						if strings.TrimSpace(snap.LastErrorMessage) != "" {
+							children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.layoutErrorNoticeCard(gtx, snap)
+							}))
+						}
+						children = append(children,
 							layout.Rigid(a.layoutModeCard),
 							layout.Rigid(a.layoutPromptCard),
 							layout.Rigid(a.layoutComposeCard),
 							layout.Rigid(a.layoutAdvancedCard),
 						)
+						return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(12))}.Layout(gtx, children...)
 					})
 				}),
 				layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
@@ -97,6 +106,64 @@ func (a *App) layoutSubmitDock(gtx layout.Context) layout.Dimensions {
 			})
 		}),
 	)
+}
+
+func (a *App) layoutErrorNoticeCard(gtx layout.Context, snap snapshot) layout.Dimensions {
+	for a.retryLastRunButton.Clicked(gtx) {
+		a.retryLastRun()
+	}
+	for a.openRawResponseButton.Clicked(gtx) {
+		raw := strings.TrimSpace(snap.Result.RawPath)
+		if raw == "" {
+			continue
+		}
+		a.openRawResponseModal(raw)
+	}
+	for a.dismissErrorButton.Clicked(gtx) {
+		a.dismissFailureState()
+	}
+
+	return a.borderedSurface(gtx, dangerAlpha(0x16), unit.Dp(10), dangerAlpha(0x2f), func(gtx layout.Context) layout.Dimensions {
+		return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			rows := []layout.FlexChild{
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Start}.Layout(gtx,
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							return a.label(gtx, "最近一次请求失败", unit.Sp(12), fluent.danger, font.SemiBold)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return a.ghostIconButton(gtx, &a.dismissErrorButton, uiIconClose, false)
+						}),
+					)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return a.label(gtx, snap.LastErrorMessage, unit.Sp(11), fluent.danger, font.Normal)
+				}),
+			}
+			if snap.LastRunAvailable || strings.TrimSpace(snap.Result.RawPath) != "" {
+				rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					buttons := []layout.FlexChild{}
+					if snap.LastRunAvailable {
+						buttons = append(buttons, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return a.compactButton(gtx, &a.retryLastRunButton, "重试上次请求", false)
+						}))
+					}
+					if strings.TrimSpace(snap.Result.RawPath) != "" {
+						if len(buttons) > 0 {
+							buttons = append(buttons, layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout))
+						}
+						buttons = append(buttons, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return a.compactButton(gtx, &a.openRawResponseButton, "查看日志", false)
+						}))
+					}
+					return layout.Inset{Top: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, buttons...)
+					})
+				}))
+			}
+			return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx, rows...)
+		})
+	})
 }
 
 func (a *App) submitActionButton(
@@ -1713,67 +1780,8 @@ func (a *App) layoutAspectButton(gtx layout.Context, btn *widget.Clickable, choi
 
 func (a *App) layoutActions(gtx layout.Context) layout.Dimensions {
 	snap := a.readSnapshot()
-	for a.retryLastRunButton.Clicked(gtx) {
-		a.retryLastRun()
-	}
-	for a.openRawResponseButton.Clicked(gtx) {
-		raw := strings.TrimSpace(snap.Result.RawPath)
-		if raw == "" {
-			continue
-		}
-		a.openRawResponseModal(raw)
-	}
-	for a.dismissErrorButton.Clicked(gtx) {
-		a.dismissFailureState()
-	}
 	ready := strings.TrimSpace(a.apiKeyInput.Text()) != "" && strings.TrimSpace(a.baseURLInput.Text()) != ""
-	children := make([]layout.FlexChild, 0, 6)
-	if strings.TrimSpace(snap.LastErrorMessage) != "" {
-		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return a.borderedSurface(gtx, dangerAlpha(0x16), unit.Dp(10), dangerAlpha(0x2f), func(gtx layout.Context) layout.Dimensions {
-				return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					rows := []layout.FlexChild{
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Start}.Layout(gtx,
-								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-									return a.label(gtx, "最近一次请求失败", unit.Sp(12), fluent.danger, font.SemiBold)
-								}),
-								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return a.ghostIconButton(gtx, &a.dismissErrorButton, uiIconClose, false)
-								}),
-							)
-						}),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.label(gtx, snap.LastErrorMessage, unit.Sp(11), fluent.danger, font.Normal)
-						}),
-					}
-					if snap.LastRunAvailable || strings.TrimSpace(snap.Result.RawPath) != "" {
-						rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							buttons := []layout.FlexChild{}
-							if snap.LastRunAvailable {
-								buttons = append(buttons, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return a.compactButton(gtx, &a.retryLastRunButton, "重试上次请求", false)
-								}))
-							}
-							if strings.TrimSpace(snap.Result.RawPath) != "" {
-								if len(buttons) > 0 {
-									buttons = append(buttons, layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout))
-								}
-								buttons = append(buttons, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return a.compactButton(gtx, &a.openRawResponseButton, "查看日志", false)
-								}))
-							}
-							return layout.Inset{Top: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-								return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, buttons...)
-							})
-						}))
-					}
-					return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx, rows...)
-				})
-			})
-		}))
-		children = append(children, layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout))
-	}
+	children := make([]layout.FlexChild, 0, 4)
 	if !ready {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.borderedSurface(gtx, fluent.accentSoft, unit.Dp(8), accentAlpha(0x28), func(gtx layout.Context) layout.Dimensions {

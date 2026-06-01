@@ -108,9 +108,21 @@ func (a *App) closeHistoryTimeline() {
 	a.invalidateNow()
 }
 
+func (a *App) batchGridCountLocked() int {
+	total := len(a.batchResultIDs)
+	if a.running && a.lastRunBatchCount > total {
+		total = a.lastRunBatchCount
+	}
+	return total
+}
+
+func (a *App) canOpenResultGridLocked() bool {
+	return a.batchGridCountLocked() > 1
+}
+
 func (a *App) openResultGrid() {
 	a.mu.Lock()
-	if len(a.batchResultIDs) <= 1 {
+	if !a.canOpenResultGridLocked() {
 		a.mu.Unlock()
 		return
 	}
@@ -224,6 +236,7 @@ func (a *App) readSnapshot() snapshot {
 		Logs:                  logs,
 		History:               history,
 		BatchResults:          batchResults,
+		BatchTotal:            a.lastRunBatchCount,
 		Profiles:              profiles,
 		ActiveProfileID:       a.activeProfileID,
 		SelectedHistoryID:     a.selectedHistoryID,

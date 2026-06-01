@@ -775,7 +775,7 @@ func (a *App) deleteHistoryItem(id string) {
 			}
 		}
 		a.batchResultIDs = kept
-		if len(a.batchResultIDs) <= 1 {
+		if !a.canOpenResultGridLocked() {
 			a.resultGridOpen = false
 		}
 	}
