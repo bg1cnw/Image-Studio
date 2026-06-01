@@ -1172,7 +1172,7 @@ func historyMetaText(item sharedCompat.HistoryItem) string {
 	if strings.TrimSpace(item.StyleTag) != "" {
 		style = "#" + styleChoiceLabel(item.StyleTag)
 	}
-	return strings.Join(compactNonEmpty([]string{mode, item.Size, item.Quality, style, format}), " · ")
+	return strings.Join(compactNonEmpty([]string{mode, sizeDisplayLabel(item.Size), qualityDisplayLabel(item.Quality), style, format}), " · ")
 }
 
 func historyRailMetaText(item sharedCompat.HistoryItem) string {
@@ -1180,7 +1180,7 @@ func historyRailMetaText(item sharedCompat.HistoryItem) string {
 	if strings.TrimSpace(item.StyleTag) != "" {
 		style = "#" + styleChoiceLabel(item.StyleTag)
 	}
-	return strings.Join(compactNonEmpty([]string{item.Size, item.Quality, style}), " · ")
+	return strings.Join(compactNonEmpty([]string{sizeDisplayLabel(item.Size), qualityDisplayLabel(item.Quality), style}), " · ")
 }
 
 func historyMetaBadgeItems(item sharedCompat.HistoryItem) []string {
@@ -1188,7 +1188,7 @@ func historyMetaBadgeItems(item sharedCompat.HistoryItem) []string {
 	if strings.TrimSpace(item.StyleTag) != "" {
 		style = "#" + styleChoiceLabel(item.StyleTag)
 	}
-	return compactNonEmpty([]string{item.Size, item.Quality, style})
+	return compactNonEmpty([]string{sizeDisplayLabel(item.Size), qualityDisplayLabel(item.Quality), style})
 }
 
 func historyPathText(path string) string {

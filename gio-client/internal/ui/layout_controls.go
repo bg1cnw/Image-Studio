@@ -1225,7 +1225,7 @@ func (a *App) layoutComposeCard(gtx layout.Context) layout.Dimensions {
 	}
 	summary := strings.Join(compactNonEmpty([]string{
 		chooseStyleSummary(a.styleTag),
-		activeAspect,
+		aspectChoiceLabel(activeAspect),
 		choiceLabel(resolutionChoices, activeResolution),
 		qualityChoiceLabel(a.quality),
 		fmt.Sprintf("%d 张", normalizeBatchCount(a.batchCount)),
@@ -1294,7 +1294,9 @@ func (a *App) layoutComposeCard(gtx layout.Context) layout.Dimensions {
 }
 
 func (a *App) composeSectionCard(gtx layout.Context, body layout.Widget) layout.Dimensions {
-	return a.card(gtx, body)
+	return a.borderedSurface(gtx, fluent.surface, unit.Dp(10), fluent.border, func(gtx layout.Context) layout.Dimensions {
+		return layout.UniformInset(unit.Dp(12)).Layout(gtx, body)
+	})
 }
 
 func (a *App) layoutAspectSection(gtx layout.Context, activeAspect string, currentResolution string) layout.Dimensions {
@@ -1440,15 +1442,8 @@ func (a *App) layoutSourceInputSection(gtx layout.Context, sourcePaths []string,
 		path := path
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			btn := a.sourceButton("panel-remove:" + path)
-			return a.surfaceButton(
-				gtx,
-				btn,
-				fluent.surface,
-				fluent.surface2,
-				fluent.border,
-				fluentControlRadius,
-				layout.Inset{Top: 8, Bottom: 8, Left: 10, Right: 10},
-				func(gtx layout.Context) layout.Dimensions {
+			return a.borderedSurface(gtx, fluent.surface, fluentControlRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: 8, Bottom: 8, Left: 10, Right: 10}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							idx := indexOfSourcePath(path, sourcePaths) + 1
@@ -1466,8 +1461,8 @@ func (a *App) layoutSourceInputSection(gtx layout.Context, sourcePaths []string,
 							return a.historyMiniIconButton(gtx, btn, uiIconDelete, false)
 						}),
 					)
-				},
-			)
+				})
+			})
 		}))
 		children = append(children, layout.Rigid(layout.Spacer{Height: unit.Dp(8)}.Layout))
 	}
@@ -1956,7 +1951,7 @@ func (a *App) advancedSectionCard(gtx layout.Context, title string, hint string,
 			return a.label(gtx, hint, unit.Sp(10), fluent.textDim, font.Normal)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return a.borderedSurface(gtx, fluent.surface, fluentCardRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {
+			return a.borderedSurface(gtx, fluent.surface, unit.Dp(10), fluent.border, func(gtx layout.Context) layout.Dimensions {
 				return layout.UniformInset(unit.Dp(12)).Layout(gtx, body)
 			})
 		}),

@@ -96,8 +96,8 @@ func (a *App) layoutResultDetailPreview(gtx layout.Context, item sharedCompat.Hi
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.metaBadgeRow(gtx, compactNonEmpty([]string{
 					chooseModeLabel(item.Mode),
-					item.Size,
-					item.Quality,
+					sizeDisplayLabel(item.Size),
+					qualityDisplayLabel(item.Quality),
 				}), true)
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -174,10 +174,10 @@ func (a *App) layoutResultDetailMeta(gtx layout.Context, item sharedCompat.Histo
 				return a.detailKVRow(gtx, "模式", chooseModeLabel(item.Mode), false, false)
 			},
 			func(gtx layout.Context) layout.Dimensions {
-				return a.detailKVRow(gtx, "尺寸", item.Size, false, false)
+				return a.detailKVRow(gtx, "尺寸", sizeDisplayLabel(item.Size), false, false)
 			},
 			func(gtx layout.Context) layout.Dimensions {
-				return a.detailKVRow(gtx, "质量", item.Quality, false, false)
+				return a.detailKVRow(gtx, "质量", qualityDisplayLabel(item.Quality), false, false)
 			},
 			func(gtx layout.Context) layout.Dimensions {
 				return a.detailKVRow(gtx, "格式", strings.ToUpper(strings.TrimSpace(item.OutputFormat)), false, false)

@@ -49,10 +49,10 @@ var (
 	aspectChoices = []aspectChoice{
 		{Value: "auto", Label: "Auto", W: 18, H: 18, Auto: true},
 		{Value: "1:1", Label: "1:1", W: 18, H: 18},
-		{Value: "3:2", Label: "3:2", W: 22, H: 14},
 		{Value: "2:3", Label: "2:3", W: 14, H: 20},
-		{Value: "16:9", Label: "16:9", W: 24, H: 13},
 		{Value: "9:16", Label: "9:16", W: 12, H: 22},
+		{Value: "3:2", Label: "3:2", W: 22, H: 14},
+		{Value: "16:9", Label: "16:9", W: 24, H: 13},
 	}
 	resolutionChoices = []choice{
 		{"自动", "auto"},
@@ -62,9 +62,9 @@ var (
 	}
 	qualityChoices = []choice{
 		{"自动", "auto"},
-		{"精修", "high"},
-		{"标准", "medium"},
 		{"快速", "low"},
+		{"标准", "medium"},
+		{"精修", "high"},
 	}
 	formatChoices = []choice{
 		{"PNG", "png"},
@@ -178,8 +178,42 @@ func sizeChoiceLabel(value string) string {
 	return choiceLabel(sizeChoices, value)
 }
 
+func aspectChoiceLabel(value string) string {
+	for _, item := range aspectChoices {
+		if item.Value == value {
+			return item.Label
+		}
+	}
+	return value
+}
+
+func sizeDisplayLabel(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return value
+	}
+	if value == "auto" {
+		return "自动"
+	}
+	aspect := deriveAspectPreset(value)
+	resolution := deriveResolutionPreset(value)
+	if aspect == "" || resolution == "" {
+		return value
+	}
+	aspectLabel := aspectChoiceLabel(aspect)
+	resolutionLabel := choiceLabel(resolutionChoices, resolution)
+	if aspectLabel == "" || resolutionLabel == "" {
+		return value
+	}
+	return aspectLabel + " · " + resolutionLabel
+}
+
 func qualityChoiceLabel(value string) string {
 	return choiceLabel(qualityChoices, value)
+}
+
+func qualityDisplayLabel(value string) string {
+	return qualityChoiceLabel(value)
 }
 
 func styleChoiceLabel(value string) string {

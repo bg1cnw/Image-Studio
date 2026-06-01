@@ -232,8 +232,8 @@ func (a *App) canvasToolbar(gtx layout.Context, snap snapshot) layout.Dimensions
 					return a.toolbarCluster(gtx, func(gtx layout.Context) layout.Dimensions {
 						return a.metaBadgeRow(gtx, compactNonEmpty([]string{
 							chooseModeLabel(snap.Result.Item.Mode),
-							snap.Result.Item.Size,
-							snap.Result.Item.Quality,
+							sizeDisplayLabel(snap.Result.Item.Size),
+							qualityDisplayLabel(snap.Result.Item.Quality),
 						}), true)
 					})
 				}),
@@ -280,9 +280,7 @@ func (a *App) toolbarSeparator(gtx layout.Context) layout.Dimensions {
 }
 
 func (a *App) toolbarCluster(gtx layout.Context, body layout.Widget) layout.Dimensions {
-	return a.borderedSurface(gtx, fluent.surface, fluentControlRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {
-		return layout.UniformInset(unit.Dp(2)).Layout(gtx, body)
-	})
+	return body(gtx)
 }
 
 func (a *App) sourceStrip(gtx layout.Context, sourcePaths []string) layout.Dimensions {
@@ -759,30 +757,41 @@ func (a *App) canvasStatusBar(gtx layout.Context, snap snapshot) layout.Dimensio
 	return a.borderedSurface(gtx, fluent.panel2, unit.Dp(0), fluent.border, func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: 9, Bottom: 9, Left: 14, Right: 14}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			if snap.Running {
-				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
-							return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
-								return uiIconRefresh.Layout(gtx, fluent.accent)
+				return layout.Stack{}.Layout(gtx,
+					layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+									return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+										return uiIconRefresh.Layout(gtx, fluent.accent)
+									})
+								})
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									return a.label(gtx, chooseStatusText(snap.Status), unit.Sp(11), fluent.text, font.Medium)
+								})
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return layout.Inset{Left: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									return a.staticPill(gtx, time.Now().Format("15:04"), false, true)
+								})
+							}),
+							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+								if strings.TrimSpace(lastLog) == "" {
+									return layout.Dimensions{}
+								}
+								return layout.Inset{Left: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									return a.singleLineLabel(gtx, lastLog, unit.Sp(11), fluent.textMuted, font.Normal)
+								})
+							}),
+						)
+					}),
+					layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+						return layout.S.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return fixedHeight(gtx, unit.Dp(2), func(gtx layout.Context) layout.Dimensions {
+								return a.surface(gtx, accentAlpha(0x58), 0, layout.Spacer{}.Layout)
 							})
-						})
-					}),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return a.label(gtx, chooseStatusText(snap.Status), unit.Sp(11), fluent.text, font.Medium)
-						})
-					}),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return layout.Inset{Left: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return a.staticPill(gtx, time.Now().Format("15:04"), false, true)
-						})
-					}),
-					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-						if strings.TrimSpace(lastLog) == "" {
-							return layout.Dimensions{}
-						}
-						return layout.Inset{Left: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return a.singleLineLabel(gtx, lastLog, unit.Sp(11), fluent.textMuted, font.Normal)
 						})
 					}),
 				)
@@ -794,9 +803,6 @@ func (a *App) canvasStatusBar(gtx layout.Context, snap snapshot) layout.Dimensio
 					headline = "编辑结果"
 				}
 				revised := strings.TrimSpace(snap.Result.RevisedPrompt)
-				if revised == "" {
-					revised = "暂无修订提示词"
-				}
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
@@ -824,6 +830,9 @@ func (a *App) canvasStatusBar(gtx layout.Context, snap snapshot) layout.Dimensio
 						})
 					}),
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+						if revised == "" {
+							return layout.Dimensions{}
+						}
 						return layout.Inset{Left: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return a.singleLineLabel(gtx, revised, unit.Sp(11), fluent.textMuted, font.Normal)
 						})
