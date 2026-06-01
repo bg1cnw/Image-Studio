@@ -910,12 +910,29 @@ func (a *App) layoutHistoryRow(gtx layout.Context, item sharedCompat.HistoryItem
 }
 
 func (a *App) layoutLogsCard(gtx layout.Context, snap snapshot) layout.Dimensions {
+	for a.openLogsRawResponseButton.Clicked(gtx) {
+		raw := strings.TrimSpace(snap.Result.RawPath)
+		if raw == "" {
+			continue
+		}
+		if err := openPath(raw); err != nil {
+			a.appendLog("打开 Raw response 失败: " + err.Error())
+		}
+	}
 	return a.card(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 						return a.sectionEyebrow(gtx, "运行日志")
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if strings.TrimSpace(snap.Result.RawPath) == "" {
+							return layout.Dimensions{}
+						}
+						return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return a.textActionButton(gtx, &a.openLogsRawResponseButton, "查看日志", true)
+						})
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return a.compactButton(gtx, &a.clearLogButton, "清空", false)
@@ -930,9 +947,9 @@ func (a *App) layoutLogsCard(gtx layout.Context, snap snapshot) layout.Dimension
 					idx := len(snap.Logs) - 1 - i
 					line := snap.Logs[idx]
 					return layout.Inset{Bottom: 8}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						return a.borderedSurface(gtx, fluent.surface, unit.Dp(4), fluent.border, func(gtx layout.Context) layout.Dimensions {
+						return a.borderedSurface(gtx, fluent.surface, unit.Dp(8), fluent.border, func(gtx layout.Context) layout.Dimensions {
 							return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-								return a.label(gtx, line, unit.Sp(11), fluent.textMuted, font.Normal)
+								return a.label(gtx, line, unit.Sp(10), fluent.textMuted, font.Normal)
 							})
 						})
 					})
@@ -941,21 +958,25 @@ func (a *App) layoutLogsCard(gtx layout.Context, snap snapshot) layout.Dimension
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				raw := strings.TrimSpace(snap.Result.RawPath)
 				if raw == "" {
-					raw = "Raw response: 暂无"
-				} else {
-					raw = "Raw response: " + raw
+					return a.label(gtx, "Raw response: 暂无", unit.Sp(10), fluent.textDim, font.Normal)
 				}
-				return a.label(gtx, raw, unit.Sp(10), fluent.textDim, font.Normal)
+				return a.borderedSurface(gtx, fluent.surface2, unit.Dp(8), fluent.border, func(gtx layout.Context) layout.Dimensions {
+					return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return a.label(gtx, raw, unit.Sp(10), fluent.textDim, font.Normal)
+					})
+				})
 			}),
 		)
 	})
 }
 
 func (a *App) emptyPanel(gtx layout.Context, text string) layout.Dimensions {
-	return a.surface(gtx, fluent.surface2, unit.Dp(6), func(gtx layout.Context) layout.Dimensions {
+	return a.borderedSurface(gtx, rgba(0xffffff, 0x00), unit.Dp(6), fluent.border, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min = gtx.Constraints.Max
-		return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return a.label(gtx, text, unit.Sp(12), fluent.textMuted, font.Normal)
+		return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return a.label(gtx, text, unit.Sp(12), fluent.textMuted, font.Normal)
+			})
 		})
 	})
 }

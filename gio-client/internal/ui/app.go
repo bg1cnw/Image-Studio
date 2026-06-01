@@ -146,6 +146,7 @@ type App struct {
 	cancelButton                    widget.Clickable
 	retryLastRunButton              widget.Clickable
 	openRawResponseButton           widget.Clickable
+	openLogsRawResponseButton       widget.Clickable
 	dismissErrorButton              widget.Clickable
 	clearLogButton                  widget.Clickable
 	saveAsButton                    widget.Clickable
