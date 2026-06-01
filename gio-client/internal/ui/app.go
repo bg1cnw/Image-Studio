@@ -39,6 +39,7 @@ type snapshot struct {
 	Status                string
 	Logs                  []string
 	History               []sharedCompat.HistoryItem
+	BatchResults          []sharedCompat.HistoryItem
 	Profiles              []sharedCompat.UpstreamProfile
 	ActiveProfileID       string
 	SelectedHistoryID     string
@@ -56,6 +57,7 @@ type snapshot struct {
 	RawResponseModalPath  string
 	RawResponseModalText  string
 	RawResponseModalError string
+	ResultGridOpen        bool
 	Result                resultState
 	SavePromptVisible     bool
 }
@@ -85,6 +87,8 @@ type workspaceState struct {
 	ResultItem          sharedCompat.HistoryItem
 	ResultHasItem       bool
 	SelectedHistoryID   string
+	BatchResultIDs      []string
+	ResultGridOpen      bool
 }
 
 type App struct {
@@ -159,6 +163,7 @@ type App struct {
 	saveAsButton                    widget.Clickable
 	latestResultButton              widget.Clickable
 	currentGroupButton              widget.Clickable
+	closeResultGridButton           widget.Clickable
 	rotateLeftButton                widget.Clickable
 	rotateRightButton               widget.Clickable
 	flipHorizontalButton            widget.Clickable
@@ -251,6 +256,8 @@ type App struct {
 	rawResponseModalPath  string
 	rawResponseModalText  string
 	rawResponseModalError string
+	batchResultIDs        []string
+	resultGridOpen        bool
 
 	savePromptVisible             bool
 	savePromptSuppressed          bool

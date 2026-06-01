@@ -88,6 +88,8 @@ func (a *App) buildWorkspaceSnapshot() workspaceState {
 		ResultItem:          a.result.Item,
 		ResultHasItem:       a.result.HasItem,
 		SelectedHistoryID:   a.selectedHistoryID,
+		BatchResultIDs:      append([]string(nil), a.batchResultIDs...),
+		ResultGridOpen:      a.resultGridOpen,
 	}
 }
 
@@ -125,6 +127,8 @@ func (a *App) applyWorkspace(ws workspaceState) {
 	a.sourcePathsInput.SetText(ws.SourcePathsText)
 	a.selectedHistoryID = ws.SelectedHistoryID
 	a.activePromptGroup = historyPromptGroup{}
+	a.batchResultIDs = append([]string(nil), ws.BatchResultIDs...)
+	a.resultGridOpen = ws.ResultGridOpen && len(ws.BatchResultIDs) > 1
 	a.promptHelperOpen = false
 	a.settingsModalOpen = false
 	a.activeResultDetail = sharedCompat.HistoryItem{}
@@ -154,13 +158,14 @@ func (a *App) createWorkspace() {
 	a.saveActiveWorkspaceSnapshot()
 	name := fmt.Sprintf("图片 %d", len(a.workspaces)+1)
 	ws := workspaceState{
-		ID:           fmt.Sprintf("ws-%d", time.Now().UnixNano()),
-		Name:         name,
-		Mode:         string(kernel.DefaultConfig().Mode),
-		Size:         kernel.DefaultConfig().Size,
-		Quality:      kernel.DefaultConfig().Quality,
-		OutputFormat: kernel.DefaultConfig().OutputFormat,
-		BatchCount:   1,
+		ID:             fmt.Sprintf("ws-%d", time.Now().UnixNano()),
+		Name:           name,
+		Mode:           string(kernel.DefaultConfig().Mode),
+		Size:           kernel.DefaultConfig().Size,
+		Quality:        kernel.DefaultConfig().Quality,
+		OutputFormat:   kernel.DefaultConfig().OutputFormat,
+		BatchCount:     1,
+		ResultGridOpen: false,
 	}
 	a.workspaces = append(a.workspaces, ws)
 	a.activeWorkspaceID = ws.ID

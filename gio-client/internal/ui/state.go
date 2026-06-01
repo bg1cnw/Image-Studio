@@ -106,6 +106,24 @@ func (a *App) closeHistoryTimeline() {
 	a.invalidateNow()
 }
 
+func (a *App) openResultGrid() {
+	a.mu.Lock()
+	if len(a.batchResultIDs) <= 1 {
+		a.mu.Unlock()
+		return
+	}
+	a.resultGridOpen = true
+	a.mu.Unlock()
+	a.invalidateNow()
+}
+
+func (a *App) closeResultGrid() {
+	a.mu.Lock()
+	a.resultGridOpen = false
+	a.mu.Unlock()
+	a.invalidateNow()
+}
+
 func (a *App) openSavePromptForCurrent() {
 	a.mu.Lock()
 	src := strings.TrimSpace(a.result.SavedPath)
@@ -192,6 +210,7 @@ func (a *App) readSnapshot() snapshot {
 	defer a.mu.Unlock()
 	logs := append([]string(nil), a.logs...)
 	history := append([]sharedCompat.HistoryItem(nil), a.history...)
+	batchResults := historyItemsByIDs(history, a.batchResultIDs)
 	profiles := append([]sharedCompat.UpstreamProfile(nil), a.profiles...)
 	promptHistory := append([]string(nil), a.promptHistory...)
 	presets := append([]sharedCompat.Preset(nil), a.presets...)
@@ -200,6 +219,7 @@ func (a *App) readSnapshot() snapshot {
 		Status:                a.status,
 		Logs:                  logs,
 		History:               history,
+		BatchResults:          batchResults,
 		Profiles:              profiles,
 		ActiveProfileID:       a.activeProfileID,
 		SelectedHistoryID:     a.selectedHistoryID,
@@ -217,6 +237,7 @@ func (a *App) readSnapshot() snapshot {
 		RawResponseModalPath:  a.rawResponseModalPath,
 		RawResponseModalText:  a.rawResponseModalText,
 		RawResponseModalError: a.rawResponseModalError,
+		ResultGridOpen:        a.resultGridOpen,
 		Result:                a.result,
 		SavePromptVisible:     a.savePromptVisible,
 	}

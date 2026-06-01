@@ -101,6 +101,26 @@ func historyEntryRepresentative(entry historyPromptEntry) sharedCompat.HistoryIt
 	return entry.Item
 }
 
+func historyItemsByIDs(items []sharedCompat.HistoryItem, ids []string) []sharedCompat.HistoryItem {
+	if len(ids) == 0 {
+		return nil
+	}
+	index := make(map[string]sharedCompat.HistoryItem, len(items))
+	for _, item := range items {
+		if strings.TrimSpace(item.ID) == "" {
+			continue
+		}
+		index[item.ID] = item
+	}
+	out := make([]sharedCompat.HistoryItem, 0, len(ids))
+	for _, id := range ids {
+		if item, ok := index[strings.TrimSpace(id)]; ok {
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
 func historyPromptGroupContains(group historyPromptGroup, itemID string) bool {
 	if strings.TrimSpace(itemID) == "" {
 		return false

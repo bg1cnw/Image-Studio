@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"strconv"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"image-studio/gio-client/internal/kernel"
+	sharedCompat "image-studio/shared/compat"
 
 	"gioui.org/font"
 	"gioui.org/layout"
@@ -64,11 +66,31 @@ func (a *App) canvasToolbar(gtx layout.Context, snap snapshot) layout.Dimensions
 	}
 	currentGroup, hasCurrentGroup := findPromptGroupForItem(snap.History, snap.SelectedHistoryID)
 	if a.currentGroupButton.Clicked(gtx) {
-		if hasCurrentGroup && len(currentGroup.Items) > 1 {
+		if len(snap.BatchResults) > 1 {
+			if snap.ResultGridOpen {
+				a.closeResultGrid()
+			} else {
+				a.openResultGrid()
+			}
+		} else if hasCurrentGroup && len(currentGroup.Items) > 1 {
 			if snap.ActivePromptGroup.Key == currentGroup.Key {
 				a.closePromptGroup()
 			} else {
 				a.openPromptGroup(currentGroup)
+			}
+		}
+	}
+	for a.closeResultGridButton.Clicked(gtx) {
+		a.closeResultGrid()
+	}
+	for _, item := range snap.BatchResults {
+		item := item
+		btn := a.historyButton("batch-grid:" + item.ID)
+		for btn.Clicked(gtx) {
+			if err := a.loadHistoryPreview(item, true); err != nil && !isMissingPreview(err) {
+				a.appendLog("载入批量结果失败: " + err.Error())
+			} else {
+				a.closeResultGrid()
 			}
 		}
 	}
@@ -141,7 +163,17 @@ func (a *App) canvasToolbar(gtx layout.Context, snap snapshot) layout.Dimensions
 							})
 						}))
 					}
-					if hasCurrentGroup && len(currentGroup.Items) > 1 {
+					if len(snap.BatchResults) > 1 {
+						label := fmt.Sprintf("网格 %d", len(snap.BatchResults))
+						if snap.ResultGridOpen {
+							label = "单图"
+						}
+						children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return a.textActionButton(gtx, &a.currentGroupButton, label, snap.ResultGridOpen)
+							})
+						}))
+					} else if hasCurrentGroup && len(currentGroup.Items) > 1 {
 						children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 								return a.textActionButton(gtx, &a.currentGroupButton, "同提示词 "+strconv.Itoa(len(currentGroup.Items)), snap.ActivePromptGroup.Key == currentGroup.Key)
@@ -360,6 +392,9 @@ func (a *App) resultSurface(gtx layout.Context, snap snapshot) layout.Dimensions
 	return a.surface(gtx, fluent.canvasBg, unit.Dp(0), func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min = gtx.Constraints.Max
 		paintCheckerboard(gtx, clip.Rect{Max: gtx.Constraints.Max}.Op(), gtx.Dp(unit.Dp(22)), fluent.canvasBg, fluent.canvasTile)
+		if snap.ResultGridOpen && len(snap.BatchResults) > 1 {
+			return a.layoutBatchResultGrid(gtx, snap)
+		}
 		if snap.Result.Image == nil {
 			return layout.Center.Layout(gtx, a.layoutCanvasEmptyState)
 		}
@@ -378,6 +413,117 @@ func (a *App) resultSurface(gtx layout.Context, snap snapshot) layout.Dimensions
 			})
 		})
 	})
+}
+
+func (a *App) layoutBatchResultGrid(gtx layout.Context, snap snapshot) layout.Dimensions {
+	items := snap.BatchResults
+	columns := 3
+	if len(items) <= 2 {
+		columns = 2
+	} else if len(items) <= 4 {
+		columns = 2
+	}
+	rows := (len(items) + columns - 1) / columns
+	return layout.Inset{Top: unit.Dp(18), Bottom: unit.Dp(18), Left: unit.Dp(18), Right: unit.Dp(18)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return a.borderedSurface(gtx, fluent.surfaceElevated, unit.Dp(12), fluent.border, func(gtx layout.Context) layout.Dimensions {
+			return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				children := []layout.FlexChild{
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+								return a.label(gtx, fmt.Sprintf("本批结果 · %d 张", len(items)), unit.Sp(13), fluent.text, font.SemiBold)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.compactButton(gtx, &a.closeResultGridButton, "返回当前图", false)
+							}),
+						)
+					}),
+					layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
+				}
+				for row := 0; row < rows; row++ {
+					row := row
+					children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						cells := make([]layout.FlexChild, 0, columns)
+						for col := 0; col < columns; col++ {
+							idx := row*columns + col
+							if idx >= len(items) {
+								cells = append(cells, layout.Flexed(1, layout.Spacer{}.Layout))
+								continue
+							}
+							item := items[idx]
+							cells = append(cells, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+								return layout.Inset{Right: chooseBatchGridInset(col, columns), Bottom: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									return a.layoutBatchGridTile(gtx, item, idx, snap.SelectedHistoryID == item.ID)
+								})
+							}))
+						}
+						return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, cells...)
+					}))
+				}
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+			})
+		})
+	})
+}
+
+func chooseBatchGridInset(col int, columns int) unit.Dp {
+	if col == columns-1 {
+		return 0
+	}
+	return unit.Dp(10)
+}
+
+func (a *App) layoutBatchGridTile(gtx layout.Context, item sharedCompat.HistoryItem, index int, active bool) layout.Dimensions {
+	btn := a.historyButton("batch-grid:" + item.ID)
+	img, _ := a.imageForHistoryItem(item)
+	return a.surfaceButton(
+		gtx,
+		btn,
+		chooseColor(active, fluent.surface2, fluent.surface),
+		fluent.surface2,
+		chooseColor(active, accentAlpha(0x48), fluent.border),
+		unit.Dp(8),
+		layout.Inset{Top: 8, Bottom: 8, Left: 8, Right: 8},
+		func(gtx layout.Context) layout.Dimensions {
+			return layout.Stack{}.Layout(gtx,
+				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+					return a.imageThumbCover(gtx, img, unit.Dp(180), unit.Dp(132), unit.Dp(6))
+				}),
+				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+					return layout.NW.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return layout.Inset{Left: unit.Dp(6), Top: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return a.historyModeBadge(gtx, item.Mode)
+						})
+					})
+				}),
+				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+					return layout.SW.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return layout.Inset{Left: unit.Dp(6), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return a.surface(gtx, rgba(0x111111, 0xba), unit.Dp(4), func(gtx layout.Context) layout.Dimensions {
+								return layout.Inset{Top: 2, Bottom: 2, Left: 6, Right: 6}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									return a.label(gtx, fmt.Sprintf("#%d", index+1), unit.Sp(9), fluent.white, font.Medium)
+								})
+							})
+						})
+					})
+				}),
+				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+					if item.ElapsedSec <= 0 {
+						return layout.Dimensions{}
+					}
+					return layout.SE.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return layout.Inset{Right: unit.Dp(6), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return a.surface(gtx, rgba(0x111111, 0xba), unit.Dp(4), func(gtx layout.Context) layout.Dimensions {
+								return layout.Inset{Top: 2, Bottom: 2, Left: 6, Right: 6}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									return a.label(gtx, fmt.Sprintf("%.0fs", item.ElapsedSec), unit.Sp(9), fluent.white, font.Medium)
+								})
+							})
+						})
+					})
+				}),
+			)
+		},
+	)
 }
 
 func (a *App) layoutCanvasEmptyState(gtx layout.Context) layout.Dimensions {

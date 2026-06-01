@@ -765,6 +765,18 @@ func (a *App) deleteHistoryItem(id string) {
 	}
 	a.mu.Lock()
 	a.history = append([]sharedCompat.HistoryItem(nil), next...)
+	if len(a.batchResultIDs) > 0 {
+		kept := make([]string, 0, len(a.batchResultIDs))
+		for _, batchID := range a.batchResultIDs {
+			if batchID != id {
+				kept = append(kept, batchID)
+			}
+		}
+		a.batchResultIDs = kept
+		if len(a.batchResultIDs) <= 1 {
+			a.resultGridOpen = false
+		}
+	}
 	if a.selectedHistoryID == id {
 		a.selectedHistoryID = ""
 	}

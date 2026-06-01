@@ -50,6 +50,8 @@ func (a *App) startRunWithConfig(cfg kernel.Config, total int) {
 	a.lastErrorMessage = ""
 	a.status = fmt.Sprintf("正在提交 1/%d", total)
 	a.activePromptGroup = historyPromptGroup{}
+	a.batchResultIDs = nil
+	a.resultGridOpen = total > 1
 	a.logs = appendBounded(a.logs, fmt.Sprintf("开始任务 1/%d: %s", total, shortPrompt(cfg.Prompt)))
 	a.mu.Unlock()
 	a.invalidateNow()
@@ -127,8 +129,8 @@ func (a *App) startRunWithConfig(cfg kernel.Config, total int) {
 				a.selectedHistoryID = selectedItem.ID
 			}
 			if total > 1 {
-				if group, ok := findPromptGroupForItem(compatState.History, selectedItem.ID); ok && len(group.Items) > 1 {
-					a.activePromptGroup = group
+				if hasSelected {
+					a.batchResultIDs = append(a.batchResultIDs, selectedItem.ID)
 				}
 			}
 			if !a.savePromptSuppressed && res.SavedPath != "" && total == 1 {
