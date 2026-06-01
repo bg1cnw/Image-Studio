@@ -1257,18 +1257,6 @@ func (a *App) layoutComposeCard(gtx layout.Context) layout.Dimensions {
 							return a.layoutResolutionSection(gtx, activeAspect, activeResolution)
 						})
 					}),
-				)
-				if a.mode == string(client.ModeEdit) {
-					children = append(children,
-						layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.composeSectionCard(gtx, func(gtx layout.Context) layout.Dimensions {
-								return a.layoutSourceInputSection(gtx, sourcePaths, currentSaved)
-							})
-						}),
-					)
-				}
-				children = append(children,
 					layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return a.composeSectionCard(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -1287,6 +1275,16 @@ func (a *App) layoutComposeCard(gtx layout.Context) layout.Dimensions {
 						return a.composeSectionCard(gtx, a.layoutBatchCountSection)
 					}),
 				)
+				if a.mode == string(client.ModeEdit) {
+					children = append(children,
+						layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return a.composeSectionCard(gtx, func(gtx layout.Context) layout.Dimensions {
+								return a.layoutSourceInputSection(gtx, sourcePaths, currentSaved)
+							})
+						}),
+					)
+				}
 			}
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 		})
@@ -1431,7 +1429,7 @@ func (a *App) layoutSourceInputSection(gtx layout.Context, sourcePaths []string,
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.borderedSurface(gtx, fluent.surface2, fluentControlRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {
 				return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return a.label(gtx, "画板当前图作源图", unit.Sp(10), fluent.textDim, font.Normal)
+					return a.label(gtx, "(画板当前图 · 隐式源图)", unit.Sp(10), fluent.textDim, font.Normal)
 				})
 			})
 		}))
