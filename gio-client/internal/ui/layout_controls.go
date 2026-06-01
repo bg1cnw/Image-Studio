@@ -67,10 +67,8 @@ func (a *App) layoutControls(gtx layout.Context) layout.Dimensions {
 }
 
 func (a *App) layoutSubmitDock(gtx layout.Context) layout.Dimensions {
-	return a.borderedSurface(gtx, fluent.sidebar, fluentCardRadius, rgba(0xffffff, 0x00), func(gtx layout.Context) layout.Dimensions {
-		return layout.Inset{Top: 4, Bottom: 2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return a.layoutActions(gtx)
-		})
+	return layout.Inset{Top: 6, Bottom: 2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return a.layoutActions(gtx)
 	})
 }
 
@@ -105,7 +103,51 @@ func (a *App) layoutModeCard(gtx layout.Context) layout.Dimensions {
 				return a.sectionEyebrow(gtx, "模式")
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return a.segmented(gtx, modeChoices, a.mode, a.modeButtons, func(value string) { a.mode = value })
+				return a.borderedSurface(gtx, accentAlpha(0x06), unit.Dp(10), fluent.border, func(gtx layout.Context) layout.Dimensions {
+					return layout.UniformInset(unit.Dp(2)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						children := make([]layout.FlexChild, 0, len(modeChoices))
+						for idx := range modeChoices {
+							idx := idx
+							for a.modeButtons[idx].Clicked(gtx) {
+								a.mode = modeChoices[idx].Value
+							}
+							children = append(children, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+								active := a.mode == modeChoices[idx].Value
+								icon := uiIconPlay
+								if modeChoices[idx].Value == string(client.ModeEdit) {
+									icon = uiIconEdit
+								}
+								return a.surfaceButton(
+									gtx,
+									&a.modeButtons[idx],
+									chooseColor(active, fluent.surface, rgba(0xffffff, 0x00)),
+									chooseColor(active, fluent.surface, fluent.surface),
+									chooseColor(active, accentAlpha(0x14), rgba(0xffffff, 0x00)),
+									fluentControlRadius,
+									layout.Inset{Top: 9, Bottom: 9, Left: 10, Right: 10},
+									func(gtx layout.Context) layout.Dimensions {
+										fg := chooseColor(active, fluent.text, fluent.textMuted)
+										return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+											return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+												layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+													return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+														return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+															return icon.Layout(gtx, fg)
+														})
+													})
+												}),
+												layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+													return a.label(gtx, modeChoices[idx].Label, unit.Sp(11), fg, chooseFontWeight(active))
+												}),
+											)
+										})
+									},
+								)
+							}))
+						}
+						return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(2))}.Layout(gtx, children...)
+					})
+				})
 			}),
 		)
 	})
@@ -160,10 +202,10 @@ func (a *App) layoutPromptCard(gtx layout.Context) layout.Dimensions {
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-							return a.label(gtx, title, unit.Sp(11), fluent.textMuted, font.Bold)
+							return a.sectionEyebrow(gtx, title)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.staticPill(gtx, fmt.Sprintf("%d", promptLen), false, true)
+							return a.metaBadge(gtx, fmt.Sprintf("%d", promptLen), false)
 						}),
 					)
 				}),
@@ -1153,7 +1195,7 @@ func (a *App) composeSectionCard(gtx layout.Context, body layout.Widget) layout.
 func (a *App) layoutAspectSection(gtx layout.Context, activeAspect string, currentResolution string) layout.Dimensions {
 	children := make([]layout.FlexChild, 0, 2)
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		return a.label(gtx, "比例", unit.Sp(11), fluent.textMuted, font.Medium)
+		return a.sectionEyebrow(gtx, "比例")
 	}))
 	children = append(children, layout.Rigid(layout.Spacer{Height: unit.Dp(6)}.Layout))
 
@@ -1193,11 +1235,11 @@ func (a *App) layoutStyleSection(gtx layout.Context) layout.Dimensions {
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					return a.label(gtx, "风格", unit.Sp(11), fluent.textMuted, font.Medium)
+					return a.sectionEyebrow(gtx, "风格")
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					if a.styleTag == "" {
-						return a.label(gtx, "默认风格", unit.Sp(10), fluent.textDim, font.Normal)
+						return a.metaBadge(gtx, "默认风格", true)
 					}
 					return a.ghostIconTextButton(gtx, &a.clearStyleButton, uiIconClear, "清除", true)
 				}),
@@ -1263,11 +1305,17 @@ func (a *App) layoutSourceInputSection(gtx layout.Context, sourcePaths []string,
 
 	children := []layout.FlexChild{
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			title := "源图片 / 参考图"
-			if len(sourcePaths) > 0 {
-				title += fmt.Sprintf(" · %d 张", len(sourcePaths))
-			}
-			return a.label(gtx, title, unit.Sp(11), fluent.textMuted, font.Medium)
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					return a.sectionEyebrow(gtx, "源图片 / 参考图")
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if len(sourcePaths) == 0 {
+						return layout.Dimensions{}
+					}
+					return a.metaBadge(gtx, fmt.Sprintf("%d 张", len(sourcePaths)), true)
+				}),
+			)
 		}),
 		layout.Rigid(layout.Spacer{Height: unit.Dp(6)}.Layout),
 	}
@@ -1350,7 +1398,7 @@ func (a *App) layoutResolutionSection(gtx layout.Context, activeAspect string, a
 	choices := visibleResolutionChoices(a.api, a.policy, a.imageModelInput.Text())
 	children := []layout.FlexChild{
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return a.label(gtx, "分辨率", unit.Sp(11), fluent.textMuted, font.Medium)
+			return a.sectionEyebrow(gtx, "分辨率")
 		}),
 		layout.Rigid(layout.Spacer{Height: unit.Dp(6)}.Layout),
 	}
@@ -1385,10 +1433,10 @@ func (a *App) layoutBatchCountSection(gtx layout.Context) layout.Dimensions {
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					return a.label(gtx, "出图张数", unit.Sp(11), fluent.textMuted, font.Medium)
+					return a.sectionEyebrow(gtx, "出图张数")
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.label(gtx, fmt.Sprintf("%dx", batchCount), unit.Sp(10), fluent.textDim, font.Medium)
+					return a.metaBadge(gtx, fmt.Sprintf("%dx", batchCount), true)
 				}),
 			)
 		}),
