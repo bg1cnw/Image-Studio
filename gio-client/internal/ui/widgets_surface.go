@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	fluentControlRadius = unit.Dp(8)
-	fluentCardRadius    = unit.Dp(12)
+	fluentControlRadius = unit.Dp(4)
+	fluentCardRadius    = unit.Dp(8)
 	fluentBadgeRadius   = unit.Dp(4)
 	fluentModalRadius   = unit.Dp(8)
 )
@@ -395,6 +395,34 @@ func (a *App) toolbarIconButton(
 	)
 }
 
+func (a *App) toolbarStaticIcon(
+	gtx layout.Context,
+	icon *widget.Icon,
+	active bool,
+	disabled bool,
+) layout.Dimensions {
+	bg := rgba(0xffffff, 0x00)
+	border := rgba(0xffffff, 0x00)
+	fg := fluent.textMuted
+	if disabled {
+		fg = withAlpha(fluent.textDim, 0x8a)
+	}
+	if active {
+		bg = fluent.accentSoft
+		border = accentAlpha(0x24)
+		fg = fluent.accent
+	}
+	return a.borderedSurface(gtx, bg, fluentControlRadius, border, func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Top: 8, Bottom: 8, Left: 8, Right: 8}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+				return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+					return icon.Layout(gtx, fg)
+				})
+			})
+		})
+	})
+}
+
 func (a *App) historyMiniIconButton(
 	gtx layout.Context,
 	btn *widget.Clickable,
@@ -731,13 +759,13 @@ func (a *App) layoutStandardModal(
 	closeBtn *widget.Clickable,
 	body layout.Widget,
 ) layout.Dimensions {
-	paint.FillShape(gtx.Ops, rgba(0x000000, 0x52), clip.Rect{Max: gtx.Constraints.Max}.Op())
+	paint.FillShape(gtx.Ops, rgba(0x000000, 0x32), clip.Rect{Max: gtx.Constraints.Max}.Op())
 	gtx.Constraints.Min = gtx.Constraints.Max
 	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min = image.Point{}
 		return fixedWidth(gtx, width, func(gtx layout.Context) layout.Dimensions {
 			frame := func(gtx layout.Context) layout.Dimensions {
-				return a.elevatedBorderedSurface(gtx, fluent.surfaceElevated, fluentModalRadius, fluent.border, image.Pt(0, 6), func(gtx layout.Context) layout.Dimensions {
+				return a.elevatedBorderedSurface(gtx, fluent.surface, fluentModalRadius, fluent.border, image.Pt(0, 4), func(gtx layout.Context) layout.Dimensions {
 					return layout.UniformInset(unit.Dp(0)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						children := []layout.FlexChild{
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {

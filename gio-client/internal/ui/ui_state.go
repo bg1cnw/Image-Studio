@@ -188,6 +188,8 @@ func (a *App) loadHistoryPreview(item sharedCompat.HistoryItem, addLog bool) err
 		HasItem:       item.ID != "",
 		Rev:           a.result.Rev + 1,
 	}
+	a.compare = resultState{Rev: a.compare.Rev + 1}
+	a.compareSplitSlider.Value = 0.5
 	a.selectedHistoryID = item.ID
 	a.status = "已载入历史结果"
 	if addLog {
@@ -780,6 +782,10 @@ func (a *App) deleteHistoryItem(id string) {
 	if a.selectedHistoryID == id {
 		a.selectedHistoryID = ""
 	}
+	if a.compare.Item.ID == id {
+		a.compare = resultState{Rev: a.compare.Rev + 1}
+		a.compareSplitSlider.Value = 0.5
+	}
 	if a.activeResultDetail.ID == id {
 		a.activeResultDetail = sharedCompat.HistoryItem{}
 	}
@@ -917,6 +923,8 @@ func (a *App) replaceCurrentResultWithPath(path string, sourceEvent string) erro
 		HasItem:       true,
 		Rev:           a.result.Rev + 1,
 	}
+	a.compare = resultState{Rev: a.compare.Rev + 1}
+	a.compareSplitSlider.Value = 0.5
 	a.selectedHistoryID = ""
 	a.mu.Unlock()
 	a.invalidateNow()
@@ -926,8 +934,66 @@ func (a *App) replaceCurrentResultWithPath(path string, sourceEvent string) erro
 func (a *App) clearCurrentResult() {
 	a.mu.Lock()
 	a.result = resultState{Rev: a.result.Rev + 1}
+	a.compare = resultState{Rev: a.compare.Rev + 1}
+	a.compareSplitSlider.Value = 0.5
 	a.selectedHistoryID = ""
 	a.activePromptGroup = historyPromptGroup{}
+	a.mu.Unlock()
+	a.invalidateNow()
+}
+
+func (a *App) isCompareItem(item sharedCompat.HistoryItem) bool {
+	id := strings.TrimSpace(item.ID)
+	if id == "" {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.compare.Item.ID == id
+}
+
+func (a *App) toggleCompareItem(item sharedCompat.HistoryItem) error {
+	if strings.TrimSpace(item.ID) == "" {
+		a.clearCompare()
+		return nil
+	}
+	if a.isCompareItem(item) {
+		a.clearCompare()
+		return nil
+	}
+	return a.setCompareItem(item)
+}
+
+func (a *App) setCompareItem(item sharedCompat.HistoryItem) error {
+	if strings.TrimSpace(item.ID) == "" && strings.TrimSpace(item.SavedPath) == "" {
+		a.clearCompare()
+		return nil
+	}
+	img, err := a.imageForHistoryItem(item)
+	if err != nil {
+		return err
+	}
+	a.mu.Lock()
+	a.compare = resultState{
+		Image:         img,
+		SavedPath:     item.SavedPath,
+		RawPath:       item.RawPath,
+		RevisedPrompt: item.RevisedPrompt,
+		SourceEvent:   "compare",
+		Item:          item,
+		HasItem:       item.ID != "",
+		Rev:           a.compare.Rev + 1,
+	}
+	a.compareSplitSlider.Value = 0.5
+	a.mu.Unlock()
+	a.invalidateNow()
+	return nil
+}
+
+func (a *App) clearCompare() {
+	a.mu.Lock()
+	a.compare = resultState{Rev: a.compare.Rev + 1}
+	a.compareSplitSlider.Value = 0.5
 	a.mu.Unlock()
 	a.invalidateNow()
 }

@@ -57,6 +57,8 @@ type snapshot struct {
 	RawResponseModalText  string
 	RawResponseModalError string
 	ResultGridOpen        bool
+	Compare               resultState
+	CompareSplit          float32
 	Result                resultState
 	SavePromptVisible     bool
 }
@@ -88,6 +90,8 @@ type workspaceState struct {
 	SelectedHistoryID   string
 	BatchResultIDs      []string
 	ResultGridOpen      bool
+	CompareHistoryID    string
+	CompareSplit        float32
 }
 
 type App struct {
@@ -162,6 +166,7 @@ type App struct {
 	saveAsButton                    widget.Clickable
 	latestResultButton              widget.Clickable
 	currentGroupButton              widget.Clickable
+	closeCompareButton              widget.Clickable
 	closeResultGridButton           widget.Clickable
 	rotateLeftButton                widget.Clickable
 	rotateRightButton               widget.Clickable
@@ -245,6 +250,7 @@ type App struct {
 	fullscreen            bool
 	activeResultDetail    sharedCompat.HistoryItem
 	result                resultState
+	compare               resultState
 	imageOp               paint.ImageOp
 	imageOpRev            int
 	imageCache            map[string]cachedImage
@@ -257,6 +263,7 @@ type App struct {
 	rawResponseModalError string
 	batchResultIDs        []string
 	resultGridOpen        bool
+	compareSplitSlider    widget.Float
 
 	savePromptVisible             bool
 	savePromptSuppressed          bool
@@ -402,6 +409,7 @@ func New() *App {
 	a.settingsProfileList.List.Axis = layout.Vertical
 	a.settingsList.List.Axis = layout.Vertical
 	a.workspaceList.List.Axis = layout.Horizontal
+	a.compareSplitSlider.Value = 0.5
 	a.configureEditors(cfg)
 	a.historyQueryInput.SingleLine = true
 	a.historyTimelineQueryInput.SingleLine = true

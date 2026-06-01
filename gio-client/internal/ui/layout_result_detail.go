@@ -62,7 +62,7 @@ func (a *App) layoutResultDetailModal(gtx layout.Context) layout.Dimensions {
 	}
 	return a.layoutStandardModal(
 		gtx,
-		unit.Dp(760),
+		unit.Dp(720),
 		unit.Dp(620),
 		"生成详情",
 		detailHeadline(item),
@@ -87,7 +87,7 @@ func (a *App) layoutResultDetailPreview(gtx layout.Context, item sharedCompat.Hi
 	return a.card(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return a.borderedSurface(gtx, fluent.surface, unit.Dp(10), fluent.border, func(gtx layout.Context) layout.Dimensions {
+				return a.borderedSurface(gtx, fluent.surface, fluentCardRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {
 					return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						return a.imageThumb(gtx, img, unit.Dp(248), unit.Dp(248), unit.Dp(8))
 					})
@@ -99,12 +99,6 @@ func (a *App) layoutResultDetailPreview(gtx layout.Context, item sharedCompat.Hi
 					item.Size,
 					item.Quality,
 				}), true)
-			}),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				if strings.TrimSpace(item.SavedPath) == "" {
-					return layout.Dimensions{}
-				}
-				return a.singleLineLabel(gtx, historyPathText(item.SavedPath), unit.Sp(10), fluent.textDim, font.Normal)
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				if strings.TrimSpace(item.SavedPath) == "" {
@@ -281,7 +275,7 @@ func (a *App) layoutResultDetailFileSection(gtx layout.Context, item sharedCompa
 				return a.sectionEyebrow(gtx, "文件")
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return a.borderedSurface(gtx, fluent.surface2, unit.Dp(6), fluent.border, func(gtx layout.Context) layout.Dimensions {
+				return a.borderedSurface(gtx, fluent.surface2, fluentCardRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {
 					return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						return a.label(gtx, strings.TrimSpace(item.SavedPath), unit.Sp(11), fluent.textMuted, font.Normal)
 					})
@@ -373,7 +367,7 @@ func (a *App) resultDetailPromptBlock(gtx layout.Context, text string, muted boo
 		fg = fluent.accent
 		border = accentAlpha(0x24)
 	}
-	return a.borderedSurface(gtx, bg, unit.Dp(10), border, func(gtx layout.Context) layout.Dimensions {
+	return a.borderedSurface(gtx, bg, fluentCardRadius, border, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return a.label(gtx, text, unit.Sp(11), fg, font.Normal)
 		})

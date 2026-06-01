@@ -90,6 +90,8 @@ func (a *App) buildWorkspaceSnapshot() workspaceState {
 		SelectedHistoryID:   a.selectedHistoryID,
 		BatchResultIDs:      append([]string(nil), a.batchResultIDs...),
 		ResultGridOpen:      a.resultGridOpen,
+		CompareHistoryID:    a.compare.Item.ID,
+		CompareSplit:        a.compareSplitSlider.Value,
 	}
 }
 
@@ -132,6 +134,8 @@ func (a *App) applyWorkspace(ws workspaceState) {
 	a.promptHelperOpen = false
 	a.settingsModalOpen = false
 	a.activeResultDetail = sharedCompat.HistoryItem{}
+	a.compare = resultState{Rev: a.compare.Rev + 1}
+	a.compareSplitSlider.Value = 0.5
 	a.result = resultState{
 		SavedPath:     ws.ResultSavedPath,
 		RawPath:       ws.ResultRawPath,
@@ -144,6 +148,25 @@ func (a *App) applyWorkspace(ws workspaceState) {
 	if strings.TrimSpace(ws.ResultSavedPath) != "" {
 		if img, err := a.imageForPath(ws.ResultSavedPath); err == nil {
 			a.result.Image = img
+		}
+	}
+	if compareID := strings.TrimSpace(ws.CompareHistoryID); compareID != "" {
+		if item, ok := historyItemByID(a.history, compareID); ok {
+			if img, err := a.imageForHistoryItem(item); err == nil {
+				a.compare = resultState{
+					Image:         img,
+					SavedPath:     item.SavedPath,
+					RawPath:       item.RawPath,
+					RevisedPrompt: item.RevisedPrompt,
+					SourceEvent:   "compare",
+					Item:          item,
+					HasItem:       item.ID != "",
+					Rev:           a.compare.Rev + 1,
+				}
+				if ws.CompareSplit > 0 && ws.CompareSplit < 1 {
+					a.compareSplitSlider.Value = ws.CompareSplit
+				}
+			}
 		}
 	}
 	a.invalidateNow()

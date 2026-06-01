@@ -18,6 +18,7 @@ import (
 )
 
 func (a *App) layoutHistoryAndLogs(gtx layout.Context) layout.Dimensions {
+	clearCompareBtn := a.historyActionButton("clear-compare-rail")
 	for a.historyCollapseButton.Clicked(gtx) {
 		a.historyRailCollapsed = !a.historyRailCollapsed
 	}
@@ -26,6 +27,9 @@ func (a *App) layoutHistoryAndLogs(gtx layout.Context) layout.Dimensions {
 	}
 	for a.openHistoryTimelineMoreButton.Clicked(gtx) {
 		a.openHistoryTimeline()
+	}
+	for clearCompareBtn.Clicked(gtx) {
+		a.clearCompare()
 	}
 	for idx, value := range []string{"all", "generate", "edit"} {
 		for a.historyModeButtons[idx].Clicked(gtx) {
@@ -86,6 +90,12 @@ func (a *App) layoutHistoryAndLogs(gtx layout.Context) layout.Dimensions {
 		for detailBtn.Clicked(gtx) {
 			a.openResultDetail(latest)
 		}
+		compareBtn := a.historyActionButton("feature-compare:" + latest.ID)
+		for compareBtn.Clicked(gtx) {
+			if err := a.toggleCompareItem(latest); err != nil && !isMissingPreview(err) {
+				a.appendLog("载入对比图失败: " + err.Error())
+			}
+		}
 	}
 	for _, entry := range visible {
 		if entry.Kind != "item" {
@@ -95,6 +105,12 @@ func (a *App) layoutHistoryAndLogs(gtx layout.Context) layout.Dimensions {
 		detailBtn := a.historyActionButton("row-detail:" + item.ID)
 		for detailBtn.Clicked(gtx) {
 			a.openResultDetail(item)
+		}
+		compareBtn := a.historyActionButton("row-compare:" + item.ID)
+		for compareBtn.Clicked(gtx) {
+			if err := a.toggleCompareItem(item); err != nil && !isMissingPreview(err) {
+				a.appendLog("载入对比图失败: " + err.Error())
+			}
 		}
 		deleteBtn := a.historyActionButton("row-delete:" + item.ID)
 		for deleteBtn.Clicked(gtx) {
@@ -113,6 +129,15 @@ func (a *App) layoutHistoryAndLogs(gtx layout.Context) layout.Dimensions {
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return a.layoutHistorySummaryCard(gtx, snap, filtered, generateCount, editCount)
 				}),
+			}
+
+			if snap.Compare.HasItem {
+				children = append(children,
+					layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.compactIconTextButton(gtx, clearCompareBtn, uiIconCompare, "退出对比", true)
+					}),
+				)
 			}
 
 			if !a.historyRailCollapsed && hasLatest {
@@ -368,7 +393,7 @@ func (a *App) layoutHistorySummaryCard(
 	editCount int,
 ) layout.Dimensions {
 	return a.card(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
+		return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -476,50 +501,80 @@ func (a *App) historyStatButton(
 func (a *App) layoutLatestHistoryCard(gtx layout.Context, item sharedCompat.HistoryItem, active bool) layout.Dimensions {
 	btn := a.historyButton("feature:" + item.ID)
 	detailBtn := a.historyActionButton("feature-detail:" + item.ID)
-	return a.surfaceButton(
-		gtx,
-		btn,
-		chooseColor(active, fluent.surface2, fluent.surface),
-		fluent.surface2,
-		chooseColor(active, accentAlpha(0x48), fluent.border),
-		unit.Dp(6),
-		layout.Inset{Top: 8, Bottom: 8, Left: 8, Right: 8},
-		func(gtx layout.Context) layout.Dimensions {
-			img, _ := a.imageForHistoryItem(item)
-			return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-							return a.sectionEyebrow(gtx, "最近作品")
-						}),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.textActionButton(gtx, &a.openHistoryTimelineButton, "完整历史", true)
-						}),
-					)
-				}),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.layoutHistoryModeThumb(gtx, img, item.Mode, unit.Dp(88), unit.Dp(88))
-						}),
-						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-							return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
-								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return a.clampedLabel(gtx, shortPrompt(item.Prompt), unit.Sp(12), fluent.text, font.Medium, 2)
-								}),
-								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return a.metaBadgeRow(gtx, historyMetaBadgeItems(item), true)
-								}),
-								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return a.compactButton(gtx, detailBtn, "更多", false)
-								}),
-							)
-						}),
-					)
-				}),
-			)
-		},
-	)
+	compareBtn := a.historyActionButton("feature-compare:" + item.ID)
+	compareActive := a.isCompareItem(item)
+	return a.card(gtx, func(gtx layout.Context) layout.Dimensions {
+		img, _ := a.imageForHistoryItem(item)
+		return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+									return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+										return uiIconRefresh.Layout(gtx, fluent.accent)
+									})
+								})
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.sectionEyebrow(gtx, "最近作品")
+							}),
+						)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.textActionButton(gtx, &a.openHistoryTimelineButton, "完整历史", true)
+					}),
+				)
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return a.surfaceButton(
+					gtx,
+					btn,
+					chooseColor(active, fluent.surface2, fluent.surface),
+					fluent.surface2,
+					chooseColor(active, accentAlpha(0x48), fluent.border),
+					unit.Dp(6),
+					layout.Inset{Top: 8, Bottom: 8, Left: 8, Right: 8},
+					func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.layoutHistoryThumbWithCompare(gtx, img, item.Mode, unit.Dp(88), unit.Dp(88), compareActive)
+							}),
+							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+								return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(7))}.Layout(gtx,
+									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+										return a.clampedLabel(gtx, shortPrompt(item.Prompt), unit.Sp(12), fluent.text, font.Medium, 2)
+									}),
+									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+										items := historyMetaBadgeItems(item)
+										if compareActive {
+											items = append([]string{"B"}, items...)
+										}
+										return a.metaBadgeRow(gtx, items, true)
+									}),
+									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+										return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+												label := "对比"
+												if compareActive {
+													label = "退出对比"
+												}
+												return a.compactIconTextButton(gtx, compareBtn, uiIconCompare, label, compareActive)
+											}),
+											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+												return a.compactButton(gtx, detailBtn, "更多", false)
+											}),
+										)
+									}),
+								)
+							}),
+						)
+					},
+				)
+			}),
+		)
+	})
 }
 
 func (a *App) layoutPromptGroupModal(gtx layout.Context) layout.Dimensions {
@@ -542,6 +597,12 @@ func (a *App) layoutPromptGroupModal(gtx layout.Context) layout.Dimensions {
 	latestDetailBtn := a.historyActionButton("modal-latest-detail:" + latest.ID)
 	for latestDetailBtn.Clicked(gtx) {
 		a.openResultDetail(latest)
+	}
+	latestCompareBtn := a.historyActionButton("modal-latest-compare:" + latest.ID)
+	for latestCompareBtn.Clicked(gtx) {
+		if err := a.toggleCompareItem(latest); err != nil && !isMissingPreview(err) {
+			a.appendLog("载入对比图失败: " + err.Error())
+		}
 	}
 	for _, item := range group.Items {
 		item := item
@@ -604,6 +665,9 @@ func (a *App) layoutPromptGroupModal(gtx layout.Context) layout.Dimensions {
 												return a.compactButton(gtx, latestBtn, "查看最新", true)
 											}),
 											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+												return a.compactIconTextButton(gtx, latestCompareBtn, uiIconCompare, chooseCompareButtonLabel(a.isCompareItem(latest)), a.isCompareItem(latest))
+											}),
+											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 												return a.compactIconTextButton(gtx, latestDetailBtn, uiIconMoreHoriz, "更多", false)
 											}),
 										)
@@ -647,15 +711,22 @@ func (a *App) layoutPromptGroupModalGridRow(gtx layout.Context, items []sharedCo
 func (a *App) layoutPromptGroupModalTile(gtx layout.Context, item sharedCompat.HistoryItem, active bool) layout.Dimensions {
 	btn := a.historyButton("modal:" + item.ID)
 	detailBtn := a.historyActionButton("modal-detail:" + item.ID)
+	compareBtn := a.historyActionButton("modal-compare:" + item.ID)
+	compareActive := a.isCompareItem(item)
 	for detailBtn.Clicked(gtx) {
 		a.openResultDetail(item)
+	}
+	for compareBtn.Clicked(gtx) {
+		if err := a.toggleCompareItem(item); err != nil && !isMissingPreview(err) {
+			a.appendLog("载入对比图失败: " + err.Error())
+		}
 	}
 	return a.surfaceButton(
 		gtx,
 		btn,
-		chooseColor(active, fluent.surface2, fluent.surface),
+		chooseColor(active || compareActive, fluent.surface2, fluent.surface),
 		fluent.surface2,
-		chooseColor(active, accentAlpha(0x48), fluent.border),
+		chooseColor(active || compareActive, accentAlpha(0x48), fluent.border),
 		unit.Dp(6),
 		layout.Inset{Top: 8, Bottom: 8, Left: 8, Right: 8},
 		func(gtx layout.Context) layout.Dimensions {
@@ -689,22 +760,54 @@ func (a *App) layoutPromptGroupModalTile(gtx layout.Context, item sharedCompat.H
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 					return layout.NE.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(6), Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return a.surfaceButton(
-								gtx,
-								detailBtn,
-								rgba(0x111111, 0xb2),
-								accentAlpha(0xe6),
-								rgba(0xffffff, 0x00),
-								unit.Dp(4),
-								layout.Inset{Top: 4, Bottom: 4, Left: 4, Right: 4},
-								func(gtx layout.Context) layout.Dimensions {
-									return fixedWidth(gtx, unit.Dp(12), func(gtx layout.Context) layout.Dimensions {
-										return fixedHeight(gtx, unit.Dp(12), func(gtx layout.Context) layout.Dimensions {
-											return uiIconMoreHoriz.Layout(gtx, fluent.white)
-										})
-									})
-								},
+							return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return a.surfaceButton(
+										gtx,
+										compareBtn,
+										chooseColor(compareActive, accentAlpha(0xe6), rgba(0x111111, 0xb2)),
+										accentAlpha(0xe6),
+										rgba(0xffffff, 0x00),
+										unit.Dp(4),
+										layout.Inset{Top: 4, Bottom: 4, Left: 4, Right: 4},
+										func(gtx layout.Context) layout.Dimensions {
+											return fixedWidth(gtx, unit.Dp(12), func(gtx layout.Context) layout.Dimensions {
+												return fixedHeight(gtx, unit.Dp(12), func(gtx layout.Context) layout.Dimensions {
+													return uiIconCompare.Layout(gtx, fluent.white)
+												})
+											})
+										},
+									)
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return a.surfaceButton(
+										gtx,
+										detailBtn,
+										rgba(0x111111, 0xb2),
+										accentAlpha(0xe6),
+										rgba(0xffffff, 0x00),
+										unit.Dp(4),
+										layout.Inset{Top: 4, Bottom: 4, Left: 4, Right: 4},
+										func(gtx layout.Context) layout.Dimensions {
+											return fixedWidth(gtx, unit.Dp(12), func(gtx layout.Context) layout.Dimensions {
+												return fixedHeight(gtx, unit.Dp(12), func(gtx layout.Context) layout.Dimensions {
+													return uiIconMoreHoriz.Layout(gtx, fluent.white)
+												})
+											})
+										},
+									)
+								}),
 							)
+						})
+					})
+				}),
+				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+					if !compareActive {
+						return layout.Dimensions{}
+					}
+					return layout.NE.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return layout.Inset{Top: unit.Dp(36), Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return a.badge(gtx, "B", accentAlpha(0xe6), fluent.white)
 						})
 					})
 				}),
@@ -778,6 +881,13 @@ func (a *App) layoutHistoryGroupRow(gtx layout.Context, group historyPromptGroup
 	active := historyPromptGroupContains(group, selectedHistoryID)
 	summaryBtn := a.historyButton("group:" + group.Key)
 	expandBtn := a.historyButton("expand:" + group.Key)
+	compareBtn := a.historyActionButton("group-compare:" + group.Key)
+	compareActive := a.isCompareItem(group.Representative)
+	for compareBtn.Clicked(gtx) {
+		if err := a.toggleCompareItem(group.Representative); err != nil && !isMissingPreview(err) {
+			a.appendLog("载入对比图失败: " + err.Error())
+		}
+	}
 	prompt := group.Prompt
 	if prompt == "" {
 		prompt = "(无 prompt)"
@@ -789,7 +899,7 @@ func (a *App) layoutHistoryGroupRow(gtx layout.Context, group historyPromptGroup
 
 	return a.borderedSurface(gtx, chooseColor(active, fluent.surface2, fluent.surface), unit.Dp(6), chooseColor(active, accentAlpha(0x48), fluent.border), func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(7)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(7))}.Layout(gtx,
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					return summaryBtn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
@@ -810,7 +920,10 @@ func (a *App) layoutHistoryGroupRow(gtx layout.Context, group historyPromptGroup
 					})
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.historyMiniIconButton(gtx, expandBtn, uiIconGrid, false)
+					return a.historyMiniIconButton(gtx, compareBtn, uiIconCompare, compareActive)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return a.historyMiniIconButton(gtx, expandBtn, uiIconGrid, active)
 				}),
 			)
 		})
@@ -852,6 +965,10 @@ func (a *App) layoutHistoryGroupPile(gtx layout.Context, group historyPromptGrou
 }
 
 func (a *App) layoutHistoryModeThumb(gtx layout.Context, img image.Image, mode string, width unit.Dp, height unit.Dp) layout.Dimensions {
+	return a.layoutHistoryThumbWithCompare(gtx, img, mode, width, height, false)
+}
+
+func (a *App) layoutHistoryThumbWithCompare(gtx layout.Context, img image.Image, mode string, width unit.Dp, height unit.Dp, compareActive bool) layout.Dimensions {
 	return layout.Stack{}.Layout(gtx,
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 			return a.imageThumbCover(gtx, img, width, height, unit.Dp(4))
@@ -860,6 +977,16 @@ func (a *App) layoutHistoryModeThumb(gtx layout.Context, img image.Image, mode s
 			return layout.NW.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Left: unit.Dp(4), Top: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return a.historyModeBadge(gtx, mode)
+				})
+			})
+		}),
+		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+			if !compareActive {
+				return layout.Dimensions{}
+			}
+			return layout.NE.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: unit.Dp(4), Right: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return a.badge(gtx, "B", accentAlpha(0xe6), fluent.white)
 				})
 			})
 		}),
@@ -881,23 +1008,25 @@ func (a *App) historyModeBadge(gtx layout.Context, mode string) layout.Dimension
 func (a *App) layoutHistoryRow(gtx layout.Context, item sharedCompat.HistoryItem, active bool) layout.Dimensions {
 	btn := a.historyButton("row:" + item.ID)
 	detailBtn := a.historyActionButton("row-detail:" + item.ID)
+	compareBtn := a.historyActionButton("row-compare:" + item.ID)
 	deleteBtn := a.historyActionButton("row-delete:" + item.ID)
+	compareActive := a.isCompareItem(item)
 	return a.surfaceButton(
 		gtx,
 		btn,
-		chooseColor(active, fluent.surface2, fluent.surface),
+		chooseColor(active || compareActive, fluent.surface2, fluent.surface),
 		fluent.surface2,
-		chooseColor(active, accentAlpha(0x48), fluent.border),
+		chooseColor(active || compareActive, accentAlpha(0x48), fluent.border),
 		unit.Dp(6),
 		layout.Inset{Top: 7, Bottom: 7, Left: 7, Right: 7},
 		func(gtx layout.Context) layout.Dimensions {
 			img, _ := a.imageForHistoryItem(item)
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.imageThumbCover(gtx, img, unit.Dp(48), unit.Dp(48), unit.Dp(4))
+					return a.layoutHistoryThumbWithCompare(gtx, img, item.Mode, unit.Dp(48), unit.Dp(48), compareActive)
 				}),
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(4))}.Layout(gtx,
+					return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(5))}.Layout(gtx,
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return a.clampedLabel(gtx, shortPrompt(item.Prompt), unit.Sp(12), fluent.text, font.Medium, 2)
 						}),
@@ -907,7 +1036,11 @@ func (a *App) layoutHistoryRow(gtx layout.Context, item sharedCompat.HistoryItem
 									return a.historyModeBadge(gtx, item.Mode)
 								}),
 								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-									return a.metaBadgeRow(gtx, historyMetaBadgeItems(item), true)
+									items := historyMetaBadgeItems(item)
+									if compareActive {
+										items = append([]string{"B"}, items...)
+									}
+									return a.metaBadgeRow(gtx, items, true)
 								}),
 							)
 						}),
@@ -915,6 +1048,9 @@ func (a *App) layoutHistoryRow(gtx layout.Context, item sharedCompat.HistoryItem
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Vertical, Alignment: layout.End, Gap: gtx.Dp(unit.Dp(4))}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return a.compactIconButton(gtx, compareBtn, uiIconCompare, compareActive)
+						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return a.compactIconButton(gtx, detailBtn, uiIconMoreHoriz, false)
 						}),
@@ -926,6 +1062,13 @@ func (a *App) layoutHistoryRow(gtx layout.Context, item sharedCompat.HistoryItem
 			)
 		},
 	)
+}
+
+func chooseCompareButtonLabel(active bool) string {
+	if active {
+		return "退出对比"
+	}
+	return "对比"
 }
 
 func (a *App) layoutLogsCard(gtx layout.Context, snap snapshot) layout.Dimensions {

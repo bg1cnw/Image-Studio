@@ -115,6 +115,8 @@ func (a *App) openResultGrid() {
 		return
 	}
 	a.resultGridOpen = true
+	a.compare = resultState{Rev: a.compare.Rev + 1}
+	a.compareSplitSlider.Value = 0.5
 	a.mu.Unlock()
 	a.invalidateNow()
 }
@@ -240,6 +242,8 @@ func (a *App) readSnapshot() snapshot {
 		RawResponseModalText:  a.rawResponseModalText,
 		RawResponseModalError: a.rawResponseModalError,
 		ResultGridOpen:        a.resultGridOpen,
+		Compare:               a.compare,
+		CompareSplit:          a.compareSplitSlider.Value,
 		Result:                a.result,
 		SavePromptVisible:     a.savePromptVisible,
 	}

@@ -171,10 +171,11 @@ func (a *App) layoutHeader(gtx layout.Context) layout.Dimensions {
 
 func (a *App) layoutHeaderBrand(gtx layout.Context) layout.Dimensions {
 	quote := currentHeaderQuote(a.headerQuoteIndex)
-	quoteText := "图像工作台"
-	if quote.Text != "" {
-		quoteText = quote.Text
+	quoteText := strings.TrimSpace(quote.Text)
+	if quoteText == "" {
+		quoteText = "山有顶峰，湖有彼岸；在人生漫漫长途中，万物皆有回转。"
 	}
+	quoteFrom := strings.TrimSpace(quote.From)
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(1))}.Layout(gtx,
@@ -186,14 +187,21 @@ func (a *App) layoutHeaderBrand(gtx layout.Context) layout.Dimensions {
 						gtx,
 						&a.headerQuoteButton,
 						rgba(0xffffff, 0x00),
-						rgba(0x000000, 0x06),
+						fluent.toolHoverBg,
 						rgba(0xffffff, 0x00),
-						unit.Dp(4),
+						fluentControlRadius,
 						layout.Inset{Top: 1, Bottom: 1, Left: 0, Right: 4},
 						func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(5))}.Layout(gtx,
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return a.label(gtx, "“", unit.Sp(10), fluent.textDim, font.Normal)
+								}),
 								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-									return a.singleLineLabel(gtx, quoteText, unit.Sp(10), fluent.textMuted, font.Normal)
+									text := quoteText
+									if quoteFrom != "" {
+										text += " — " + quoteFrom
+									}
+									return a.singleLineLabel(gtx, text, unit.Sp(10), fluent.textMuted, font.Normal)
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 									if !a.headerQuoteButton.Hovered() {
@@ -315,11 +323,11 @@ func (a *App) layoutBody(gtx layout.Context) layout.Dimensions {
 	}
 	width := gtx.Constraints.Max.X
 	leftMin := gtx.Dp(unit.Dp(336))
-	leftMax := gtx.Dp(unit.Dp(384))
+	leftMax := gtx.Dp(unit.Dp(360))
 	rightMin := gtx.Dp(unit.Dp(300))
-	rightMax := gtx.Dp(unit.Dp(344))
+	rightMax := gtx.Dp(unit.Dp(320))
 	centerMin := gtx.Dp(unit.Dp(360))
-	leftWidth := clampInt(int(float64(width)*0.25), leftMin, leftMax)
+	leftWidth := clampInt(int(float64(width)*0.24), leftMin, leftMax)
 	rightWidth := clampInt(int(float64(width)*0.22), rightMin, rightMax)
 	if overflow := leftWidth + rightWidth + centerMin - width; overflow > 0 {
 		reduceRight := min(overflow, rightWidth-rightMin)
@@ -449,7 +457,7 @@ func (a *App) layoutWorkspaceTab(gtx layout.Context, ws workspaceState, active b
 									if active {
 										weight = font.SemiBold
 									}
-									return a.singleLineLabel(gtx, a.displayedWorkspaceName(ws), unit.Sp(11), chooseColor(active, fluent.text, fluent.textMuted), weight)
+									return a.singleLineLabel(gtx, a.displayedWorkspaceName(ws), unit.Sp(12), chooseColor(active, fluent.text, fluent.textMuted), weight)
 								})
 							}),
 						)
@@ -473,9 +481,13 @@ func (a *App) layoutWorkspaceTab(gtx layout.Context, ws workspaceState, active b
 								fluent.surface2,
 								rgba(0xffffff, 0x00),
 								unit.Dp(3),
-								layout.Inset{Top: 2, Bottom: 2, Left: 4, Right: 4},
+								layout.Inset{Top: 2, Bottom: 2, Left: 3, Right: 3},
 								func(gtx layout.Context) layout.Dimensions {
-									return a.label(gtx, "×", unit.Sp(10), fluent.textDim, font.Medium)
+									return fixedWidth(gtx, unit.Dp(12), func(gtx layout.Context) layout.Dimensions {
+										return fixedHeight(gtx, unit.Dp(12), func(gtx layout.Context) layout.Dimensions {
+											return uiIconClose.Layout(gtx, fluent.textDim)
+										})
+									})
 								},
 							)
 						})
