@@ -317,9 +317,13 @@ func (a *App) layoutHistoryTimelineDayGroup(gtx layout.Context, dayGroup history
 
 func (a *App) layoutHistoryTimelineEntry(gtx layout.Context, entry historyPromptEntry, selectedHistoryID string) layout.Dimensions {
 	if entry.Kind == "group" {
-		return a.layoutHistoryTimelineGroupRow(gtx, entry.Group, selectedHistoryID)
+		return a.layoutTimelineTrackRow(gtx, func(gtx layout.Context) layout.Dimensions {
+			return a.layoutHistoryTimelineGroupRow(gtx, entry.Group, selectedHistoryID)
+		})
 	}
-	return a.layoutHistoryTimelineRow(gtx, entry.Item, entry.Item.ID == selectedHistoryID)
+	return a.layoutTimelineTrackRow(gtx, func(gtx layout.Context) layout.Dimensions {
+		return a.layoutHistoryTimelineRow(gtx, entry.Item, entry.Item.ID == selectedHistoryID)
+	})
 }
 
 func (a *App) layoutHistoryTimelineGroupRow(gtx layout.Context, group historyPromptGroup, selectedHistoryID string) layout.Dimensions {
@@ -378,6 +382,32 @@ func (a *App) layoutHistoryTimelineGroupRow(gtx layout.Context, group historyPro
 			)
 		})
 	})
+}
+
+func (a *App) layoutTimelineTrackRow(gtx layout.Context, body layout.Widget) layout.Dimensions {
+	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Start}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return fixedWidth(gtx, unit.Dp(120), func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return fixedWidth(gtx, unit.Dp(10), func(gtx layout.Context) layout.Dimensions {
+								return fixedHeight(gtx, unit.Dp(10), func(gtx layout.Context) layout.Dimensions {
+									return a.surface(gtx, fluent.accent, unit.Dp(5), layout.Spacer{}.Layout)
+								})
+							})
+						}),
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							return fixedWidth(gtx, unit.Dp(1), func(gtx layout.Context) layout.Dimensions {
+								return a.surface(gtx, withAlpha(fluent.textDim, 0x22), 0, layout.Spacer{}.Layout)
+							})
+						}),
+					)
+				})
+			})
+		}),
+		layout.Flexed(1, body),
+	)
 }
 
 func (a *App) layoutHistoryTimelineRow(gtx layout.Context, item sharedCompat.HistoryItem, active bool) layout.Dimensions {
