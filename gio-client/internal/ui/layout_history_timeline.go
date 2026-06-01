@@ -214,7 +214,7 @@ func (a *App) timelineFilterButton(gtx layout.Context, btn *widget.Clickable, la
 		btn,
 		chooseColor(open, fluent.surface2, fluent.surface),
 		fluent.surface2,
-		fluent.border2,
+		fluent.border,
 		fluentControlRadius,
 		layout.Inset{Top: 9, Bottom: 9, Left: 10, Right: 10},
 		func(gtx layout.Context) layout.Dimensions {
@@ -240,29 +240,29 @@ func (a *App) timelineFilterButton(gtx layout.Context, btn *widget.Clickable, la
 }
 
 func (a *App) layoutTimelineFilterRow(gtx layout.Context) layout.Dimensions {
-	return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+	return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.searchField(gtx, &a.historyTimelineQueryInput, "搜索 prompt / revised prompt...")
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return fixedWidth(gtx, unit.Dp(140), func(gtx layout.Context) layout.Dimensions {
-				return a.timelineFilterButton(
-					gtx,
-					&a.historyTimelineModePickerButton,
-					timelineModeFilterLabel(a.historyTimelineModeFilter),
-					a.historyTimelineModePickerOpen,
-				)
-			})
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return fixedWidth(gtx, unit.Dp(140), func(gtx layout.Context) layout.Dimensions {
-				return a.timelineFilterButton(
-					gtx,
-					&a.historyTimelineDatePickerButton,
-					timelineDateFilterLabel(a.historyTimelineDateFilter),
-					a.historyTimelineDatePickerOpen,
-				)
-			})
+			return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					return a.timelineFilterButton(
+						gtx,
+						&a.historyTimelineModePickerButton,
+						timelineModeFilterLabel(a.historyTimelineModeFilter),
+						a.historyTimelineModePickerOpen,
+					)
+				}),
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					return a.timelineFilterButton(
+						gtx,
+						&a.historyTimelineDatePickerButton,
+						timelineDateFilterLabel(a.historyTimelineDateFilter),
+						a.historyTimelineDatePickerOpen,
+					)
+				}),
+			)
 		}),
 	)
 }
@@ -271,36 +271,25 @@ func (a *App) layoutTimelineFilterMenus(gtx layout.Context) layout.Dimensions {
 	if !a.historyTimelineModePickerOpen && !a.historyTimelineDatePickerOpen {
 		return layout.Dimensions{}
 	}
-	return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
+	return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return layout.Dimensions{}
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if !a.historyTimelineModePickerOpen {
-				return fixedWidth(gtx, unit.Dp(140), func(gtx layout.Context) layout.Dimensions {
-					return layout.Dimensions{}
-				})
+				return layout.Dimensions{}
 			}
-			return fixedWidth(gtx, unit.Dp(140), func(gtx layout.Context) layout.Dimensions {
-				return a.timelineFilterMenu(gtx, []timelineFilterOption{
-					{Label: "全部模式", Button: &a.historyTimelineModeButtons[0], Active: a.historyTimelineModeFilter == "all"},
-					{Label: "文生图", Button: &a.historyTimelineModeButtons[1], Active: a.historyTimelineModeFilter == "generate"},
-					{Label: "图生图", Button: &a.historyTimelineModeButtons[2], Active: a.historyTimelineModeFilter == "edit"},
-				})
+			return a.timelineFilterMenu(gtx, []timelineFilterOption{
+				{Label: "全部模式", Button: &a.historyTimelineModeButtons[0], Active: a.historyTimelineModeFilter == "all"},
+				{Label: "文生图", Button: &a.historyTimelineModeButtons[1], Active: a.historyTimelineModeFilter == "generate"},
+				{Label: "图生图", Button: &a.historyTimelineModeButtons[2], Active: a.historyTimelineModeFilter == "edit"},
 			})
 		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			if !a.historyTimelineDatePickerOpen {
-				return fixedWidth(gtx, unit.Dp(140), func(gtx layout.Context) layout.Dimensions {
-					return layout.Dimensions{}
-				})
+				return layout.Dimensions{}
 			}
-			return fixedWidth(gtx, unit.Dp(140), func(gtx layout.Context) layout.Dimensions {
-				return a.timelineFilterMenu(gtx, []timelineFilterOption{
-					{Label: "全部日期", Button: &a.historyTimelineDateButtons[0], Active: a.historyTimelineDateFilter == "all"},
-					{Label: "今天", Button: &a.historyTimelineDateButtons[1], Active: a.historyTimelineDateFilter == "today"},
-					{Label: "近 7 天", Button: &a.historyTimelineDateButtons[2], Active: a.historyTimelineDateFilter == "week"},
-				})
+			return a.timelineFilterMenu(gtx, []timelineFilterOption{
+				{Label: "全部日期", Button: &a.historyTimelineDateButtons[0], Active: a.historyTimelineDateFilter == "all"},
+				{Label: "今天", Button: &a.historyTimelineDateButtons[1], Active: a.historyTimelineDateFilter == "today"},
+				{Label: "近 7 天", Button: &a.historyTimelineDateButtons[2], Active: a.historyTimelineDateFilter == "week"},
 			})
 		}),
 	)
@@ -346,8 +335,8 @@ func (a *App) layoutHistoryTimelineDayGroup(gtx layout.Context, dayGroup history
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return fixedWidth(gtx, unit.Dp(8), func(gtx layout.Context) layout.Dimensions {
-						return fixedHeight(gtx, unit.Dp(8), func(gtx layout.Context) layout.Dimensions {
+					return fixedWidth(gtx, unit.Dp(10), func(gtx layout.Context) layout.Dimensions {
+						return fixedHeight(gtx, unit.Dp(10), func(gtx layout.Context) layout.Dimensions {
 							return a.surface(gtx, fluent.accent, unit.Dp(4), layout.Spacer{}.Layout)
 						})
 					})
@@ -356,7 +345,7 @@ func (a *App) layoutHistoryTimelineDayGroup(gtx layout.Context, dayGroup history
 					return a.label(gtx, dayGroup.Label, unit.Sp(13), fluent.text, font.SemiBold)
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.metaBadge(gtx, strconv.Itoa(len(dayGroup.Entries))+" 组", true)
+					return a.singleLineLabel(gtx, strconv.Itoa(len(dayGroup.Entries))+" 组", unit.Sp(11), fluent.textMuted, font.Medium)
 				}),
 			)
 		}),
@@ -390,7 +379,6 @@ func (a *App) layoutHistoryTimelineGroupRow(gtx layout.Context, group historyPro
 	summaryBtn := a.historyButton("timeline-group:" + group.Key)
 	latestBtn := a.historyActionButton("timeline-group-latest:" + group.Key)
 	expandBtn := a.historyActionButton("timeline-group-expand:" + group.Key)
-	compareBtn := a.historyActionButton("timeline-group-compare:" + group.Key)
 	moreBtn := a.historyActionButton("timeline-group-more:" + group.Key)
 	compareActive := a.isCompareItem(group.Representative)
 	prompt := group.Prompt
@@ -398,6 +386,9 @@ func (a *App) layoutHistoryTimelineGroupRow(gtx layout.Context, group historyPro
 		prompt = "(无 prompt)"
 	}
 	meta := strconv.Itoa(len(group.Items)) + " 张 · " + historyRailMetaText(group.Representative)
+	if compareActive {
+		meta = "B · " + meta
+	}
 
 	return a.borderedSurface(gtx, chooseColor(active || compareActive, fluent.surface2, fluent.surface), unit.Dp(6), chooseColor(active || compareActive, accentAlpha(0x48), fluent.border), func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -413,46 +404,23 @@ func (a *App) layoutHistoryTimelineGroupRow(gtx layout.Context, group historyPro
 							return summaryBtn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 								return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
 									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
-											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-												return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
-													return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
-														return uiIconGrid.Layout(gtx, fluent.accent)
-													})
-												})
-											}),
-											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-												return a.sectionEyebrow(gtx, "同提示词")
-											}),
-											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-												return a.metaBadge(gtx, strconv.Itoa(len(group.Items))+" 张", true)
-											}),
-										)
-									}),
-									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 										return a.clampedLabel(gtx, shortPrompt(prompt), unit.Sp(12), fluent.text, font.Medium, 2)
 									}),
 									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										if compareActive {
-											return a.metaBadgeRow(gtx, []string{"B", meta}, true)
-										}
 										return a.singleLineLabel(gtx, meta, unit.Sp(10), fluent.textMuted, font.Normal)
 									}),
 								)
 							})
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.compactButton(gtx, latestBtn, "查看最新", active)
-						}),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.compactIconButton(gtx, compareBtn, uiIconCompare, compareActive)
+							return a.compactButton(gtx, latestBtn, "查看最新", false)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							icon := uiIconExpand
 							if expanded {
 								icon = uiIconCollapse
 							}
-							return a.compactIconButton(gtx, expandBtn, icon, expanded)
+							return a.compactIconButton(gtx, expandBtn, icon, false)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return a.compactIconButton(gtx, moreBtn, uiIconMoreHoriz, false)
@@ -500,7 +468,7 @@ func (a *App) layoutTimelineTrackRow(gtx layout.Context, body layout.Widget) lay
 }
 
 func (a *App) layoutTimelinePromptThumbGrid(gtx layout.Context, items []sharedCompat.HistoryItem, selectedHistoryID string) layout.Dimensions {
-	const columns = 4
+	columns := historyAutoGridColumns(gtx, unit.Dp(104), unit.Dp(10))
 	rows := (len(items) + columns - 1) / columns
 	children := make([]layout.FlexChild, 0, rows)
 	for row := 0; row < rows; row++ {
@@ -543,15 +511,21 @@ func (a *App) layoutTimelinePromptThumb(gtx layout.Context, item sharedCompat.Hi
 		fluent.surface2,
 		chooseColor(active || compareActive, accentAlpha(0x48), fluent.border),
 		unit.Dp(8),
-		layout.Inset{Top: 6, Bottom: 6, Left: 6, Right: 6},
+		layout.Inset{},
 		func(gtx layout.Context) layout.Dimensions {
 			displayIndex := index + 1
 			if item.BatchIndex >= 0 {
 				displayIndex = item.BatchIndex + 1
 			}
+			side := max(gtx.Constraints.Max.X, gtx.Dp(unit.Dp(104)))
+			sideDp := unit.Dp(float32(side) / gtx.Metric.PxPerDp)
 			return layout.Stack{}.Layout(gtx,
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-					return a.imageThumbCover(gtx, img, unit.Dp(132), unit.Dp(96), unit.Dp(6))
+					return fixedPixelWidth(gtx, side, func(gtx layout.Context) layout.Dimensions {
+						return fixedPixelHeight(gtx, side, func(gtx layout.Context) layout.Dimensions {
+							return a.imageThumbCover(gtx, img, sideDp, sideDp, unit.Dp(8))
+						})
+					})
 				}),
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 					return layout.NW.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -663,23 +637,12 @@ func (a *App) layoutHistoryTimelineRow(gtx layout.Context, item sharedCompat.His
 							if strings.TrimSpace(item.RevisedPrompt) == "" {
 								return layout.Dimensions{}
 							}
-							return a.borderedSurface(gtx, fluent.surface2, unit.Dp(8), rgba(0xffffff, 0x00), func(gtx layout.Context) layout.Dimensions {
-								return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-									return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(2))}.Layout(gtx,
-										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-											return a.label(gtx, "优化后", unit.Sp(10), fluent.textMuted, font.SemiBold)
-										}),
-										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-											return a.clampedLabel(gtx, item.RevisedPrompt, unit.Sp(10), fluent.textDim, font.Normal, 2)
-										}),
-									)
-								})
-							})
+							return a.singleLineLabel(gtx, "优化后: "+strings.TrimSpace(item.RevisedPrompt), unit.Sp(10), fluent.textDim, font.Normal)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return a.compactButton(gtx, detailBtn, "查看", active)
+									return a.compactButton(gtx, detailBtn, "查看", false)
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 									return a.compactIconTextButton(gtx, compareBtn, uiIconCompare, chooseCompareButtonLabel(compareActive), compareActive)

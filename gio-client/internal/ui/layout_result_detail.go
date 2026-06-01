@@ -107,27 +107,31 @@ func (a *App) layoutResultDetailPreview(gtx layout.Context, item sharedCompat.Hi
 				return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
-							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 								return a.compactIconTextButton(gtx, &a.resultDetailSaveAsButton, uiIconSave, "另存为", false)
 							}),
-							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 								return a.compactIconTextButton(gtx, &a.resultDetailOpenPathButton, uiIconFolder, "打开文件夹", false)
 							}),
 						)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+						return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								return a.compactIconTextButton(gtx, &a.resultDetailUseSourceButton, uiIconSource, "设为源图", true)
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								return a.compactIconTextButton(gtx, &a.resultDetailCopyPathButton, uiIconCopy, "复制路径", false)
-							}),
-							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								if strings.TrimSpace(item.ID) == "" {
-									return layout.Dimensions{}
-								}
-								return a.compactIconTextButton(gtx, &a.resultDetailDeleteButton, uiIconDelete, "删除历史", false)
+								return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+									layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+										return a.compactIconTextButton(gtx, &a.resultDetailCopyPathButton, uiIconCopy, "复制路径", false)
+									}),
+									layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+										if strings.TrimSpace(item.ID) == "" {
+											return layout.Dimensions{}
+										}
+										return a.compactIconTextButton(gtx, &a.resultDetailDeleteButton, uiIconDelete, "删除历史", false)
+									}),
+								)
 							}),
 						)
 					}),
@@ -168,7 +172,7 @@ func (a *App) layoutResultDetailMeta(gtx layout.Context, item sharedCompat.Histo
 	return a.card(gtx, func(gtx layout.Context) layout.Dimensions {
 		rows := []layout.Widget{
 			func(gtx layout.Context) layout.Dimensions {
-				return a.sectionEyebrow(gtx, "参数")
+				return a.label(gtx, "参数", unit.Sp(11), fluent.textMuted, font.SemiBold)
 			},
 			func(gtx layout.Context) layout.Dimensions {
 				return a.detailKVRow(gtx, "模式", chooseModeLabel(item.Mode), false, false)
@@ -235,7 +239,7 @@ func (a *App) layoutResultDetailTextSection(gtx layout.Context, title string, te
 						})
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.sectionEyebrow(gtx, title)
+						return a.label(gtx, title, unit.Sp(11), fluent.textMuted, font.SemiBold)
 					}),
 				)
 			}),
@@ -272,7 +276,7 @@ func (a *App) layoutResultDetailFileSection(gtx layout.Context, item sharedCompa
 	return a.card(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return a.sectionEyebrow(gtx, "文件")
+				return a.label(gtx, "文件", unit.Sp(11), fluent.textMuted, font.SemiBold)
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.borderedSurface(gtx, fluent.surface2, fluentCardRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {

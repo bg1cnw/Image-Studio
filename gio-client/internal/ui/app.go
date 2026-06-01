@@ -145,6 +145,8 @@ type App struct {
 	aspectButtons                   []widget.Clickable
 	styleButtons                    []widget.Clickable
 	clearStyleButton                widget.Clickable
+	randomSeedButton                widget.Clickable
+	clearSeedButton                 widget.Clickable
 	batchCountButtons               []widget.Clickable
 	resolutionButtons               []widget.Clickable
 	qualityButtons                  []widget.Clickable

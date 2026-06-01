@@ -384,7 +384,7 @@ func (a *App) toolbarIconButton(
 		hoverBg,
 		border,
 		unit.Dp(4),
-		layout.Inset{Top: 8, Bottom: 8, Left: 8, Right: 8},
+		layout.Inset{Top: 7, Bottom: 7, Left: 7, Right: 7},
 		func(gtx layout.Context) layout.Dimensions {
 			return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
 				return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
@@ -413,7 +413,7 @@ func (a *App) toolbarStaticIcon(
 		fg = fluent.accent
 	}
 	return a.borderedSurface(gtx, bg, fluentControlRadius, border, func(gtx layout.Context) layout.Dimensions {
-		return layout.Inset{Top: 8, Bottom: 8, Left: 8, Right: 8}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Top: 7, Bottom: 7, Left: 7, Right: 7}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
 				return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
 					return icon.Layout(gtx, fg)
@@ -498,6 +498,48 @@ func (a *App) pillIconTextButton(
 	)
 }
 
+func (a *App) toolbarTextButton(
+	gtx layout.Context,
+	btn *widget.Clickable,
+	icon *widget.Icon,
+	text string,
+	selected bool,
+) layout.Dimensions {
+	bg := rgba(0xffffff, 0x00)
+	hoverBg := fluent.toolHoverBg
+	border := rgba(0xffffff, 0x00)
+	fg := fluent.textMuted
+	if selected {
+		bg = fluent.accentSoft
+		hoverBg = accentAlpha(0x28)
+		border = accentAlpha(0x24)
+		fg = fluent.accent
+	}
+	return a.surfaceButton(
+		gtx,
+		btn,
+		bg,
+		hoverBg,
+		border,
+		fluentControlRadius,
+		layout.Inset{Top: 6, Bottom: 6, Left: 8, Right: 8},
+		func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(5))}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+						return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+							return icon.Layout(gtx, fg)
+						})
+					})
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return a.label(gtx, text, unit.Sp(11), fg, font.Medium)
+				}),
+			)
+		},
+	)
+}
+
 func (a *App) compactIconButton(
 	gtx layout.Context,
 	btn *widget.Clickable,
@@ -558,6 +600,37 @@ func (a *App) primaryIconTextButton(
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return a.label(gtx, text, unit.Sp(12), fg, font.Medium)
+				}),
+			)
+		},
+	)
+}
+
+func (a *App) toolbarPrimaryTextButton(
+	gtx layout.Context,
+	btn *widget.Clickable,
+	icon *widget.Icon,
+	text string,
+) layout.Dimensions {
+	return a.surfaceButton(
+		gtx,
+		btn,
+		fluent.accent,
+		fluent.accent2,
+		accentAlpha(0x58),
+		fluentControlRadius,
+		layout.Inset{Top: 6, Bottom: 6, Left: 10, Right: 10},
+		func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+						return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+							return icon.Layout(gtx, fluent.white)
+						})
+					})
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return a.label(gtx, text, unit.Sp(11), fluent.white, font.Medium)
 				}),
 			)
 		},
@@ -956,6 +1029,18 @@ func fixedPixelWidth(gtx layout.Context, px int, w layout.Widget) layout.Dimensi
 	}
 	gtx.Constraints.Min.X = px
 	gtx.Constraints.Max.X = px
+	return w(gtx)
+}
+
+func fixedPixelHeight(gtx layout.Context, px int, w layout.Widget) layout.Dimensions {
+	if px > gtx.Constraints.Max.Y {
+		px = gtx.Constraints.Max.Y
+	}
+	if px < 0 {
+		px = 0
+	}
+	gtx.Constraints.Min.Y = px
+	gtx.Constraints.Max.Y = px
 	return w(gtx)
 }
 
