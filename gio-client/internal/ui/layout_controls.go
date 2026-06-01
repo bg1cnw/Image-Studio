@@ -545,31 +545,95 @@ func (a *App) layoutSettingsModal(gtx layout.Context) layout.Dimensions {
 func (a *App) layoutSettingsHelpModal(gtx layout.Context) layout.Dimensions {
 	return a.layoutStandardModal(
 		gtx,
-		unit.Dp(560),
-		0,
+		unit.Dp(620),
+		unit.Dp(640),
 		"接口说明",
-		"上游配置",
+		"上游配置 / 常见问题",
 		&a.closeSettingsHelpButton,
 		func(gtx layout.Context) layout.Dimensions {
 			sections := []layout.Widget{
 				func(gtx layout.Context) layout.Dimensions {
-					return a.advancedSectionCard(gtx, "Responses API", "SSE 保活，更适合长推理。", func(gtx layout.Context) layout.Dimensions {
-						return a.label(gtx, "适合 GPT 图像链路和提示词优化；遇到 Cloudflare 524 这类长任务超时也更稳。", unit.Sp(11), fluent.textMuted, font.Normal)
+					return a.helpInfoCard(gtx, "Responses API 与 Images API 怎么选?", "最关键的一条。先看你的 key 绑在哪个分组。", func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.label(gtx, "Responses API 走 /v1/responses + image_generation 工具，SSE 保活，长推理更稳，Cloudflare 524 风险更低。", unit.Sp(11), fluent.textMuted, font.Normal)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.label(gtx, "Images API 走标准 /v1/images/generations 与 /v1/images/edits，兼容性最广，但没有 SSE 保活。", unit.Sp(11), fluent.textMuted, font.Normal)
+							}),
+						)
 					})
 				},
 				func(gtx layout.Context) layout.Dimensions {
-					return a.advancedSectionCard(gtx, "Images API", "标准 generations / edits，兼容性最广。", func(gtx layout.Context) layout.Dimensions {
-						return a.label(gtx, "适合只想尽快接上常规生图接口的场景；没有 SSE 保活，长推理更容易超时。", unit.Sp(11), fluent.textMuted, font.Normal)
+					return a.helpInfoCard(gtx, "支持哪些上游中转站?", "", func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.label(gtx, "不内置任何默认上游。首次打开时填写你自己的 BASE_URL、API Key，再选择 API 形态。", unit.Sp(11), fluent.textMuted, font.Normal)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.label(gtx, "只提供 /v1/chat/completions 的中转站不兼容；本应用不发 chat 请求。", unit.Sp(11), fluent.textMuted, font.Normal)
+							}),
+						)
 					})
 				},
 				func(gtx layout.Context) layout.Dimensions {
-					return a.advancedSectionCard(gtx, "BASE_URL", "", func(gtx layout.Context) layout.Dimensions {
-						return a.label(gtx, "只填中转站的站点根地址。应用会按当前 API 形态自动拼接请求路径，不要手动把 /v1/... 贴进来。", unit.Sp(11), fluent.textMuted, font.Normal)
+					return a.helpInfoCard(gtx, "模型 ID 怎么填?", "", func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.label(gtx, "Responses API 会同时用到文本模型 ID 与图像模型 ID；Images API 只读取图像模型 ID。", unit.Sp(11), fluent.textMuted, font.Normal)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.label(gtx, "留空时默认文本模型是 gpt-5.5，默认图像模型是 gpt-image-2。", unit.Sp(11), fluent.textMuted, font.Normal)
+							}),
+						)
 					})
 				},
 				func(gtx layout.Context) layout.Dimensions {
-					return a.advancedSectionCard(gtx, "参数策略", "", func(gtx layout.Context) layout.Dimensions {
-						return a.label(gtx, "OpenAI 标准只发送公开字段；兼容中转扩展会额外发送 relay 常见扩展字段，例如 seed / negative_prompt。", unit.Sp(11), fluent.textMuted, font.Normal)
+					return a.helpInfoCard(gtx, "BASE_URL 与参数策略", "", func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.label(gtx, "BASE_URL 只填中转站根地址。应用会按当前 API 形态自动拼接 /v1/...，不要手动把完整路径贴进来。", unit.Sp(11), fluent.textMuted, font.Normal)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.label(gtx, "OpenAI 标准只发官方公开字段；兼容中转扩展会额外附带 relay 常见扩展字段，例如 seed / negative_prompt。", unit.Sp(11), fluent.textMuted, font.Normal)
+							}),
+						)
+					})
+				},
+				func(gtx layout.Context) layout.Dimensions {
+					return a.helpInfoCard(gtx, "生成失败 / 524 怎么办?", "", func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.label(gtx, "优先检查 key 是否过期、是否绑对分组、余额是否足够。Responses API 通常比 Images API 更抗超时。", unit.Sp(11), fluent.textMuted, font.Normal)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.label(gtx, "排查时可从历史结果详情或运行日志里打开 Raw response 文件，看上游实际返回。", unit.Sp(11), fluent.textMuted, font.Normal)
+							}),
+						)
+					})
+				},
+				func(gtx layout.Context) layout.Dimensions {
+					return a.helpInfoCard(gtx, "数据存在哪里?", "", func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.label(gtx, "API Key 只保存在系统凭据存储中；历史记录与配置元数据在本地兼容状态文件里；生成图片默认保存在输出目录。", unit.Sp(11), fluent.textMuted, font.Normal)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.label(gtx, "除了向你配置的上游发请求，本应用不会把这些数据上传到其他服务器。", unit.Sp(11), fluent.textMuted, font.Normal)
+							}),
+						)
+					})
+				},
+				func(gtx layout.Context) layout.Dimensions {
+					return a.helpInfoCard(gtx, "快捷键", "", func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.monoLabel(gtx, "Ctrl+Enter 提交生成  ·  Ctrl+T 新建标签  ·  Ctrl+W 关闭标签", unit.Sp(10), fluent.textDim, font.Normal)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.monoLabel(gtx, "Ctrl+C / Ctrl+V 复制粘贴图片  ·  Delete 删除标注  ·  Esc 关闭弹层", unit.Sp(10), fluent.textDim, font.Normal)
+							}),
+						)
 					})
 				},
 			}
@@ -578,6 +642,25 @@ func (a *App) layoutSettingsHelpModal(gtx layout.Context) layout.Dimensions {
 			})
 		},
 	)
+}
+
+func (a *App) helpInfoCard(gtx layout.Context, title string, hint string, body layout.Widget) layout.Dimensions {
+	return a.borderedSurface(gtx, fluent.surface, fluentCardRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {
+		return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return a.label(gtx, title, unit.Sp(12), fluent.text, font.SemiBold)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if strings.TrimSpace(hint) == "" {
+						return layout.Dimensions{}
+					}
+					return a.label(gtx, hint, unit.Sp(10), fluent.textDim, font.Normal)
+				}),
+				layout.Rigid(body),
+			)
+		})
+	})
 }
 
 func (a *App) layoutSettingsEmptyState(gtx layout.Context) layout.Dimensions {
