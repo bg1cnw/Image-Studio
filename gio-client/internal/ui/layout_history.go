@@ -200,19 +200,26 @@ func (a *App) layoutUpstreamCard(gtx layout.Context, snap snapshot) layout.Dimen
 		base := func(gtx layout.Context) layout.Dimensions {
 			children := []layout.FlexChild{
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.sectionEyebrow(gtx, "上游")
+					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return a.sectionEyebrow(gtx, "上游")
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return fixedWidth(gtx, unit.Dp(7), func(gtx layout.Context) layout.Dimensions {
+										return fixedHeight(gtx, unit.Dp(7), func(gtx layout.Context) layout.Dimensions {
+											return a.surface(gtx, dotColor, unit.Dp(4), layout.Spacer{}.Layout)
+										})
+									})
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return a.label(gtx, statusLabel, unit.Sp(11), statusColor, font.Medium)
+								}),
+							)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return fixedWidth(gtx, unit.Dp(7), func(gtx layout.Context) layout.Dimensions {
-								return fixedHeight(gtx, unit.Dp(7), func(gtx layout.Context) layout.Dimensions {
-									return a.surface(gtx, dotColor, unit.Dp(4), layout.Spacer{}.Layout)
-								})
-							})
-						}),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.label(gtx, statusLabel, unit.Sp(11), statusColor, font.Medium)
+							return a.label(gtx, "当前连接", unit.Sp(11), fluent.textMuted, font.Normal)
 						}),
 					)
 				}),
@@ -237,14 +244,7 @@ func (a *App) layoutUpstreamCard(gtx layout.Context, snap snapshot) layout.Dimen
 							func(gtx layout.Context) layout.Dimensions {
 								return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 									layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-										return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(3))}.Layout(gtx,
-											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-												return a.singleLineLabel(gtx, activeName, unit.Sp(12), fluent.text, font.Medium)
-											}),
-											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-												return a.singleLineLabel(gtx, apiModeLabel, unit.Sp(11), fluent.textMuted, font.Normal)
-											}),
-										)
+										return a.singleLineLabel(gtx, activeName+" · "+apiModeLabel, unit.Sp(12), fluent.text, font.Medium)
 									}),
 									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 										icon := uiIconExpand
@@ -264,21 +264,6 @@ func (a *App) layoutUpstreamCard(gtx layout.Context, snap snapshot) layout.Dimen
 				)
 			}
 
-			if strings.TrimSpace(a.baseURLInput.Text()) != "" {
-				children = append(children,
-					layout.Rigid(layout.Spacer{Height: unit.Dp(8)}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.singleLineLabel(gtx, apiModeLabel+" · "+strings.TrimSpace(a.baseURLInput.Text()), unit.Sp(11), fluent.textDim, font.Normal)
-					}),
-				)
-			} else {
-				children = append(children,
-					layout.Rigid(layout.Spacer{Height: unit.Dp(8)}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.singleLineLabel(gtx, apiModeLabel, unit.Sp(11), fluent.textDim, font.Normal)
-					}),
-				)
-			}
 			children = append(children, layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout))
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
@@ -296,6 +281,12 @@ func (a *App) layoutUpstreamCard(gtx layout.Context, snap snapshot) layout.Dimen
 					}),
 				)
 			}))
+			children = append(children,
+				layout.Rigid(layout.Spacer{Height: unit.Dp(8)}.Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return a.singleLineLabel(gtx, apiModeLabel, unit.Sp(11), fluent.textDim, font.Normal)
+				}),
+			)
 			if strings.TrimSpace(snap.LastProbeSummary) != "" {
 				children = append(children, layout.Rigid(layout.Spacer{Height: unit.Dp(8)}.Layout))
 				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -351,6 +342,10 @@ func (a *App) layoutProfilePickerOverlay(gtx layout.Context, snap snapshot) layo
 
 func (a *App) layoutProfileOption(gtx layout.Context, profile sharedCompat.UpstreamProfile, active bool) layout.Dimensions {
 	btn := a.profileButton("profile:" + profile.ID)
+	modeLabel := "Responses"
+	if strings.TrimSpace(profile.APIMode) == string(client.APIModeImages) {
+		modeLabel = "Images"
+	}
 	return a.surfaceButton(
 		gtx,
 		btn,
@@ -378,7 +373,7 @@ func (a *App) layoutProfileOption(gtx layout.Context, profile sharedCompat.Upstr
 					return a.singleLineLabel(gtx, strings.TrimSpace(profile.Name), unit.Sp(12), chooseColor(active, fluent.accent, fluent.text), font.Medium)
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.label(gtx, strings.ToUpper(strings.TrimSpace(profile.APIMode)), unit.Sp(10), fluent.textDim, font.Medium)
+					return a.label(gtx, modeLabel, unit.Sp(10), fluent.textDim, font.Medium)
 				}),
 			)
 		},
@@ -513,7 +508,7 @@ func (a *App) layoutLatestHistoryCard(gtx layout.Context, item sharedCompat.Hist
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
 									return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
-										return uiIconRefresh.Layout(gtx, fluent.accent)
+										return uiIconHistory.Layout(gtx, fluent.accent)
 									})
 								})
 							}),
@@ -838,7 +833,18 @@ func (a *App) layoutHistoryResultsCard(
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-						return a.sectionEyebrow(gtx, "结果")
+						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+									return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+										return uiIconList.Layout(gtx, fluent.accent)
+									})
+								})
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.sectionEyebrow(gtx, "结果")
+							}),
+						)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						label := strconv.Itoa(len(visible))
