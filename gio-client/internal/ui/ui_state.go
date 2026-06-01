@@ -768,6 +768,9 @@ func (a *App) deleteHistoryItem(id string) {
 	if a.selectedHistoryID == id {
 		a.selectedHistoryID = ""
 	}
+	if a.activeResultDetail.ID == id {
+		a.activeResultDetail = sharedCompat.HistoryItem{}
+	}
 	if a.result.Item.ID == id {
 		a.result = resultState{Rev: a.result.Rev + 1}
 	}

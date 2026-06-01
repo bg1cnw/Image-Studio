@@ -40,6 +40,7 @@ var (
 	uiIconLight          = mustIcon(widget.NewIcon(mdicons.ImageBrightness7))
 	uiIconDark           = mustIcon(widget.NewIcon(mdicons.NotificationDoNotDisturb))
 	uiIconPhoto          = mustIcon(widget.NewIcon(mdicons.ImagePhoto))
+	uiIconMoreHoriz      = mustIcon(widget.NewIcon(mdicons.NavigationMoreHoriz))
 	uiIconCollapse       = mustIcon(widget.NewIcon(mdicons.NavigationExpandLess))
 	uiIconExpand         = mustIcon(widget.NewIcon(mdicons.NavigationExpandMore))
 	uiIconFullscreen     = mustIcon(widget.NewIcon(mdicons.NavigationFullscreen))

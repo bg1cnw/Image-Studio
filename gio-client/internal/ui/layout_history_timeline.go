@@ -323,7 +323,7 @@ func (a *App) layoutHistoryTimelineGroupRow(gtx layout.Context, group historyPro
 	if prompt == "" {
 		prompt = "(无 prompt)"
 	}
-	meta := strconv.Itoa(len(group.Items)) + " 张 · " + historyMetaText(group.Representative)
+	meta := strconv.Itoa(len(group.Items)) + " 张 · " + historyRailMetaText(group.Representative)
 
 	return a.borderedSurface(gtx, chooseColor(active, fluent.surface2, fluent.surface), unit.Dp(6), chooseColor(active, accentAlpha(0x48), fluent.border), func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -337,7 +337,7 @@ func (a *App) layoutHistoryTimelineGroupRow(gtx layout.Context, group historyPro
 					return summaryBtn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(4))}.Layout(gtx,
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								return a.singleLineLabel(gtx, shortPrompt(prompt), unit.Sp(12), fluent.text, font.Medium)
+								return a.clampedLabel(gtx, shortPrompt(prompt), unit.Sp(12), fluent.text, font.Medium, 2)
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								return a.singleLineLabel(gtx, meta, unit.Sp(10), fluent.textMuted, font.Normal)
@@ -346,7 +346,10 @@ func (a *App) layoutHistoryTimelineGroupRow(gtx layout.Context, group historyPro
 					})
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.historyMiniIconButton(gtx, openBtn, uiIconGrid, false)
+					return a.compactButton(gtx, summaryBtn, "查看最新", active)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return a.compactIconButton(gtx, openBtn, uiIconGrid, false)
 				}),
 			)
 		})
@@ -368,48 +371,58 @@ func (a *App) layoutHistoryTimelineRow(gtx layout.Context, item sharedCompat.His
 		layout.Inset{Top: 8, Bottom: 8, Left: 8, Right: 8},
 		func(gtx layout.Context) layout.Dimensions {
 			img, _ := a.imageForHistoryItem(item)
-			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(12))}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.layoutHistoryModeThumb(gtx, img, item.Mode, unit.Dp(64), unit.Dp(64))
+					return a.layoutHistoryModeThumb(gtx, img, item.Mode, unit.Dp(92), unit.Dp(72))
 				}),
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(5))}.Layout(gtx,
+					return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.singleLineLabel(gtx, shortPrompt(item.Prompt), unit.Sp(12), fluent.text, font.Medium)
+							return a.clampedLabel(gtx, shortPrompt(item.Prompt), unit.Sp(12), fluent.text, font.Medium, 2)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.singleLineLabel(gtx, historyMetaText(item), unit.Sp(10), fluent.textMuted, font.Normal)
+							return a.metaBadgeRow(gtx, historyMetaBadgeItems(item), true)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.singleLineLabel(gtx, strings.Join(compactNonEmpty([]string{
-								historyPathText(item.SavedPath),
-								formatHistoryClock(item.CreatedAt),
-							}), " · "), unit.Sp(10), fluent.textDim, font.Normal)
+							return a.singleLineLabel(gtx, formatHistoryClock(item.CreatedAt), unit.Sp(10), fluent.textDim, font.Normal)
 						}),
-					)
-				}),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Axis: layout.Vertical, Alignment: layout.End, Gap: gtx.Dp(unit.Dp(4))}.Layout(gtx,
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							if active {
-								return a.badge(gtx, "当前", fluent.accentSoft, fluent.accent)
+							if strings.TrimSpace(item.RevisedPrompt) == "" {
+								return layout.Dimensions{}
 							}
-							return layout.Dimensions{}
+							return a.borderedSurface(gtx, fluent.surface2, unit.Dp(8), rgba(0xffffff, 0x00), func(gtx layout.Context) layout.Dimensions {
+								return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(2))}.Layout(gtx,
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											return a.label(gtx, "优化后", unit.Sp(10), fluent.textMuted, font.SemiBold)
+										}),
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											return a.clampedLabel(gtx, item.RevisedPrompt, unit.Sp(10), fluent.textDim, font.Normal, 2)
+										}),
+									)
+								})
+							})
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+							return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return a.historyMiniIconButton(gtx, detailBtn, uiIconInfo, false)
+									return a.compactButton(gtx, detailBtn, "查看", active)
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return a.historyMiniIconButton(gtx, reuseBtn, uiIconSource, false)
+									return a.compactButton(gtx, reuseBtn, "设为源图", false)
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return a.historyMiniIconButton(gtx, deleteBtn, uiIconDelete, false)
+									return a.compactButton(gtx, deleteBtn, "删除", false)
 								}),
 							)
 						}),
 					)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if !active {
+						return layout.Dimensions{}
+					}
+					return a.badge(gtx, "当前", fluent.accentSoft, fluent.accent)
 				}),
 			)
 		},

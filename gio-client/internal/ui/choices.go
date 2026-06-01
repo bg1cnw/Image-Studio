@@ -1,6 +1,10 @@
 package ui
 
-import "github.com/yuanhua/image-gptcodex/pkg/client"
+import (
+	"strings"
+
+	"github.com/yuanhua/image-gptcodex/pkg/client"
+)
 
 type choice struct {
 	Label string
@@ -57,10 +61,10 @@ var (
 		{"4K", "4k"},
 	}
 	qualityChoices = []choice{
-		{"自适应 auto", "auto"},
-		{"高质量 high", "high"},
-		{"中等 medium", "medium"},
-		{"快速草稿 low", "low"},
+		{"自动", "auto"},
+		{"精修", "high"},
+		{"标准", "medium"},
+		{"快速", "low"},
 	}
 	formatChoices = []choice{
 		{"PNG", "png"},
@@ -203,20 +207,22 @@ func deriveResolutionPreset(size string) string {
 	return "1k"
 }
 
-func buildAspectSizeSelection(aspect string, currentResolution string) string {
+func buildAspectSizeSelection(aspect string, currentResolution string, apiMode string, requestPolicy string, imageModelID string) string {
 	if aspect == "auto" {
 		return "auto"
 	}
+	currentResolution = normalizeResolutionChoice(currentResolution, apiMode, requestPolicy, imageModelID)
 	if currentResolution == "auto" {
 		currentResolution = "1k"
 	}
 	return buildSizeSelection(aspect, currentResolution)
 }
 
-func buildResolutionSizeSelection(currentAspect string, resolution string) string {
+func buildResolutionSizeSelection(currentAspect string, resolution string, apiMode string, requestPolicy string, imageModelID string) string {
 	if resolution == "auto" {
 		return "auto"
 	}
+	resolution = normalizeResolutionChoice(resolution, apiMode, requestPolicy, imageModelID)
 	if currentAspect == "auto" {
 		currentAspect = "1:1"
 	}
@@ -235,15 +241,18 @@ func buildSizeSelection(aspect string, resolution string) string {
 	return "1024x1024"
 }
 
-func visibleResolutionChoices(aspect string) []choice {
-	if aspect == "16:9" || aspect == "9:16" {
-		return []choice{
-			resolutionChoices[1],
-			resolutionChoices[2],
-			resolutionChoices[3],
-		}
+func visibleResolutionChoices(apiMode string, requestPolicy string, imageModelID string) []choice {
+	if supportsExplicitLargeSizes(apiMode, requestPolicy, imageModelID) {
+		return resolutionChoices
 	}
-	return resolutionChoices
+	filtered := make([]choice, 0, 2)
+	for _, item := range resolutionChoices {
+		if item.Value == "2k" || item.Value == "4k" {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	return filtered
 }
 
 func normalizeBatchCount(value int) int {
@@ -263,4 +272,44 @@ func choiceLabel(choices []choice, value string) string {
 		}
 	}
 	return value
+}
+
+func classifyImageModel(modelID string) string {
+	value := strings.ToLower(strings.TrimSpace(modelID))
+	switch {
+	case strings.Contains(value, "gpt-image"):
+		return "gpt-image"
+	case strings.Contains(value, "dall-e-3"), strings.Contains(value, "dalle-3"), strings.Contains(value, "dall-e3"), strings.Contains(value, "dalle3"):
+		return "dalle3"
+	default:
+		return "other"
+	}
+}
+
+func supportsExplicitLargeSizes(apiMode string, requestPolicy string, imageModelID string) bool {
+	family := classifyImageModel(imageModelID)
+	if strings.TrimSpace(apiMode) == string(client.APIModeImages) {
+		return family == "gpt-image" || family == "dalle3"
+	}
+	if family == "gpt-image" {
+		return true
+	}
+	return strings.TrimSpace(requestPolicy) == string(client.RequestPolicyCompat)
+}
+
+func normalizeResolutionChoice(resolution string, apiMode string, requestPolicy string, imageModelID string) string {
+	allowed := visibleResolutionChoices(apiMode, requestPolicy, imageModelID)
+	for _, item := range allowed {
+		if item.Value == resolution {
+			return resolution
+		}
+	}
+	return "1k"
+}
+
+func sizeCapabilityHint(apiMode string, requestPolicy string, imageModelID string) string {
+	if supportsExplicitLargeSizes(apiMode, requestPolicy, imageModelID) {
+		return ""
+	}
+	return "当前链路只保证基础尺寸稳定可用。"
 }

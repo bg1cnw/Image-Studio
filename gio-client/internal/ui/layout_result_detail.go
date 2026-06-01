@@ -32,6 +32,10 @@ func (a *App) layoutResultDetailModal(gtx layout.Context) layout.Dimensions {
 	for a.resultDetailSaveAsButton.Clicked(gtx) {
 		a.openSavePromptForPath(item.SavedPath)
 	}
+	for a.resultDetailUseSourceButton.Clicked(gtx) {
+		a.reuseHistoryItemAsSource(item)
+		a.appendLog("已将历史结果加入源图: " + shortPrompt(item.Prompt))
+	}
 	for a.resultDetailCopyPromptButton.Clicked(gtx) {
 		copyResultDetailText(gtx, item.Prompt)
 		a.appendLog("已复制原始提示词")
@@ -52,6 +56,9 @@ func (a *App) layoutResultDetailModal(gtx layout.Context) layout.Dimensions {
 	for a.resultDetailCopyPathButton.Clicked(gtx) {
 		copyResultDetailText(gtx, item.SavedPath)
 		a.appendLog("已复制文件路径")
+	}
+	for a.resultDetailDeleteButton.Clicked(gtx) {
+		a.deleteHistoryItem(item.ID)
 	}
 	return a.layoutStandardModal(
 		gtx,
@@ -92,15 +99,32 @@ func (a *App) layoutResultDetailPreview(gtx layout.Context, item sharedCompat.Hi
 				if strings.TrimSpace(item.SavedPath) == "" {
 					return layout.Dimensions{}
 				}
-				return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+				return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.compactIconTextButton(gtx, &a.resultDetailSaveAsButton, uiIconSave, "另存为", true)
+						return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.compactButton(gtx, &a.resultDetailUseSourceButton, "设为源图", true)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.compactButton(gtx, &a.resultDetailSaveAsButton, "另存为", false)
+							}),
+						)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.compactIconTextButton(gtx, &a.resultDetailOpenPathButton, uiIconFolder, "打开文件夹", false)
-					}),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.compactIconTextButton(gtx, &a.resultDetailCopyPathButton, uiIconCopy, "复制路径", false)
+						return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.compactButton(gtx, &a.resultDetailOpenPathButton, "打开文件夹", false)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return a.compactButton(gtx, &a.resultDetailCopyPathButton, "复制路径", false)
+							}),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								if strings.TrimSpace(item.ID) == "" {
+									return layout.Dimensions{}
+								}
+								return a.compactButton(gtx, &a.resultDetailDeleteButton, "删除历史", false)
+							}),
+						)
 					}),
 				)
 			}),
@@ -137,46 +161,47 @@ func (a *App) layoutResultDetailSections(gtx layout.Context, item sharedCompat.H
 
 func (a *App) layoutResultDetailMeta(gtx layout.Context, item sharedCompat.HistoryItem) layout.Dimensions {
 	return a.card(gtx, func(gtx layout.Context) layout.Dimensions {
-		rows := []layout.FlexChild{
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		rows := []layout.Widget{
+			func(gtx layout.Context) layout.Dimensions {
 				return a.sectionEyebrow(gtx, "参数")
-			}),
-			layout.Rigid(layout.Spacer{Height: unit.Dp(8)}.Layout),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return a.detailKV(gtx, "模式", chooseModeLabel(item.Mode))
-			}),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return a.detailKV(gtx, "尺寸", item.Size)
-			}),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return a.detailKV(gtx, "质量", item.Quality)
-			}),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return a.detailKV(gtx, "格式", strings.ToUpper(strings.TrimSpace(item.OutputFormat)))
-			}),
+			},
+			func(gtx layout.Context) layout.Dimensions {
+				return a.detailKVRow(gtx, "模式", chooseModeLabel(item.Mode), false, false)
+			},
+			func(gtx layout.Context) layout.Dimensions {
+				return a.detailKVRow(gtx, "尺寸", item.Size, false, false)
+			},
+			func(gtx layout.Context) layout.Dimensions {
+				return a.detailKVRow(gtx, "质量", item.Quality, false, false)
+			},
+			func(gtx layout.Context) layout.Dimensions {
+				return a.detailKVRow(gtx, "格式", strings.ToUpper(strings.TrimSpace(item.OutputFormat)), false, false)
+			},
 		}
 		if item.Seed != 0 {
-			rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return a.detailKV(gtx, "Seed", detailValue(item.Seed))
-			}))
+			rows = append(rows, func(gtx layout.Context) layout.Dimensions {
+				return a.detailKVRow(gtx, "Seed", detailValue(item.Seed), true, false)
+			})
 		}
 		if strings.TrimSpace(item.StyleTag) != "" {
-			rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return a.detailKV(gtx, "风格", "#"+styleChoiceLabel(item.StyleTag))
-			}))
+			rows = append(rows, func(gtx layout.Context) layout.Dimensions {
+				return a.detailKVRow(gtx, "风格", "#"+styleChoiceLabel(item.StyleTag), false, false)
+			})
 		}
 		rows = append(rows,
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return a.detailKV(gtx, "创建时间", formatHistoryDateTime(item.CreatedAt))
-			}),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			func(gtx layout.Context) layout.Dimensions {
+				return a.detailKVRow(gtx, "创建时间", formatHistoryDateTime(item.CreatedAt), false, false)
+			},
+			func(gtx layout.Context) layout.Dimensions {
 				if item.ElapsedSec <= 0 {
 					return layout.Dimensions{}
 				}
-				return a.detailKV(gtx, "耗时", detailValue(item.ElapsedSec)+"s")
-			}),
+				return a.detailKVRow(gtx, "耗时", detailValue(item.ElapsedSec)+"s", false, true)
+			},
 		)
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
+		return a.settingsList.Layout(gtx, len(rows), func(gtx layout.Context, index int) layout.Dimensions {
+			return rows[index](gtx)
+		})
 	})
 }
 
@@ -190,6 +215,7 @@ func (a *App) layoutResultDetailTextSection(gtx layout.Context, title string, te
 		copyBtn = &a.resultDetailCopyRevisedButton
 		actionAccent = true
 	}
+	muted := strings.Contains(title, "负向")
 	return a.card(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -200,11 +226,7 @@ func (a *App) layoutResultDetailTextSection(gtx layout.Context, title string, te
 				if content == "" {
 					content = "(空)"
 				}
-				return a.borderedSurface(gtx, fluent.surface2, unit.Dp(6), fluent.border, func(gtx layout.Context) layout.Dimensions {
-					return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						return a.label(gtx, content, unit.Sp(11), fluent.textMuted, font.Normal)
-					})
-				})
+				return a.resultDetailPromptBlock(gtx, content, muted, actionAccent)
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				if strings.TrimSpace(text) == "" {
@@ -212,10 +234,10 @@ func (a *App) layoutResultDetailTextSection(gtx layout.Context, title string, te
 				}
 				return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.compactIconTextButton(gtx, copyBtn, uiIconCopy, "复制", false)
+						return a.compactButton(gtx, copyBtn, "复制", false)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.compactIconTextButton(gtx, actionBtn, uiIconRefresh, actionLabel, actionAccent)
+						return a.compactButton(gtx, actionBtn, actionLabel, actionAccent)
 					}),
 				)
 			}),
@@ -239,10 +261,10 @@ func (a *App) layoutResultDetailFileSection(gtx layout.Context, item sharedCompa
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.compactIconTextButton(gtx, &a.resultDetailOpenPathButton, uiIconFolder, "打开文件夹", false)
+						return a.compactButton(gtx, &a.resultDetailOpenPathButton, "打开文件夹", false)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.compactIconTextButton(gtx, &a.resultDetailCopyPathButton, uiIconCopy, "复制路径", false)
+						return a.compactButton(gtx, &a.resultDetailCopyPathButton, "复制路径", false)
 					}),
 				)
 			}),
@@ -273,6 +295,60 @@ func (a *App) detailKV(gtx layout.Context, label string, value string) layout.Di
 			return a.label(gtx, value, unit.Sp(11), fluent.text, font.Normal)
 		}),
 	)
+}
+
+func (a *App) detailKVRow(gtx layout.Context, label string, value string, mono bool, last bool) layout.Dimensions {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return layout.Dimensions{}
+	}
+	return layout.Inset{Bottom: chooseInset(last)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return a.borderedSurface(gtx, rgba(0xffffff, 0x00), 0, rgba(0xffffff, 0x00), func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return fixedWidth(gtx, unit.Dp(72), func(gtx layout.Context) layout.Dimensions {
+							return a.label(gtx, label, unit.Sp(10), fluent.textDim, font.Normal)
+						})
+					}),
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+						weight := font.Medium
+						if mono {
+							weight = font.SemiBold
+						}
+						return a.label(gtx, value, unit.Sp(11), fluent.text, weight)
+					}),
+				)
+			})
+		})
+	})
+}
+
+func chooseInset(last bool) unit.Dp {
+	if last {
+		return 0
+	}
+	return unit.Dp(4)
+}
+
+func (a *App) resultDetailPromptBlock(gtx layout.Context, text string, muted bool, highlight bool) layout.Dimensions {
+	bg := fluent.surface
+	fg := fluent.textMuted
+	border := fluent.border
+	if muted {
+		bg = fluent.surface2
+		fg = fluent.textDim
+	}
+	if highlight {
+		bg = fluent.accentSoft
+		fg = fluent.accent
+		border = accentAlpha(0x24)
+	}
+	return a.borderedSurface(gtx, bg, unit.Dp(10), border, func(gtx layout.Context) layout.Dimensions {
+		return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return a.label(gtx, text, unit.Sp(11), fg, font.Normal)
+		})
+	})
 }
 
 func detailHeadline(item sharedCompat.HistoryItem) string {

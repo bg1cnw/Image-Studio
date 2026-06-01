@@ -131,6 +131,12 @@ func (a *App) startRun() {
 func (a *App) currentConfig() kernel.Config {
 	seed, _ := strconv.ParseInt(strings.TrimSpace(a.seedInput.Text()), 10, 64)
 	partial, _ := strconv.Atoi(strings.TrimSpace(a.partialImagesInput.Text()))
+	sourcePaths := kernel.ParseSourcePaths(a.sourcePathsInput.Text())
+	if client.Mode(a.mode) == client.ModeEdit && len(sourcePaths) == 0 {
+		if current := strings.TrimSpace(a.readSnapshot().Result.SavedPath); current != "" {
+			sourcePaths = []string{current}
+		}
+	}
 	return kernel.Config{
 		APIKey:         a.apiKeyInput.Text(),
 		BaseURL:        a.baseURLInput.Text(),
@@ -145,7 +151,7 @@ func (a *App) currentConfig() kernel.Config {
 		OutputFormat:   a.format,
 		ProxyMode:      a.proxy,
 		ProxyURL:       a.proxyURLInput.Text(),
-		SourcePaths:    kernel.ParseSourcePaths(a.sourcePathsInput.Text()),
+		SourcePaths:    sourcePaths,
 		OutputDir:      a.outputDirInput.Text(),
 		Seed:           seed,
 		NegativePrompt: a.negativePromptInput.Text(),

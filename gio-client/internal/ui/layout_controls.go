@@ -152,6 +152,10 @@ func (a *App) layoutPromptCard(gtx layout.Context) layout.Dimensions {
 
 	return a.card(gtx, func(gtx layout.Context) layout.Dimensions {
 		base := func(gtx layout.Context) layout.Dimensions {
+			promptBorder := fluent.border2
+			if gtx.Focused(&a.promptInput) {
+				promptBorder = accentAlpha(0xb8)
+			}
 			return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -159,13 +163,13 @@ func (a *App) layoutPromptCard(gtx layout.Context) layout.Dimensions {
 							return a.label(gtx, title, unit.Sp(11), fluent.textMuted, font.Bold)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.label(gtx, fmt.Sprintf("%d", promptLen), unit.Sp(11), fluent.textDim, font.Medium)
+							return a.staticPill(gtx, fmt.Sprintf("%d", promptLen), false, true)
 						}),
 					)
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return fixedHeight(gtx, unit.Dp(124), func(gtx layout.Context) layout.Dimensions {
-						return a.borderedSurface(gtx, fluent.surface, fluentControlRadius, fluent.border2, func(gtx layout.Context) layout.Dimensions {
+						return a.borderedSurface(gtx, fluent.surface, fluentControlRadius, promptBorder, func(gtx layout.Context) layout.Dimensions {
 							return layout.Inset{Top: 10, Bottom: 10, Left: 12, Right: 12}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 								return a.editorText(gtx, &a.promptInput, hint, unit.Sp(13))
 							})
@@ -175,7 +179,7 @@ func (a *App) layoutPromptCard(gtx layout.Context) layout.Dimensions {
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.compactIconTextButton(gtx, &a.promptHelperButton, uiIconHistory, "模板 / 历史", a.promptHelperOpen)
+							return a.ghostIconTextButton(gtx, &a.promptHelperButton, uiIconHistory, "模板 / 历史", a.promptHelperOpen)
 						}),
 						layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -187,7 +191,7 @@ func (a *App) layoutPromptCard(gtx layout.Context) layout.Dimensions {
 							if snap.OptimizingPrompt {
 								icon = uiIconRefresh
 							}
-							return a.compactIconTextButton(gtx, &a.optimizePromptButton, icon, label, snap.OptimizingPrompt)
+							return a.ghostIconTextButton(gtx, &a.optimizePromptButton, icon, label, snap.OptimizingPrompt)
 						}),
 						layout.Flexed(1, layout.Spacer{}.Layout),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -225,33 +229,29 @@ func (a *App) layoutPromptCard(gtx layout.Context) layout.Dimensions {
 }
 
 func (a *App) layoutPromptHelperPanel(gtx layout.Context, presets []sharedCompat.Preset, suggestions []string) layout.Dimensions {
-	return a.borderedSurface(gtx, fluent.surface, fluentCardRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {
-		return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			children := []layout.FlexChild{}
-			if a.promptHelperTab != "history" && len(presets) > 0 {
-				children = append(children,
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.layoutPromptHelperButtons(gtx, "preset:", presetLabels(presets))
-					}),
-				)
-			}
-			if a.promptHelperTab == "history" && len(suggestions) > 0 {
-				children = append(children,
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.layoutPromptHelperButtons(gtx, "prompt-history:", promptLabels(suggestions))
-					}),
-				)
-			}
-			if len(children) == 0 {
-				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					text := "还没有可用的模板。"
-					if a.promptHelperTab == "history" {
-						text = "还没有提交过提示词。"
-					}
-					return a.label(gtx, text, unit.Sp(10), fluent.textDim, font.Normal)
-				}))
-			}
-			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+	items := presetLabels(presets)
+	prefix := "preset:"
+	emptyText := "还没有可用的模板。"
+	if a.promptHelperTab == "history" {
+		items = promptLabels(suggestions)
+		prefix = "prompt-history:"
+		emptyText = "还没有提交过提示词。"
+	}
+	if len(items) == 0 {
+		return a.borderedSurface(gtx, fluent.surface2, unit.Dp(10), fluent.border, func(gtx layout.Context) layout.Dimensions {
+			return layout.UniformInset(unit.Dp(18)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return a.label(gtx, emptyText, unit.Sp(11), fluent.textDim, font.Normal)
+				})
+			})
+		})
+	}
+	return fixedHeight(gtx, unit.Dp(264), func(gtx layout.Context) layout.Dimensions {
+		return a.promptHelperList.Layout(gtx, len(items), func(gtx layout.Context, index int) layout.Dimensions {
+			item := items[index]
+			return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return a.layoutPromptHelperItem(gtx, prefix+item.ID, item)
+			})
 		})
 	})
 }
@@ -267,30 +267,65 @@ func (a *App) layoutPromptHelperInline(gtx layout.Context, presets []sharedCompa
 		a.promptHelperTab = "history"
 	}
 	return fixedWidth(gtx, unit.Dp(360), func(gtx layout.Context) layout.Dimensions {
-		return a.borderedSurface(gtx, fluent.surface, fluentCardRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {
+		return a.elevatedBorderedSurface(gtx, fluent.surface, fluentCardRadius, fluent.border, image.Pt(0, 8), func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-								return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
-									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										label := "模板"
-										if len(presets) > 0 {
-											label = fmt.Sprintf("模板 %d", len(presets))
-										}
-										return a.pillButton(gtx, &a.promptHelperTemplatesButton, label, a.promptHelperTab != "history")
-									}),
-									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										label := fmt.Sprintf("历史 %d", len(suggestions))
-										return a.pillButton(gtx, &a.promptHelperHistoryButton, label, a.promptHelperTab == "history")
-									}),
-								)
+								return a.borderedSurface(gtx, accentAlpha(0x06), unit.Dp(10), fluent.border, func(gtx layout.Context) layout.Dimensions {
+									return layout.UniformInset(unit.Dp(2)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+										return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(2))}.Layout(gtx,
+											layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+												label := "模板"
+												if len(presets) > 0 {
+													label = fmt.Sprintf("模板 %d", len(presets))
+												}
+												return a.surfaceButton(
+													gtx,
+													&a.promptHelperTemplatesButton,
+													chooseColor(a.promptHelperTab != "history", fluent.surface, rgba(0xffffff, 0x00)),
+													fluent.surface2,
+													rgba(0xffffff, 0x00),
+													fluentControlRadius,
+													layout.Inset{Top: 8, Bottom: 8, Left: 10, Right: 10},
+													func(gtx layout.Context) layout.Dimensions {
+														return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+															return a.label(gtx, label, unit.Sp(11), chooseColor(a.promptHelperTab != "history", fluent.text, fluent.textMuted), chooseFontWeight(a.promptHelperTab != "history"))
+														})
+													},
+												)
+											}),
+											layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+												label := fmt.Sprintf("历史 %d", len(suggestions))
+												return a.surfaceButton(
+													gtx,
+													&a.promptHelperHistoryButton,
+													chooseColor(a.promptHelperTab == "history", fluent.surface, rgba(0xffffff, 0x00)),
+													fluent.surface2,
+													rgba(0xffffff, 0x00),
+													fluentControlRadius,
+													layout.Inset{Top: 8, Bottom: 8, Left: 10, Right: 10},
+													func(gtx layout.Context) layout.Dimensions {
+														return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+															return a.label(gtx, label, unit.Sp(11), chooseColor(a.promptHelperTab == "history", fluent.text, fluent.textMuted), chooseFontWeight(a.promptHelperTab == "history"))
+														})
+													},
+												)
+											}),
+										)
+									})
+								})
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								return a.ghostIconButton(gtx, &a.closePromptHelperButton, uiIconClose, false)
 							}),
 						)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return fixedHeight(gtx, unit.Dp(1), func(gtx layout.Context) layout.Dimensions {
+							return a.surface(gtx, fluent.border, 0, layout.Spacer{}.Layout)
+						})
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return a.layoutPromptHelperPanel(gtx, presets, suggestions)
@@ -323,19 +358,49 @@ func (a *App) layoutPromptHelperModal(gtx layout.Context) layout.Dimensions {
 		func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(12))}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							label := "模板"
-							if len(snap.Presets) > 0 {
-								label = fmt.Sprintf("模板 %d", len(snap.Presets))
-							}
-							return a.pillButton(gtx, &a.promptHelperTemplatesButton, label, a.promptHelperTab != "history")
-						}),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							label := fmt.Sprintf("历史 %d", len(suggestions))
-							return a.pillButton(gtx, &a.promptHelperHistoryButton, label, a.promptHelperTab == "history")
-						}),
-					)
+					return a.borderedSurface(gtx, accentAlpha(0x06), unit.Dp(10), fluent.border, func(gtx layout.Context) layout.Dimensions {
+						return layout.UniformInset(unit.Dp(2)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(2))}.Layout(gtx,
+								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+									label := "模板"
+									if len(snap.Presets) > 0 {
+										label = fmt.Sprintf("模板 %d", len(snap.Presets))
+									}
+									return a.surfaceButton(
+										gtx,
+										&a.promptHelperTemplatesButton,
+										chooseColor(a.promptHelperTab != "history", fluent.surface, rgba(0xffffff, 0x00)),
+										fluent.surface2,
+										rgba(0xffffff, 0x00),
+										fluentControlRadius,
+										layout.Inset{Top: 8, Bottom: 8, Left: 10, Right: 10},
+										func(gtx layout.Context) layout.Dimensions {
+											return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+												return a.label(gtx, label, unit.Sp(11), chooseColor(a.promptHelperTab != "history", fluent.text, fluent.textMuted), chooseFontWeight(a.promptHelperTab != "history"))
+											})
+										},
+									)
+								}),
+								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+									label := fmt.Sprintf("历史 %d", len(suggestions))
+									return a.surfaceButton(
+										gtx,
+										&a.promptHelperHistoryButton,
+										chooseColor(a.promptHelperTab == "history", fluent.surface, rgba(0xffffff, 0x00)),
+										fluent.surface2,
+										rgba(0xffffff, 0x00),
+										fluentControlRadius,
+										layout.Inset{Top: 8, Bottom: 8, Left: 10, Right: 10},
+										func(gtx layout.Context) layout.Dimensions {
+											return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+												return a.label(gtx, label, unit.Sp(11), chooseColor(a.promptHelperTab == "history", fluent.text, fluent.textMuted), chooseFontWeight(a.promptHelperTab == "history"))
+											})
+										},
+									)
+								}),
+							)
+						})
+					})
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return a.layoutPromptHelperPanel(gtx, snap.Presets, suggestions)
@@ -345,15 +410,66 @@ func (a *App) layoutPromptHelperModal(gtx layout.Context) layout.Dimensions {
 	)
 }
 
+func chooseFontWeight(active bool) font.Weight {
+	if active {
+		return font.SemiBold
+	}
+	return font.Medium
+}
+
+func (a *App) layoutPromptHelperItem(gtx layout.Context, buttonID string, item promptHelperItem) layout.Dimensions {
+	btn := a.promptButton(buttonID)
+	return a.surfaceButton(
+		gtx,
+		btn,
+		rgba(0xffffff, 0x00),
+		fluent.accentSoft,
+		rgba(0xffffff, 0x00),
+		unit.Dp(10),
+		layout.Inset{Top: 10, Bottom: 10, Left: 10, Right: 10},
+		func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(4))}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return a.clampedLabel(gtx, item.Title, unit.Sp(12), fluent.text, font.SemiBold, 2)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if strings.TrimSpace(item.Detail) == "" || strings.TrimSpace(item.Detail) == strings.TrimSpace(item.Title) {
+						return layout.Dimensions{}
+					}
+					return a.clampedLabel(gtx, item.Detail, unit.Sp(10), fluent.textDim, font.Normal, 3)
+				}),
+			)
+		},
+	)
+}
+
 func (a *App) layoutSettingsModal(gtx layout.Context) layout.Dimensions {
 	for a.closeSettingsButton.Clicked(gtx) {
 		a.settingsModalOpen = false
+		a.settingsHelpOpen = false
+		a.saveCurrentConfig()
+	}
+	for a.settingsHelpButton.Clicked(gtx) {
+		a.settingsHelpOpen = true
+	}
+	for a.closeSettingsHelpButton.Clicked(gtx) {
+		a.settingsHelpOpen = false
+	}
+	for a.saveSettingsButton.Clicked(gtx) {
+		if strings.TrimSpace(a.baseURLInput.Text()) == "" || strings.TrimSpace(a.apiKeyInput.Text()) == "" {
+			continue
+		}
+		a.settingsModalOpen = false
+		a.settingsHelpOpen = false
 		a.saveCurrentConfig()
 	}
 	for a.toggleAPIKeyMaskButton.Clicked(gtx) {
 		a.apiKeyVisible = !a.apiKeyVisible
 	}
 	for a.settingsTestUpstreamButton.Clicked(gtx) {
+		if strings.TrimSpace(a.baseURLInput.Text()) == "" || strings.TrimSpace(a.apiKeyInput.Text()) == "" {
+			continue
+		}
 		a.saveCurrentConfig()
 		a.startUpstreamProbe()
 	}
@@ -410,6 +526,44 @@ func (a *App) layoutSettingsModal(gtx layout.Context) layout.Dimensions {
 					return a.layoutSettingsEditorPane(gtx, snap)
 				}),
 			)
+		},
+	)
+}
+
+func (a *App) layoutSettingsHelpModal(gtx layout.Context) layout.Dimensions {
+	return a.layoutStandardModal(
+		gtx,
+		unit.Dp(560),
+		0,
+		"接口说明",
+		"上游配置",
+		&a.closeSettingsHelpButton,
+		func(gtx layout.Context) layout.Dimensions {
+			sections := []layout.Widget{
+				func(gtx layout.Context) layout.Dimensions {
+					return a.advancedSectionCard(gtx, "Responses API", "SSE 保活，更适合长推理。", func(gtx layout.Context) layout.Dimensions {
+						return a.label(gtx, "适合 GPT 图像链路和提示词优化；遇到 Cloudflare 524 这类长任务超时也更稳。", unit.Sp(11), fluent.textMuted, font.Normal)
+					})
+				},
+				func(gtx layout.Context) layout.Dimensions {
+					return a.advancedSectionCard(gtx, "Images API", "标准 generations / edits，兼容性最广。", func(gtx layout.Context) layout.Dimensions {
+						return a.label(gtx, "适合只想尽快接上常规生图接口的场景；没有 SSE 保活，长推理更容易超时。", unit.Sp(11), fluent.textMuted, font.Normal)
+					})
+				},
+				func(gtx layout.Context) layout.Dimensions {
+					return a.advancedSectionCard(gtx, "BASE_URL", "", func(gtx layout.Context) layout.Dimensions {
+						return a.label(gtx, "只填中转站的站点根地址。应用会按当前 API 形态自动拼接请求路径，不要手动把 /v1/... 贴进来。", unit.Sp(11), fluent.textMuted, font.Normal)
+					})
+				},
+				func(gtx layout.Context) layout.Dimensions {
+					return a.advancedSectionCard(gtx, "参数策略", "", func(gtx layout.Context) layout.Dimensions {
+						return a.label(gtx, "OpenAI 标准只发送公开字段；兼容中转扩展会额外发送 relay 常见扩展字段，例如 seed / negative_prompt。", unit.Sp(11), fluent.textMuted, font.Normal)
+					})
+				},
+			}
+			return a.settingsList.Layout(gtx, len(sections), func(gtx layout.Context, index int) layout.Dimensions {
+				return layout.Inset{Bottom: unit.Dp(10)}.Layout(gtx, sections[index])
+			})
 		},
 	)
 }
@@ -552,19 +706,23 @@ func (a *App) layoutSettingsOptionCards(
 	options []settingsOptionChoice,
 	selected string,
 	buttons []widget.Clickable,
+	columns int,
 	set func(string),
 ) layout.Dimensions {
+	if columns <= 0 {
+		columns = 2
+	}
 	return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return a.label(gtx, title, unit.Sp(11), fluent.textMuted, font.Medium)
+			return a.label(gtx, title, unit.Sp(11), fluent.textMuted, font.SemiBold)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			rows := make([]layout.FlexChild, 0, (len(options)+1)/2)
-			for row := 0; row < len(options); row += 2 {
+			rows := make([]layout.FlexChild, 0, (len(options)+columns-1)/columns)
+			for row := 0; row < len(options); row += columns {
 				row := row
 				rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					cells := make([]layout.FlexChild, 0, 2)
-					for col := 0; col < 2; col++ {
+					cells := make([]layout.FlexChild, 0, columns)
+					for col := 0; col < columns; col++ {
 						idx := row + col
 						if idx >= len(options) {
 							cells = append(cells, layout.Flexed(1, layout.Spacer{}.Layout))
@@ -581,12 +739,12 @@ func (a *App) layoutSettingsOptionCards(
 								chooseColor(active, fluent.accentSoft, fluent.surface),
 								chooseColor(active, accentAlpha(0x28), fluent.surface2),
 								fluent.border,
-								unit.Dp(6),
-								layout.Inset{Top: 10, Bottom: 10, Left: 10, Right: 10},
+								unit.Dp(8),
+								layout.Inset{Top: 10, Bottom: 10, Left: 12, Right: 12},
 								func(gtx layout.Context) layout.Dimensions {
-									return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(4))}.Layout(gtx,
+									return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(3))}.Layout(gtx,
 										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-											return a.label(gtx, options[idx].Title, unit.Sp(11), chooseColor(active, fluent.accent, fluent.text), font.Medium)
+											return a.label(gtx, options[idx].Title, unit.Sp(12), chooseColor(active, fluent.accent, fluent.text), font.SemiBold)
 										}),
 										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 											return a.label(gtx, options[idx].Detail, unit.Sp(10), chooseColor(active, fluent.accent, fluent.textDim), font.Normal)
@@ -596,7 +754,7 @@ func (a *App) layoutSettingsOptionCards(
 							)
 						}))
 					}
-					return layout.Inset{Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx, cells...)
 					})
 				}))
@@ -607,27 +765,36 @@ func (a *App) layoutSettingsOptionCards(
 }
 
 func (a *App) layoutSettingsAPIKeyField(gtx layout.Context) layout.Dimensions {
-	label := "显示"
 	icon := uiIconVisibility
 	if a.apiKeyVisible {
-		label = "隐藏"
 		icon = uiIconVisibilityOff
+	}
+	border := fluent.border2
+	if gtx.Focused(&a.apiKeyInput) {
+		border = accentAlpha(0xb8)
 	}
 	return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return a.label(gtx, "API Key", unit.Sp(11), fluent.textMuted, font.Medium)
+			return a.label(gtx, "API Key", unit.Sp(11), fluent.textMuted, font.SemiBold)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return fixedHeight(gtx, unit.Dp(44), func(gtx layout.Context) layout.Dimensions {
-				return a.borderedSurface(gtx, fluent.surface, unit.Dp(4), fluent.border2, func(gtx layout.Context) layout.Dimensions {
-					return layout.Inset{Top: 9, Bottom: 9, Left: 10, Right: 10}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return a.borderedSurface(gtx, fluent.surface, fluentControlRadius, border, func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Top: 9, Bottom: 9, Left: 12, Right: 8}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-								return a.editorText(gtx, &a.apiKeyInput, "sk-...", unit.Sp(13))
+								style := material.Editor(a.th, &a.apiKeyInput, "sk-...")
+								style.Color = fluent.text
+								style.HintColor = fluent.textDim
+								style.SelectionColor = accentAlpha(0x3d)
+								style.TextSize = unit.Sp(13)
+								style.Font.Weight = font.Medium
+								style.Font.Typeface = font.Typeface("monospace")
+								return style.Layout(gtx)
 							}),
 							layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								return a.compactIconTextButton(gtx, &a.toggleAPIKeyMaskButton, icon, label, a.apiKeyVisible)
+								return a.ghostIconButton(gtx, &a.toggleAPIKeyMaskButton, icon, a.apiKeyVisible)
 							}),
 						)
 					})
@@ -657,59 +824,58 @@ func (a *App) layoutSettingsProfileRail(gtx layout.Context, snap snapshot) layou
 				return a.sectionEyebrow(gtx, "配置列表")
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return a.borderedSurface(gtx, fluent.surface, unit.Dp(8), fluent.border, func(gtx layout.Context) layout.Dimensions {
-					return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						if len(snap.Profiles) == 0 {
-							return a.label(gtx, "还没有可用上游配置。", unit.Sp(10), fluent.textDim, font.Normal)
-						}
-						rows := make([]layout.FlexChild, 0, len(snap.Profiles))
-						for idx, profile := range snap.Profiles {
-							profile := profile
-							rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								btn := a.settingsProfileButton("settings-profile:" + profile.ID)
-								active := profile.ID == snap.ActiveProfileID
-								return a.surfaceButton(
-									gtx,
-									btn,
-									chooseColor(active, fluent.accentSoft, rgba(0xffffff, 0x00)),
-									chooseColor(active, accentAlpha(0x28), fluent.surface2),
-									rgba(0xffffff, 0x00),
-									unit.Dp(6),
-									layout.Inset{Top: 8, Bottom: 8, Left: 8, Right: 8},
-									func(gtx layout.Context) layout.Dimensions {
-										modeTag := "R"
-										if strings.TrimSpace(profile.APIMode) == "images" {
-											modeTag = "I"
-										}
-										return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-												dot := fluent.textDim
-												if active {
-													dot = fluent.accent
-												}
-												return layout.Inset{Right: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-													return fixedWidth(gtx, unit.Dp(8), func(gtx layout.Context) layout.Dimensions {
-														return fixedHeight(gtx, unit.Dp(8), func(gtx layout.Context) layout.Dimensions {
-															return a.surface(gtx, dot, unit.Dp(4), layout.Spacer{}.Layout)
+				return fixedHeight(gtx, unit.Dp(460), func(gtx layout.Context) layout.Dimensions {
+					return a.borderedSurface(gtx, fluent.surface, unit.Dp(8), fluent.border, func(gtx layout.Context) layout.Dimensions {
+						return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							if len(snap.Profiles) == 0 {
+								return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									return a.label(gtx, "还没有可用上游配置。", unit.Sp(10), fluent.textDim, font.Normal)
+								})
+							}
+							return a.settingsProfileList.Layout(gtx, len(snap.Profiles), func(gtx layout.Context, index int) layout.Dimensions {
+								profile := snap.Profiles[index]
+								return layout.Inset{Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									btn := a.settingsProfileButton("settings-profile:" + profile.ID)
+									active := profile.ID == snap.ActiveProfileID
+									return a.surfaceButton(
+										gtx,
+										btn,
+										chooseColor(active, fluent.accentSoft, rgba(0xffffff, 0x00)),
+										chooseColor(active, accentAlpha(0x28), fluent.surface2),
+										rgba(0xffffff, 0x00),
+										unit.Dp(8),
+										layout.Inset{Top: 8, Bottom: 8, Left: 8, Right: 8},
+										func(gtx layout.Context) layout.Dimensions {
+											modeTag := "R"
+											if strings.TrimSpace(profile.APIMode) == "images" {
+												modeTag = "I"
+											}
+											return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+												layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+													dot := fluent.textDim
+													if active {
+														dot = fluent.accent
+													}
+													return layout.Inset{Right: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+														return fixedWidth(gtx, unit.Dp(8), func(gtx layout.Context) layout.Dimensions {
+															return fixedHeight(gtx, unit.Dp(8), func(gtx layout.Context) layout.Dimensions {
+																return a.surface(gtx, dot, unit.Dp(4), layout.Spacer{}.Layout)
+															})
 														})
 													})
-												})
-											}),
-											layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-												return a.singleLineLabel(gtx, strings.TrimSpace(profile.Name), unit.Sp(12), chooseColor(active, fluent.accent, fluent.text), font.Medium)
-											}),
-											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-												return a.label(gtx, modeTag, unit.Sp(10), fluent.textDim, font.Medium)
-											}),
-										)
-									},
-								)
-							}))
-							if idx != len(snap.Profiles)-1 {
-								rows = append(rows, layout.Rigid(layout.Spacer{Height: unit.Dp(4)}.Layout))
-							}
-						}
-						return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
+												}),
+												layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+													return a.singleLineLabel(gtx, strings.TrimSpace(profile.Name), unit.Sp(12), chooseColor(active, fluent.accent, fluent.text), font.Medium)
+												}),
+												layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+													return a.label(gtx, modeTag, unit.Sp(10), fluent.textDim, font.Medium)
+												}),
+											)
+										},
+									)
+								})
+							})
+						})
 					})
 				})
 			}),
@@ -735,88 +901,168 @@ func (a *App) layoutSettingsProfileRail(gtx layout.Context, snap snapshot) layou
 
 func (a *App) layoutSettingsEditorPane(gtx layout.Context, snap snapshot) layout.Dimensions {
 	return a.card(gtx, func(gtx layout.Context) layout.Dimensions {
+		connectionSection := func(gtx layout.Context) layout.Dimensions {
+			return a.advancedSectionCard(gtx, "连接", "", func(gtx layout.Context) layout.Dimensions {
+				rows := []layout.FlexChild{
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.field(gtx, "名称", &a.profileNameInput, "配置1", unit.Dp(44))
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.layoutSettingsOptionCards(gtx, "API 形态", []settingsOptionChoice{
+							{Title: "Responses API", Detail: "SSE 保活，更适合长推理", Value: string(client.APIModeResponses)},
+							{Title: "Images API", Detail: "标准 generations / edits", Value: string(client.APIModeImages)},
+						}, a.api, a.apiButtons, 2, func(value string) { a.api = value })
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.layoutSettingsOptionCards(gtx, "参数策略", []settingsOptionChoice{
+							{Title: "OpenAI 标准", Detail: "只发送官方公开字段", Value: string(client.RequestPolicyOpenAI)},
+							{Title: "兼容中转扩展", Detail: "附带 seed / negative_prompt", Value: string(client.RequestPolicyCompat)},
+						}, a.policy, a.policyButtons, 1, func(value string) { a.policy = value })
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.technicalField(gtx, "上游 BASE_URL", &a.baseURLInput, "https://example.com", unit.Dp(44))
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.layoutSettingsAPIKeyField(gtx)
+					}),
+				}
+				return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx, rows...)
+			})
+		}
+		runtimeSection := func(gtx layout.Context) layout.Dimensions {
+			return a.advancedSectionCard(gtx, "运行与输出", "", func(gtx layout.Context) layout.Dimensions {
+				rows := []layout.FlexChild{}
+				canSave := strings.TrimSpace(a.baseURLInput.Text()) != "" && strings.TrimSpace(a.apiKeyInput.Text()) != ""
+				if a.api == string(client.APIModeResponses) {
+					rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.technicalField(gtx, "文本模型 ID", &a.textModelInput, client.TextModel, unit.Dp(44))
+					}))
+				}
+				rows = append(rows,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.technicalField(gtx, "图像模型 ID", &a.imageModelInput, client.ImageModel, unit.Dp(44))
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.technicalField(gtx, "并发数量限制", &a.concurrencyLimitInput, "留空 = 不限制", unit.Dp(44))
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.label(gtx, "0/留空 = 不限制。填正整数后，此配置跨所有标签页最多同时运行这么多任务。", unit.Sp(10), fluent.textDim, font.Normal)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.segmentedWithTitle(gtx, "代理", proxyChoices, a.proxy, a.proxyButtons, func(value string) { a.proxy = value })
+					}),
+				)
+				if a.proxy == "custom" || strings.TrimSpace(a.proxyURLInput.Text()) != "" {
+					rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.technicalField(gtx, "自定义代理 URL", &a.proxyURLInput, "http://127.0.0.1:7890", unit.Dp(44))
+					}))
+				}
+				rows = append(rows,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.technicalField(gtx, "输出目录", &a.outputDirInput, "生成图片保存目录", unit.Dp(44))
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						label := "保存并测试连接"
+						if snap.TestingUpstream {
+							label = "测试中..."
+						}
+						gtx.Constraints.Min.X = gtx.Constraints.Max.X
+						if !canSave {
+							return a.surfaceButton(
+								gtx,
+								&a.settingsTestUpstreamButton,
+								fluent.surface2,
+								fluent.surface2,
+								rgba(0xffffff, 0x00),
+								fluentControlRadius,
+								layout.Inset{Top: 9, Bottom: 9, Left: 12, Right: 12},
+								func(gtx layout.Context) layout.Dimensions {
+									return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+										return a.label(gtx, label, unit.Sp(12), withAlpha(fluent.textDim, 0x88), font.SemiBold)
+									})
+								},
+							)
+						}
+						return a.primaryButton(gtx, &a.settingsTestUpstreamButton, label, fluent.accent, fluent.white)
+					}),
+				)
+				if strings.TrimSpace(snap.LastProbeSummary) != "" {
+					rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.label(gtx, snap.LastProbeSummary, unit.Sp(10), fluent.textDim, font.Normal)
+					}))
+				}
+				rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if a.api == string(client.APIModeResponses) {
+						return a.label(gtx, "Responses API 更适合长推理和需要 SSE 保活的上游。", unit.Sp(10), fluent.textDim, font.Normal)
+					}
+					return a.borderedSurface(gtx, fluent.accentSoft, unit.Dp(6), accentAlpha(0x28), func(gtx layout.Context) layout.Dimensions {
+						return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return a.label(gtx, "Images API 兼容性最广，但没有 SSE 保活，长推理更容易遇到超时。", unit.Sp(10), fluent.accent, font.Normal)
+						})
+					})
+				}))
+				return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx, rows...)
+			})
+		}
 		children := []layout.Widget{
 			func(gtx layout.Context) layout.Dimensions {
-				return a.sectionEyebrow(gtx, "编辑配置")
+				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+						return layout.Dimensions{}
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.ghostIconTextButton(gtx, &a.settingsHelpButton, uiIconFeedback, "接口说明", false)
+					}),
+				)
 			},
-			func(gtx layout.Context) layout.Dimensions {
-				return a.field(gtx, "名称", &a.profileNameInput, "配置1", unit.Dp(44))
-			},
-			func(gtx layout.Context) layout.Dimensions {
-				return a.layoutSettingsOptionCards(gtx, "API 形态", []settingsOptionChoice{
-					{Title: "Responses API", Detail: "SSE 保活，更适合长推理", Value: string(client.APIModeResponses)},
-					{Title: "Images API", Detail: "标准 generations / edits", Value: string(client.APIModeImages)},
-				}, a.api, a.apiButtons, func(value string) { a.api = value })
-			},
-			func(gtx layout.Context) layout.Dimensions {
-				return a.layoutSettingsOptionCards(gtx, "参数策略", []settingsOptionChoice{
-					{Title: "OpenAI 标准", Detail: "只发送官方公开字段", Value: string(client.RequestPolicyOpenAI)},
-					{Title: "兼容中转扩展", Detail: "附带 seed / negative_prompt", Value: string(client.RequestPolicyCompat)},
-				}, a.policy, a.policyButtons, func(value string) { a.policy = value })
-			},
-			func(gtx layout.Context) layout.Dimensions {
-				return a.field(gtx, "上游 BASE_URL", &a.baseURLInput, "https://example.com", unit.Dp(44))
-			},
-			func(gtx layout.Context) layout.Dimensions {
-				return a.layoutSettingsAPIKeyField(gtx)
-			},
-		}
-		if a.api == string(client.APIModeResponses) {
-			children = append(children, func(gtx layout.Context) layout.Dimensions {
-				return a.field(gtx, "文本模型 ID", &a.textModelInput, client.TextModel, unit.Dp(44))
-			})
-		}
-		children = append(children,
-			func(gtx layout.Context) layout.Dimensions {
-				return a.field(gtx, "图像模型 ID", &a.imageModelInput, client.ImageModel, unit.Dp(44))
-			},
-			func(gtx layout.Context) layout.Dimensions {
-				return a.field(gtx, "并发数量限制", &a.concurrencyLimitInput, "留空 = 不限制", unit.Dp(44))
-			},
-			func(gtx layout.Context) layout.Dimensions {
-				return a.label(gtx, "0/留空 = 不限制。填正整数后，此配置跨所有标签页最多同时运行这么多任务。", unit.Sp(10), fluent.textDim, font.Normal)
-			},
-			layout.Spacer{Height: unit.Dp(4)}.Layout,
-			func(gtx layout.Context) layout.Dimensions {
-				return a.sectionEyebrow(gtx, "运行与输出")
-			},
-			func(gtx layout.Context) layout.Dimensions {
-				return a.segmentedWithTitle(gtx, "代理", proxyChoices, a.proxy, a.proxyButtons, func(value string) { a.proxy = value })
-			},
-		)
-		if a.proxy == "custom" || strings.TrimSpace(a.proxyURLInput.Text()) != "" {
-			children = append(children, func(gtx layout.Context) layout.Dimensions {
-				return a.field(gtx, "自定义代理 URL", &a.proxyURLInput, "http://127.0.0.1:7890", unit.Dp(44))
-			})
-		}
-		children = append(children,
-			func(gtx layout.Context) layout.Dimensions {
-				return a.field(gtx, "输出目录", &a.outputDirInput, "生成图片保存目录", unit.Dp(44))
-			},
-			layout.Spacer{Height: unit.Dp(4)}.Layout,
-			func(gtx layout.Context) layout.Dimensions {
-				label := "保存并测试连接"
-				if snap.TestingUpstream {
-					label = "测试中..."
-				}
-				gtx.Constraints.Min.X = gtx.Constraints.Max.X
-				return a.primaryIconTextButton(gtx, &a.settingsTestUpstreamButton, uiIconRefresh, label, fluent.accent, fluent.white)
-			},
-		)
-		if strings.TrimSpace(snap.LastProbeSummary) != "" {
-			children = append(children, func(gtx layout.Context) layout.Dimensions {
-				return a.label(gtx, snap.LastProbeSummary, unit.Sp(10), fluent.textDim, font.Normal)
-			})
+			connectionSection,
+			runtimeSection,
 		}
 		children = append(children, func(gtx layout.Context) layout.Dimensions {
-			if a.api == string(client.APIModeResponses) {
-				return a.label(gtx, "Responses API 更适合长推理和需要 SSE 保活的上游。", unit.Sp(10), fluent.textDim, font.Normal)
-			}
-			return a.borderedSurface(gtx, fluent.accentSoft, unit.Dp(6), accentAlpha(0x28), func(gtx layout.Context) layout.Dimensions {
-				return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return a.label(gtx, "Images API 兼容性最广，但没有 SSE 保活，长推理更容易遇到超时。", unit.Sp(10), fluent.accent, font.Normal)
-				})
-			})
+			canSave := strings.TrimSpace(a.baseURLInput.Text()) != "" && strings.TrimSpace(a.apiKeyInput.Text()) != ""
+			return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return fixedWidth(gtx, unit.Dp(110), func(gtx layout.Context) layout.Dimensions {
+						return a.compactButton(gtx, &a.closeSettingsButton, "关闭", false)
+					})
+				}),
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					if !canSave {
+						return a.label(gtx, "BASE_URL 和 API Key 必须填齐才能保存。", unit.Sp(10), fluent.textDim, font.Normal)
+					}
+					return layout.Dimensions{}
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return fixedWidth(gtx, unit.Dp(120), func(gtx layout.Context) layout.Dimensions {
+						if !canSave {
+							return a.surfaceButton(
+								gtx,
+								&a.saveSettingsButton,
+								fluent.surface2,
+								fluent.surface2,
+								rgba(0xffffff, 0x00),
+								fluentControlRadius,
+								layout.Inset{Top: 8, Bottom: 8, Left: 10, Right: 10},
+								func(gtx layout.Context) layout.Dimensions {
+									return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											return fixedWidth(gtx, unit.Dp(16), func(gtx layout.Context) layout.Dimensions {
+												return fixedHeight(gtx, unit.Dp(16), func(gtx layout.Context) layout.Dimensions {
+													return uiIconSave.Layout(gtx, withAlpha(fluent.textDim, 0x88))
+												})
+											})
+										}),
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											return a.label(gtx, "保存", unit.Sp(12), withAlpha(fluent.textDim, 0x88), font.Medium)
+										}),
+									)
+								},
+							)
+						}
+						return a.primaryButton(gtx, &a.saveSettingsButton, "保存", fluent.accent, fluent.white)
+					})
+				}),
+			)
 		})
 		return a.settingsList.Layout(gtx, len(children), func(gtx layout.Context, index int) layout.Dimensions {
 			return layout.Inset{Bottom: unit.Dp(10)}.Layout(gtx, children[index])
@@ -826,7 +1072,7 @@ func (a *App) layoutSettingsEditorPane(gtx layout.Context, snap snapshot) layout
 
 func (a *App) layoutComposeCard(gtx layout.Context) layout.Dimensions {
 	activeAspect := deriveAspectPreset(a.size)
-	activeResolution := deriveResolutionPreset(a.size)
+	activeResolution := normalizeResolutionChoice(deriveResolutionPreset(a.size), a.api, a.policy, a.imageModelInput.Text())
 	currentSaved := strings.TrimSpace(a.readSnapshot().Result.SavedPath)
 	sourcePaths := kernel.ParseSourcePaths(a.sourcePathsInput.Text())
 	sourceLabel := "文生图"
@@ -843,7 +1089,7 @@ func (a *App) layoutComposeCard(gtx layout.Context) layout.Dimensions {
 	summary := strings.Join(compactNonEmpty([]string{
 		chooseStyleSummary(a.styleTag),
 		activeAspect,
-		strings.ToUpper(activeResolution),
+		choiceLabel(resolutionChoices, activeResolution),
 		qualityChoiceLabel(a.quality),
 		fmt.Sprintf("%d 张", normalizeBatchCount(a.batchCount)),
 		sourceLabel,
@@ -892,11 +1138,6 @@ func (a *App) layoutComposeCard(gtx layout.Context) layout.Dimensions {
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return a.composeSectionCard(gtx, a.layoutBatchCountSection)
 				}),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layout.Inset{Top: 8}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						return a.label(gtx, "风格、比例、分辨率、质量和批量张数会随当前标签一起保存。", unit.Sp(10), fluent.textDim, font.Normal)
-					})
-				}),
 			)
 		}
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
@@ -930,7 +1171,7 @@ func (a *App) layoutAspectSection(gtx layout.Context, activeAspect string, curre
 				}
 				choice := aspectChoices[idx]
 				for a.aspectButtons[idx].Clicked(gtx) {
-					a.size = buildAspectSizeSelection(choice.Value, currentResolution)
+					a.size = buildAspectSizeSelection(choice.Value, currentResolution, a.api, a.policy, a.imageModelInput.Text())
 				}
 				cells = append(cells, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					return a.layoutAspectButton(gtx, &a.aspectButtons[idx], choice, activeAspect == choice.Value)
@@ -945,6 +1186,9 @@ func (a *App) layoutAspectSection(gtx layout.Context, activeAspect string, curre
 }
 
 func (a *App) layoutStyleSection(gtx layout.Context) layout.Dimensions {
+	for a.clearStyleButton.Clicked(gtx) {
+		a.styleTag = ""
+	}
 	children := []layout.FlexChild{
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -955,7 +1199,7 @@ func (a *App) layoutStyleSection(gtx layout.Context) layout.Dimensions {
 					if a.styleTag == "" {
 						return a.label(gtx, "默认风格", unit.Sp(10), fluent.textDim, font.Normal)
 					}
-					return a.staticPill(gtx, "已选 "+styleChoiceLabel(a.styleTag), true, false)
+					return a.ghostIconTextButton(gtx, &a.clearStyleButton, uiIconClear, "清除", true)
 				}),
 			)
 		}),
@@ -992,12 +1236,6 @@ func (a *App) layoutStyleSection(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, row...)
 		}))
 	}
-	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		if a.styleTag == "" {
-			return layout.Dimensions{}
-		}
-		return a.label(gtx, styleSuffixes[a.styleTag], unit.Sp(10), fluent.textDim, font.Normal)
-	}))
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
@@ -1010,11 +1248,6 @@ func (a *App) layoutSourceInputSection(gtx layout.Context, sourcePaths []string,
 			for _, path := range paths {
 				a.appendSourcePath(path)
 			}
-		}
-	}
-	for a.useCurrentAsSourceButton.Clicked(gtx) {
-		if currentSaved != "" {
-			a.appendSourcePath(currentSaved)
 		}
 	}
 	for a.clearSourcesButton.Clicked(gtx) {
@@ -1043,7 +1276,7 @@ func (a *App) layoutSourceInputSection(gtx layout.Context, sourcePaths []string,
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.borderedSurface(gtx, fluent.surface2, fluentControlRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {
 				return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return a.label(gtx, "(画板当前图 · 隐式源图)", unit.Sp(10), fluent.textDim, font.Normal)
+					return a.label(gtx, "画板当前图作源图", unit.Sp(10), fluent.textDim, font.Normal)
 				})
 			})
 		}))
@@ -1091,30 +1324,14 @@ func (a *App) layoutSourceInputSection(gtx layout.Context, sourcePaths []string,
 		row = append(row, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.compactIconTextButton(gtx, &a.addSourceFilesButton, uiIconAdd, "添加图片", false)
 		}))
-		if currentSaved != "" {
-			row = append(row, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return a.compactIconTextButton(gtx, &a.useCurrentAsSourceButton, uiIconPhoto, "使用当前图", false)
-				})
-			}))
-		}
 		if len(sourcePaths) > 0 {
 			row = append(row, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return a.compactIconTextButton(gtx, &a.clearSourcesButton, uiIconDelete, "清空", false)
+					return a.historyMiniIconButton(gtx, &a.clearSourcesButton, uiIconDelete, false)
 				})
 			}))
 		}
 		return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, row...)
-	}))
-	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		if currentSaved != "" && len(sourcePaths) == 0 {
-			return a.label(gtx, "可直接复用当前画布结果，或继续添加本地图片。", unit.Sp(10), fluent.textDim, font.Normal)
-		}
-		if len(sourcePaths) > 0 {
-			return a.label(gtx, "多张参考图会按当前顺序发送给图生图请求。", unit.Sp(10), fluent.textDim, font.Normal)
-		}
-		return a.label(gtx, "使用系统文件选择器添加参考图。", unit.Sp(10), fluent.textDim, font.Normal)
 	}))
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
@@ -1130,7 +1347,7 @@ func indexOfSourcePath(path string, sourcePaths []string) int {
 }
 
 func (a *App) layoutResolutionSection(gtx layout.Context, activeAspect string, activeResolution string) layout.Dimensions {
-	choices := visibleResolutionChoices(activeAspect)
+	choices := visibleResolutionChoices(a.api, a.policy, a.imageModelInput.Text())
 	children := []layout.FlexChild{
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.label(gtx, "分辨率", unit.Sp(11), fluent.textMuted, font.Medium)
@@ -1141,7 +1358,7 @@ func (a *App) layoutResolutionSection(gtx layout.Context, activeAspect string, a
 	for idx := range choices {
 		idx := idx
 		for a.resolutionButtons[idx].Clicked(gtx) {
-			a.size = buildResolutionSizeSelection(activeAspect, choices[idx].Value)
+			a.size = buildResolutionSizeSelection(activeAspect, choices[idx].Value, a.api, a.policy, a.imageModelInput.Text())
 		}
 		row = append(row, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return a.pillButton(gtx, &a.resolutionButtons[idx], choices[idx].Label, activeResolution == choices[idx].Value)
@@ -1149,6 +1366,15 @@ func (a *App) layoutResolutionSection(gtx layout.Context, activeAspect string, a
 	}
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx, row...)
+	}))
+	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		hint := sizeCapabilityHint(a.api, a.policy, a.imageModelInput.Text())
+		if hint == "" {
+			return layout.Dimensions{}
+		}
+		return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return a.label(gtx, hint, unit.Sp(10), fluent.textDim, font.Normal)
+		})
 	}))
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
@@ -1162,7 +1388,7 @@ func (a *App) layoutBatchCountSection(gtx layout.Context) layout.Dimensions {
 					return a.label(gtx, "出图张数", unit.Sp(11), fluent.textMuted, font.Medium)
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.label(gtx, fmt.Sprintf("当前 %d 张", batchCount), unit.Sp(10), fluent.textDim, font.Normal)
+					return a.label(gtx, fmt.Sprintf("%dx", batchCount), unit.Sp(10), fluent.textDim, font.Medium)
 				}),
 			)
 		}),
@@ -1195,9 +1421,6 @@ func (a *App) layoutBatchCountSection(gtx layout.Context) layout.Dimensions {
 			})
 		}))
 	}
-	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		return a.label(gtx, "多张结果会自动按同一提示词归到一组，方便回看和挑图。", unit.Sp(10), fluent.textDim, font.Normal)
-	}))
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
@@ -1210,49 +1433,45 @@ func (a *App) layoutAdvancedCard(gtx layout.Context) layout.Dimensions {
 
 	return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return a.borderedSurface(gtx, fluent.surface, fluentCardRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {
-				return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return a.layoutDisclosureHeader(gtx, &a.advancedToggleButton, "高级参数", summary, a.advancedOpen)
-				})
-			})
+			return a.layoutDisclosureHeader(gtx, &a.advancedToggleButton, "高级参数", summary, a.advancedOpen)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if !a.advancedOpen {
 				return layout.Dimensions{}
 			}
 			return a.card(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
+				return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(12))}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.composeSectionCard(gtx, func(gtx layout.Context) layout.Dimensions {
-							return a.field(gtx, "负向提示词", &a.negativePromptInput, "兼容模式可发给部分上游", unit.Dp(64))
+						return a.advancedSectionCard(gtx, "负向提示词", "", func(gtx layout.Context) layout.Dimensions {
+							border := fluent.border2
+							if gtx.Focused(&a.negativePromptInput) {
+								border = accentAlpha(0xb8)
+							}
+							return fixedHeight(gtx, unit.Dp(84), func(gtx layout.Context) layout.Dimensions {
+								return a.borderedSurface(gtx, fluent.surface, fluentControlRadius, border, func(gtx layout.Context) layout.Dimensions {
+									return layout.Inset{Top: 10, Bottom: 10, Left: 12, Right: 12}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+										return a.editorText(gtx, &a.negativePromptInput, "兼容模式可发给部分上游", unit.Sp(13))
+									})
+								})
+							})
 						})
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.composeSectionCard(gtx, func(gtx layout.Context) layout.Dimensions {
-							return a.segmentedWithTitle(gtx, "输出格式", formatChoices, a.format, a.formatButtons, func(value string) { a.format = value })
+						return a.advancedSectionCard(gtx, "输出格式", "JPEG/WebP 体积更小；落盘扩展名 jpeg -> .jpg", func(gtx layout.Context) layout.Dimensions {
+							return a.segmented(gtx, formatChoices, a.format, a.formatButtons, func(value string) { a.format = value })
 						})
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.composeSectionCard(gtx, func(gtx layout.Context) layout.Dimensions {
+						return a.advancedSectionCard(gtx, "随机种子", "", func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
 								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-									return a.field(gtx, "Seed", &a.seedInput, "0", unit.Dp(44))
+									return a.field(gtx, "Seed", &a.seedInput, "0", unit.Dp(42))
 								}),
 								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-									return a.field(gtx, "Partial", &a.partialImagesInput, "1", unit.Dp(44))
+									return a.field(gtx, "Partial", &a.partialImagesInput, "1", unit.Dp(42))
 								}),
 							)
 						})
-					}),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-								return a.label(gtx, "上游、代理、模型与输出目录已收纳到上游配置面板。", unit.Sp(10), fluent.textDim, font.Normal)
-							}),
-							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								return a.compactIconTextButton(gtx, &a.manageUpstreamButton, uiIconSettings, "打开上游配置", false)
-							}),
-						)
 					}),
 				)
 			})
@@ -1324,17 +1543,45 @@ func (a *App) layoutActions(gtx layout.Context) layout.Dimensions {
 	if !ready {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.borderedSurface(gtx, fluent.accentSoft, unit.Dp(8), accentAlpha(0x28), func(gtx layout.Context) layout.Dimensions {
-				return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(4))}.Layout(gtx,
+				return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(4))}.Layout(gtx,
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.label(gtx, "还没有可用上游配置", unit.Sp(12), fluent.accent, font.SemiBold)
+							return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return a.label(gtx, "还没有可用上游配置", unit.Sp(12), fluent.accent, font.SemiBold)
+							})
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.label(gtx, "先打开上游配置创建一条可用配置，才能测试连接或开始生成。", unit.Sp(11), fluent.textMuted, font.Normal)
+							return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return fixedWidth(gtx, unit.Dp(248), func(gtx layout.Context) layout.Dimensions {
+									return a.label(gtx, "先配置 BASE_URL 和 API Key，才能测试连接或开始生成。", unit.Sp(11), fluent.accent, font.Normal)
+								})
+							})
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return layout.Inset{Top: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-								return a.compactIconTextButton(gtx, &a.manageUpstreamButton, uiIconSettings, "配置上游", true)
+							return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return a.surfaceButton(
+									gtx,
+									&a.manageUpstreamButton,
+									fluent.surface,
+									fluent.surface2,
+									accentAlpha(0x20),
+									unit.Dp(8),
+									layout.Inset{Top: 7, Bottom: 7, Left: 10, Right: 10},
+									func(gtx layout.Context) layout.Dimensions {
+										return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+												return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+													return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+														return uiIconSettings.Layout(gtx, fluent.accent)
+													})
+												})
+											}),
+											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+												return a.label(gtx, "配置上游", unit.Sp(11), fluent.accent, font.Medium)
+											}),
+										)
+									},
+								)
 							})
 						}),
 					)
@@ -1347,18 +1594,16 @@ func (a *App) layoutActions(gtx layout.Context) layout.Dimensions {
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		if !ready {
-			return a.primaryIconTextButton(gtx, &a.manageUpstreamButton, uiIconSettings, "配置上游", fluent.accent, fluent.white)
+			return a.primaryButton(gtx, &a.manageUpstreamButton, "配置上游", fluent.accent, fluent.white)
 		}
 		if snap.Running {
-			return a.primaryIconTextButton(gtx, &a.cancelButton, uiIconCancel, "取消生成", dangerAlpha(0x12), fluent.danger)
+			return a.primaryButton(gtx, &a.cancelButton, "取消生成", fluent.dangerSoft, fluent.danger)
 		}
 		label := "生成"
-		icon := uiIconPlay
 		if a.mode == string(client.ModeEdit) {
 			label = "编辑"
-			icon = uiIconBuild
 		}
-		return a.primaryIconTextButton(gtx, &a.runButton, icon, label, fluent.accent, fluent.white)
+		return a.primaryButton(gtx, &a.runButton, label, fluent.accent, fluent.white)
 	}))
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
@@ -1376,17 +1621,17 @@ func (a *App) layoutDisclosureHeader(gtx layout.Context, btn *widget.Clickable, 
 		chooseColor(open, fluent.surface2, fluent.surface),
 		fluent.surface2,
 		fluent.border,
-		unit.Dp(6),
-		layout.Inset{Top: 10, Bottom: 10, Left: 10, Right: 10},
+		fluentCardRadius,
+		layout.Inset{Top: 12, Bottom: 12, Left: 12, Right: 12},
 		func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(4))}.Layout(gtx,
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.label(gtx, title, unit.Sp(11), fluent.text, font.Bold)
+							return a.sectionEyebrow(gtx, title)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.label(gtx, summary, unit.Sp(11), fluent.textMuted, font.Normal)
+							return a.singleLineLabel(gtx, summary, unit.Sp(12), fluent.textMuted, font.Normal)
 						}),
 					)
 				}),
@@ -1407,6 +1652,25 @@ func (a *App) layoutDisclosureHeader(gtx layout.Context, btn *widget.Clickable, 
 			)
 		},
 	)
+}
+
+func (a *App) advancedSectionCard(gtx layout.Context, title string, hint string, body layout.Widget) layout.Dimensions {
+	return a.borderedSurface(gtx, fluent.surface, unit.Dp(10), fluent.border, func(gtx layout.Context) layout.Dimensions {
+		return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return a.label(gtx, title, unit.Sp(11), fluent.textMuted, font.SemiBold)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if strings.TrimSpace(hint) == "" {
+						return layout.Dimensions{}
+					}
+					return a.label(gtx, hint, unit.Sp(10), fluent.textDim, font.Normal)
+				}),
+				layout.Rigid(body),
+			)
+		})
+	})
 }
 
 func (a *App) editorText(gtx layout.Context, editor *widget.Editor, hint string, size unit.Sp) layout.Dimensions {

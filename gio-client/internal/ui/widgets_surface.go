@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"strings"
 
+	"gioui.org/f32"
 	"gioui.org/font"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -20,6 +21,7 @@ const (
 	fluentControlRadius = unit.Dp(8)
 	fluentCardRadius    = unit.Dp(12)
 	fluentBadgeRadius   = unit.Dp(4)
+	fluentModalRadius   = unit.Dp(8)
 )
 
 func (a *App) sectionTitle(gtx layout.Context, text string) layout.Dimensions {
@@ -27,7 +29,7 @@ func (a *App) sectionTitle(gtx layout.Context, text string) layout.Dimensions {
 }
 
 func (a *App) sectionEyebrow(gtx layout.Context, text string) layout.Dimensions {
-	return a.label(gtx, text, unit.Sp(11), fluent.text, font.Bold)
+	return a.label(gtx, text, unit.Sp(11), fluent.textMuted, font.SemiBold)
 }
 
 func (a *App) button(gtx layout.Context, btn *widget.Clickable, text string, bg color.NRGBA, fg color.NRGBA) layout.Dimensions {
@@ -128,11 +130,41 @@ func (a *App) compactButton(gtx layout.Context, btn *widget.Clickable, text stri
 	)
 }
 
+func (a *App) textActionButton(gtx layout.Context, btn *widget.Clickable, text string, accent bool) layout.Dimensions {
+	bg := rgba(0xffffff, 0x00)
+	hoverBg := fluent.toolHoverBg
+	fg := fluent.textMuted
+	border := rgba(0xffffff, 0x00)
+	if btn.Hovered() {
+		fg = fluent.toolHoverText
+	}
+	if accent {
+		bg = rgba(0xffffff, 0x00)
+		hoverBg = accentAlpha(0x16)
+		fg = fluent.accent
+	}
+	return a.surfaceButton(
+		gtx,
+		btn,
+		bg,
+		hoverBg,
+		border,
+		fluentControlRadius,
+		layout.Inset{Top: 6, Bottom: 6, Left: 6, Right: 6},
+		func(gtx layout.Context) layout.Dimensions {
+			return a.label(gtx, text, unit.Sp(11), fg, font.Medium)
+		},
+	)
+}
+
 func (a *App) headerIconButton(gtx layout.Context, btn *widget.Clickable, text string, active bool) layout.Dimensions {
 	bg := rgba(0xffffff, 0x00)
-	hoverBg := fluent.surface2
+	hoverBg := fluent.toolHoverBg
 	fg := fluent.textDim
 	border := rgba(0xffffff, 0x00)
+	if btn.Hovered() {
+		fg = fluent.toolHoverText
+	}
 	if active {
 		bg = fluent.accentSoft
 		hoverBg = accentAlpha(0x28)
@@ -159,9 +191,12 @@ func (a *App) headerIconButton(gtx layout.Context, btn *widget.Clickable, text s
 
 func (a *App) headerIconButtonIcon(gtx layout.Context, btn *widget.Clickable, icon *widget.Icon, active bool) layout.Dimensions {
 	bg := rgba(0xffffff, 0x00)
-	hoverBg := fluent.surface2
+	hoverBg := fluent.toolHoverBg
 	fg := fluent.textDim
 	border := rgba(0xffffff, 0x00)
+	if btn.Hovered() {
+		fg = fluent.toolHoverText
+	}
 	if active {
 		bg = fluent.accentSoft
 		hoverBg = accentAlpha(0x28)
@@ -237,9 +272,12 @@ func (a *App) ghostIconTextButton(
 	accent bool,
 ) layout.Dimensions {
 	bg := rgba(0xffffff, 0x00)
-	hoverBg := fluent.surface2
+	hoverBg := fluent.toolHoverBg
 	fg := fluent.textMuted
 	border := rgba(0xffffff, 0x00)
+	if btn.Hovered() {
+		fg = fluent.toolHoverText
+	}
 	if accent {
 		bg = fluent.accentSoft
 		hoverBg = accentAlpha(0x28)
@@ -277,9 +315,12 @@ func (a *App) ghostIconButton(
 	accent bool,
 ) layout.Dimensions {
 	bg := rgba(0xffffff, 0x00)
-	hoverBg := fluent.surface2
+	hoverBg := fluent.toolHoverBg
 	fg := fluent.textDim
 	border := rgba(0xffffff, 0x00)
+	if btn.Hovered() {
+		fg = fluent.toolHoverText
+	}
 	if accent {
 		bg = fluent.accentSoft
 		hoverBg = accentAlpha(0x28)
@@ -310,9 +351,12 @@ func (a *App) toolbarIconButton(
 	active bool,
 ) layout.Dimensions {
 	bg := rgba(0xffffff, 0x00)
-	hoverBg := fluent.surface2
+	hoverBg := fluent.toolHoverBg
 	fg := fluent.textMuted
 	border := rgba(0xffffff, 0x00)
+	if btn.Hovered() {
+		fg = fluent.toolHoverText
+	}
 	if active {
 		bg = fluent.accentSoft
 		hoverBg = accentAlpha(0x28)
@@ -478,6 +522,29 @@ func (a *App) primaryIconTextButton(
 	)
 }
 
+func (a *App) primaryButton(
+	gtx layout.Context,
+	btn *widget.Clickable,
+	text string,
+	bg color.NRGBA,
+	fg color.NRGBA,
+) layout.Dimensions {
+	return a.surfaceButton(
+		gtx,
+		btn,
+		bg,
+		chooseColor(bg == fluent.accent, fluent.accent2, fluent.surface2),
+		chooseColor(bg == fluent.accent, accentAlpha(0x58), fluent.border),
+		fluentControlRadius,
+		layout.Inset{Top: 9, Bottom: 9, Left: 12, Right: 12},
+		func(gtx layout.Context) layout.Dimensions {
+			return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return a.label(gtx, text, unit.Sp(12), fg, font.SemiBold)
+			})
+		},
+	)
+}
+
 func (a *App) staticPill(gtx layout.Context, text string, accent bool, dimmed bool) layout.Dimensions {
 	bg := fluent.surface
 	fg := fluent.textMuted
@@ -495,6 +562,52 @@ func (a *App) staticPill(gtx layout.Context, text string, accent bool, dimmed bo
 			return a.label(gtx, text, unit.Sp(11), fg, font.Medium)
 		})
 	})
+}
+
+func (a *App) metaBadge(gtx layout.Context, text string, compact bool) layout.Dimensions {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return layout.Dimensions{}
+	}
+	bg := rgba(0x000000, 0x06)
+	border := rgba(0x000000, 0x0d)
+	if resolveThemeMode(a.themeMode) == "dark" {
+		bg = rgba(0xffffff, 0x0d)
+		border = rgba(0xffffff, 0x0d)
+	}
+	size := unit.Sp(11)
+	inset := layout.Inset{Top: 3, Bottom: 3, Left: 8, Right: 8}
+	if compact {
+		size = unit.Sp(10)
+		inset = layout.Inset{Top: 2, Bottom: 2, Left: 7, Right: 7}
+	}
+	return a.borderedSurface(gtx, bg, unit.Dp(999), border, func(gtx layout.Context) layout.Dimensions {
+		return inset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return a.label(gtx, text, size, fluent.textMuted, font.Normal)
+		})
+	})
+}
+
+func (a *App) metaBadgeRow(gtx layout.Context, items []string, compact bool) layout.Dimensions {
+	filtered := compactNonEmpty(items)
+	if len(filtered) == 0 {
+		return layout.Dimensions{}
+	}
+	children := make([]layout.FlexChild, 0, len(filtered)*2)
+	gap := unit.Dp(6)
+	if compact {
+		gap = unit.Dp(4)
+	}
+	for idx, item := range filtered {
+		if idx > 0 {
+			children = append(children, layout.Rigid(layout.Spacer{Width: gap}.Layout))
+		}
+		item := item
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return a.metaBadge(gtx, item, compact)
+		}))
+	}
+	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
 }
 
 func (a *App) imageThumb(gtx layout.Context, img image.Image, width unit.Dp, height unit.Dp, radius unit.Dp) layout.Dimensions {
@@ -561,13 +674,26 @@ func (a *App) singleLineLabel(gtx layout.Context, text string, size unit.Sp, col
 	return style.Layout(gtx)
 }
 
+func (a *App) clampedLabel(gtx layout.Context, text string, size unit.Sp, color color.NRGBA, weight font.Weight, lines int) layout.Dimensions {
+	if lines <= 0 {
+		lines = 1
+	}
+	style := material.Label(a.th, size, text)
+	style.Color = color
+	style.Font.Weight = weight
+	style.MaxLines = lines
+	style.Truncator = "..."
+	style.WrapPolicy = textWrapWords
+	return style.Layout(gtx)
+}
+
 func (a *App) card(gtx layout.Context, w layout.Widget) layout.Dimensions {
 	return a.elevatedBorderedSurface(
 		gtx,
-		fluent.surface,
+		fluent.surfaceElevated,
 		fluentCardRadius,
 		fluent.border,
-		image.Pt(0, 2),
+		image.Pt(0, 1),
 		func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(12)).Layout(gtx, w)
 		},
@@ -583,46 +709,48 @@ func (a *App) layoutStandardModal(
 	closeBtn *widget.Clickable,
 	body layout.Widget,
 ) layout.Dimensions {
-	paint.FillShape(gtx.Ops, rgba(0x000000, 0x32), clip.Rect{Max: gtx.Constraints.Max}.Op())
+	paint.FillShape(gtx.Ops, rgba(0x000000, 0x52), clip.Rect{Max: gtx.Constraints.Max}.Op())
 	gtx.Constraints.Min = gtx.Constraints.Max
 	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min = image.Point{}
 		return fixedWidth(gtx, width, func(gtx layout.Context) layout.Dimensions {
 			frame := func(gtx layout.Context) layout.Dimensions {
-				return a.elevatedBorderedSurface(gtx, fluent.surface, fluentCardRadius, fluent.border, image.Pt(0, 6), func(gtx layout.Context) layout.Dimensions {
-					return layout.UniformInset(unit.Dp(16)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return a.elevatedBorderedSurface(gtx, fluent.surfaceElevated, fluentModalRadius, fluent.border, image.Pt(0, 6), func(gtx layout.Context) layout.Dimensions {
+					return layout.UniformInset(unit.Dp(0)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						children := []layout.FlexChild{
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-									layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-										return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(4))}.Layout(gtx,
-											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-												return a.label(gtx, title, unit.Sp(17), fluent.text, font.SemiBold)
-											}),
-											layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-												if strings.TrimSpace(subtitle) == "" {
-													return layout.Dimensions{}
-												}
-												return a.singleLineLabel(gtx, subtitle, unit.Sp(11), fluent.textMuted, font.Normal)
-											}),
-										)
-									}),
-									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-										if closeBtn == nil {
-											return layout.Dimensions{}
-										}
-										return a.ghostIconButton(gtx, closeBtn, uiIconClose, false)
-									}),
-								)
+								return layout.Inset{Top: unit.Dp(14), Bottom: unit.Dp(12), Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+										layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+											return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(3))}.Layout(gtx,
+												layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+													return a.label(gtx, title, unit.Sp(15), fluent.text, font.SemiBold)
+												}),
+												layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+													if strings.TrimSpace(subtitle) == "" {
+														return layout.Dimensions{}
+													}
+													return a.singleLineLabel(gtx, subtitle, unit.Sp(11), fluent.textMuted, font.Normal)
+												}),
+											)
+										}),
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											if closeBtn == nil {
+												return layout.Dimensions{}
+											}
+											return a.ghostIconButton(gtx, closeBtn, uiIconClose, false)
+										}),
+									)
+								})
 							}),
-							layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								return fixedHeight(gtx, unit.Dp(1), func(gtx layout.Context) layout.Dimensions {
 									return a.surface(gtx, fluent.border, 0, layout.Spacer{}.Layout)
 								})
 							}),
-							layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
-							layout.Flexed(1, body),
+							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+								return layout.Inset{Top: unit.Dp(14), Bottom: unit.Dp(16), Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx, body)
+							}),
 						}
 						return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 					})
@@ -678,7 +806,20 @@ func (a *App) elevatedBorderedSurface(
 func (a *App) borderedSurface(gtx layout.Context, bg color.NRGBA, radius unit.Dp, border color.NRGBA, w layout.Widget) layout.Dimensions {
 	return a.surface(gtx, border, radius, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(1)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return a.surface(gtx, bg, radius, w)
+			macro := op.Record(gtx.Ops)
+			dims := a.surface(gtx, bg, radius, w)
+			call := macro.Stop()
+			call.Add(gtx.Ops)
+			if dims.Size.X > 2 && dims.Size.Y > 2 && fluent.windowOutline.A > 0 {
+				highlightHeight := min(dims.Size.Y/3, gtx.Dp(unit.Dp(22)))
+				if highlightHeight < 4 {
+					highlightHeight = min(dims.Size.Y, gtx.Dp(unit.Dp(4)))
+				}
+				if highlightHeight > 0 {
+					paintLinearGradient(gtx, image.Rect(1, 1, dims.Size.X-1, highlightHeight), radius, fluent.windowOutline, rgba(0xffffff, 0x00))
+				}
+			}
+			return dims
 		})
 	})
 }
@@ -699,6 +840,27 @@ func (a *App) borderedTopTabSurface(
 
 func (a *App) surface(gtx layout.Context, bg color.NRGBA, radius unit.Dp, w layout.Widget) layout.Dimensions {
 	return a.surfaceCorners(gtx, bg, radius, radius, radius, radius, w)
+}
+
+func paintLinearGradient(gtx layout.Context, rect image.Rectangle, radius unit.Dp, from color.NRGBA, to color.NRGBA) {
+	if rect.Empty() {
+		return
+	}
+	paint.LinearGradientOp{
+		Stop1:  f32.Pt(float32(rect.Min.X), float32(rect.Min.Y)),
+		Color1: from,
+		Stop2:  f32.Pt(float32(rect.Min.X), float32(rect.Max.Y)),
+		Color2: to,
+	}.Add(gtx.Ops)
+	stack := clip.RRect{
+		Rect: rect,
+		NW:   gtx.Dp(radius),
+		NE:   gtx.Dp(radius),
+		SW:   gtx.Dp(radius),
+		SE:   gtx.Dp(radius),
+	}.Push(gtx.Ops)
+	paint.PaintOp{}.Add(gtx.Ops)
+	stack.Pop()
 }
 
 func (a *App) surfaceCorners(

@@ -90,6 +90,8 @@ type App struct {
 	historyList         widget.List
 	historyTimelineList widget.List
 	promptGroupList     widget.List
+	promptHelperList    widget.List
+	settingsProfileList widget.List
 	settingsList        widget.List
 	workspaceList       widget.List
 
@@ -127,6 +129,7 @@ type App struct {
 	sizeButtons                     []widget.Clickable
 	aspectButtons                   []widget.Clickable
 	styleButtons                    []widget.Clickable
+	clearStyleButton                widget.Clickable
 	batchCountButtons               []widget.Clickable
 	resolutionButtons               []widget.Clickable
 	qualityButtons                  []widget.Clickable
@@ -149,7 +152,6 @@ type App struct {
 	flipVerticalButton              widget.Clickable
 	clearCurrentButton              widget.Clickable
 	clearSourcesButton              widget.Clickable
-	useCurrentAsSourceButton        widget.Clickable
 	addSourceFilesButton            widget.Clickable
 	addSourceStripButton            widget.Clickable
 	emptyStateImportButton          widget.Clickable
@@ -164,6 +166,9 @@ type App struct {
 	historyTimelineDatePickerButton widget.Clickable
 	toggleAPIKeyMaskButton          widget.Clickable
 	upstreamConfigButton            widget.Clickable
+	settingsHelpButton              widget.Clickable
+	closeSettingsHelpButton         widget.Clickable
+	saveSettingsButton              widget.Clickable
 	themeButtons                    []widget.Clickable
 	headerAddWorkspaceButton        widget.Clickable
 	headerQuoteButton               widget.Clickable
@@ -185,12 +190,14 @@ type App struct {
 	deleteProfileButton             widget.Clickable
 	closeResultDetailButton         widget.Clickable
 	resultDetailSaveAsButton        widget.Clickable
+	resultDetailUseSourceButton     widget.Clickable
 	resultDetailUsePromptButton     widget.Clickable
 	resultDetailUseRevisedButton    widget.Clickable
 	resultDetailOpenPathButton      widget.Clickable
 	resultDetailCopyPromptButton    widget.Clickable
 	resultDetailCopyRevisedButton   widget.Clickable
 	resultDetailCopyPathButton      widget.Clickable
+	resultDetailDeleteButton        widget.Clickable
 	composeToggleButton             widget.Clickable
 	advancedToggleButton            widget.Clickable
 	profilePickerButton             widget.Clickable
@@ -250,6 +257,7 @@ type App struct {
 	promptHelperTab               string
 	activePromptGroup             historyPromptGroup
 	settingsModalOpen             bool
+	settingsHelpOpen              bool
 	apiKeyVisible                 bool
 	workspaces                    []workspaceState
 	activeWorkspaceID             string
@@ -358,6 +366,8 @@ func New() *App {
 	a.historyList.List.Axis = layout.Vertical
 	a.historyTimelineList.List.Axis = layout.Vertical
 	a.promptGroupList.List.Axis = layout.Vertical
+	a.promptHelperList.List.Axis = layout.Vertical
+	a.settingsProfileList.List.Axis = layout.Vertical
 	a.settingsList.List.Axis = layout.Vertical
 	a.workspaceList.List.Axis = layout.Horizontal
 	a.configureEditors(cfg)
