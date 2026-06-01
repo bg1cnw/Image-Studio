@@ -285,12 +285,19 @@ func (a *App) timelineFilterMenu(gtx layout.Context, options []timelineFilterOpt
 func (a *App) layoutHistoryTimelineDayGroup(gtx layout.Context, dayGroup historyDayGroup, selectedHistoryID string) layout.Dimensions {
 	children := []layout.FlexChild{
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return fixedWidth(gtx, unit.Dp(8), func(gtx layout.Context) layout.Dimensions {
+						return fixedHeight(gtx, unit.Dp(8), func(gtx layout.Context) layout.Dimensions {
+							return a.surface(gtx, fluent.accent, unit.Dp(4), layout.Spacer{}.Layout)
+						})
+					})
+				}),
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					return a.label(gtx, dayGroup.Label, unit.Sp(13), fluent.text, font.SemiBold)
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.label(gtx, strconv.Itoa(len(dayGroup.Entries))+" 组", unit.Sp(11), fluent.textDim, font.Normal)
+					return a.metaBadge(gtx, strconv.Itoa(len(dayGroup.Entries))+" 组", true)
 				}),
 			)
 		}),
@@ -335,7 +342,24 @@ func (a *App) layoutHistoryTimelineGroupRow(gtx layout.Context, group historyPro
 				}),
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					return summaryBtn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(4))}.Layout(gtx,
+						return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+										return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+											return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+												return uiIconGrid.Layout(gtx, fluent.accent)
+											})
+										})
+									}),
+									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+										return a.sectionEyebrow(gtx, "同提示词")
+									}),
+									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+										return a.metaBadge(gtx, strconv.Itoa(len(group.Items))+" 张", true)
+									}),
+								)
+							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								return a.clampedLabel(gtx, shortPrompt(prompt), unit.Sp(12), fluent.text, font.Medium, 2)
 							}),
