@@ -13,6 +13,7 @@ import (
 	sharedCompat "image-studio/shared/compat"
 
 	"gioui.org/app"
+	"gioui.org/font"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/paint"
@@ -291,7 +292,14 @@ func New() *App {
 	themeMode := normalizeThemeMode(compatState.Settings.Theme)
 	fluent = themePalette(resolveThemeMode(themeMode))
 	th := material.NewTheme()
-	th.Shaper = text.NewShaper()
+	collection := bundledFontCollection()
+	if len(collection) > 0 {
+		th.Shaper = text.NewShaper(text.NoSystemFonts(), text.WithCollection(collection))
+		th.Face = uiSansTypeface
+	} else {
+		th.Shaper = text.NewShaper()
+		th.Face = font.Typeface("")
+	}
 	th.Palette = material.Palette{
 		Bg:         fluent.bg,
 		Fg:         fluent.text,

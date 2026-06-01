@@ -691,7 +691,7 @@ func (a *App) monoLabel(gtx layout.Context, text string, size unit.Sp, color col
 	style := material.Label(a.th, size, text)
 	style.Color = color
 	style.Font.Weight = weight
-	style.Font.Typeface = font.Typeface("monospace")
+	style.Font.Typeface = uiMonoTypeface
 	return style.Layout(gtx)
 }
 

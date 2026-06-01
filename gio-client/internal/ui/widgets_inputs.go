@@ -39,7 +39,7 @@ func (a *App) fieldWithStyle(gtx layout.Context, title string, editor *widget.Ed
 						style.TextSize = unit.Sp(13)
 						style.Font.Weight = font.Medium
 						if monospace {
-							style.Font.Typeface = font.Typeface("monospace")
+							style.Font.Typeface = uiMonoTypeface
 						}
 						return style.Layout(gtx)
 					})

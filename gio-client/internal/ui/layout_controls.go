@@ -873,7 +873,7 @@ func (a *App) layoutSettingsAPIKeyField(gtx layout.Context) layout.Dimensions {
 								style.SelectionColor = accentAlpha(0x3d)
 								style.TextSize = unit.Sp(13)
 								style.Font.Weight = font.Medium
-								style.Font.Typeface = font.Typeface("monospace")
+								style.Font.Typeface = uiMonoTypeface
 								return style.Layout(gtx)
 							}),
 							layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
