@@ -9,90 +9,45 @@
 ![wails](https://img.shields.io/badge/wails-v2.12-DF0000)
 ![platform](https://img.shields.io/badge/platform-windows%20%7C%20macos%20%7C%20linux%20%7C%20android-lightgrey)
 
-Image Studio 面向 OpenAI 兼容图像上游，解决长时间图像推理在 Cloudflare / Nginx 后面容易遇到的 524/504 断连问题。Responses API 模式通过 SSE 持续接收事件来保持连接活跃；Images API 模式则兼容标准 `/v1/images/generations` 与 `/v1/images/edits`。
+Image Studio 面向 OpenAI 兼容图像上游，重点解决长时间图像推理在 Cloudflare / Nginx 后面容易遇到的 524/504 断连问题。Responses API 模式通过 SSE 持续接收事件来保持连接活跃；Images API 模式则兼容标准 `/v1/images/generations` 与 `/v1/images/edits`。
 
-项目不内置任何默认上游。首次启动会要求你填写 BASE_URL、API Key、文本模型与图像模型。
-
----
-
-<p align="center">
-  <img src="./docs/picture/mac.png" alt="Image Studio · macOS" width="880">
-  <br />
-  <img src="./docs/picture/windows.png" alt="Image Studio · Windows" width="880">
-  <br />
-  <img src="./docs/picture/android.jpg" alt="Image Studio · Android" width="280">
-  <br />
-  <sub>macOS · Windows · Android 端界面预览</sub>
-</p>
-
----
-
-## 快速入口
-
-| 内容 | 文档 |
-|---|---|
-| 功能清单、平台能力、快捷键 | [docs/features.md](./docs/features.md) |
-| 下载、源码构建、Android APK、验证脚本、CI 产物 | [docs/build.md](./docs/build.md) |
-| Gio 高性能测试客户端 | [docs/gio-client.md](./docs/gio-client.md) |
-| 首次配置、API 形态选择、参数策略 | [docs/usage.md](./docs/usage.md) |
-| 数据存储位置、524/504、模型权限、字段兼容问题 | [docs/troubleshooting.md](./docs/troubleshooting.md) |
-| 仓库结构、前端分层、内核/Worker/Android 关系 | [docs/project-structure.md](./docs/project-structure.md) |
-| 原始提示词传递策略 | [docs/no-prompt-revision/README.md](./docs/no-prompt-revision/README.md) |
-| Android 壳层维护说明 | [android-shell/README.md](./android-shell/README.md) |
-| 跨平台内核计划与验证背景 | [docs/cross-platform-kernel-plan.md](./docs/cross-platform-kernel-plan.md) |
-| 反馈渠道、问题提交、QQ群讨论 | [docs/feedback.md](./docs/feedback.md) |
-
-## 当前能力概览
-
-| | |
-|---|---|
-| SSE 保活 | Responses API 模式使用 `/v1/responses` 和 `image_generation` 工具接收流式事件，适合长推理和 CF 524/504 场景。 |
-| 标准 Images API | 支持 `/v1/images/generations` 文生图与 `/v1/images/edits` 图生图，兼容只开放 image 分组的中转站。 |
-| 双端内核 | 桌面端优先走 Go/Wails 本地内核；Android / 浏览器预览可走前端远程内核，Android 壳层提供 native HTTP、文件与保存桥接。 |
-| 图像编辑器 | 多参考图、蒙版、标注、旋转、翻转、裁剪、历史对比、复制粘贴、撤销重做。 |
-| 自定义比例 | 支持在比例面板打开弹窗，添加多个自定义宽高比并持久化保存；新增比例会立即出现在参数按钮区，并按当前 1K / 2K / 4K 档位自动换算尺寸。 |
-| 多 workspace | 每个标签独立保存 prompt、参数、源图与当前画板状态。 |
-| 平台化 UI | macOS Apple 风格、Windows Fluent 风格、Linux 通用桌面风格、Android Material 3 phone/pad 自适应壳层。 |
-| Gio 测试客户端 | Windows / Linux 可单独构建 Gio 原生 GUI 测试版，不影响当前 Wails / WebView2 实现。 |
-| 本地数据 | API Key、历史、图片和日志默认都保存在本机；外部请求只发往你配置的上游 BASE_URL。 |
-| 原始提示词 | Responses API 请求默认要求文本模型把用户 prompt 原样交给图像工具。 |
-
-## 安装
-
-稳定版本到 [Releases](https://github.com/RoseKhlifa/Image-Studio/releases) 下载。当前发布链路会产出:
-
-- `image-studio-windows-amd64.exe`
-- `image-studio-windows-arm64.exe`
-- `image-studio-macos-universal.zip`
-- `image-studio-linux-amd64.tar.gz`
-- `image-studio-linux-arm64.tar.gz`
-- `image-studio-gio-*-windows-amd64.exe`
-- `image-studio-gio-*-windows-arm64.exe`
-- `image-studio-gio-*-linux-amd64.tar.gz`
-- `image-studio-gio-*-linux-arm64.tar.gz`
-- `image-studio-android-release.apk`
-
-源码构建、平台依赖、Android APK、验证脚本见 [构建文档](./docs/build.md)。
+项目不内置任何默认上游。首次启动需要你自己填写 BASE_URL、API Key、文本模型与图像模型。
 
 ## 快速上手
 
-1. 启动后打开「上游配置」。
-2. 选择 API 形态:
-   - Responses API:抗 524/504，默认文本模型 `gpt-5.5`，图像模型 `gpt-image-2`。
-   - Images API:标准图像接口，适合只支持 image 分组的上游。
-3. 填入 BASE_URL、API Key、模型 ID，保存后点「测试连接」。
-4. 选择文生图或图生图，输入 prompt，设置比例、质量、输出格式和风格；如果内置比例不够，可以打开「自定义比例」弹窗保存常用宽高比。
+1. 安装应用
+   - 稳定版本:到 [RoseKhlifa/Image-Studio Releases](https://github.com/RoseKhlifa/Image-Studio/releases) 下载。
+   - 抢先体验当前分支的最新改动:到 [DR-lin-eng/Image-Studio Actions · release.yml](https://github.com/DR-lin-eng/Image-Studio/actions/workflows/release.yml) 下载最近一次成功构建的 artifact。
+   - 各平台安装包区别、命名规则和选择建议见 [docs/packages.md](./docs/packages.md)。
+2. 首次启动后打开「上游配置」，填写 API 形态、BASE_URL、API Key、文本模型 ID、图像模型 ID。
+3. 根据上游能力选择 API 形态
+   - Responses API:更适合长推理、抗 524/504。
+   - Images API:更适合只提供标准图像接口的兼容上游。
+4. 输入 prompt，设置比例、质量、输出格式和风格；如果内置比例不够，可以打开「自定义比例」弹窗保存常用宽高比。
 5. 点击「生成」，或使用 `Cmd/Ctrl + Enter`。
 
-更完整的配置说明见 [使用文档](./docs/usage.md)。
+更完整的配置与参数策略说明见 [docs/usage.md](./docs/usage.md)。
 
----
+## 文档导航
+
+| 内容 | 文档 |
+|---|---|
+| 应用展示、界面截图、能力概览 | [docs/showcase.md](./docs/showcase.md) |
+| 安装包下载、平台差异、产物选择 | [docs/packages.md](./docs/packages.md) |
+| 功能清单、平台能力、快捷键 | [docs/features.md](./docs/features.md) |
+| 源码构建、验证脚本、CI 产物链路 | [docs/build.md](./docs/build.md) |
+| 首次配置、API 形态选择、参数策略 | [docs/usage.md](./docs/usage.md) |
+| 数据存储位置、524/504、模型权限、字段兼容问题 | [docs/troubleshooting.md](./docs/troubleshooting.md) |
+| 仓库结构、前端分层、内核 / Worker / Android 关系 | [docs/project-structure.md](./docs/project-structure.md) |
+| 原始提示词传递策略 | [docs/no-prompt-revision/README.md](./docs/no-prompt-revision/README.md) |
+| Android 壳层维护说明 | [android-shell/README.md](./android-shell/README.md) |
+| Gio 高性能测试客户端 | [docs/gio-client.md](./docs/gio-client.md) |
+| 跨平台内核计划与验证背景 | [docs/cross-platform-kernel-plan.md](./docs/cross-platform-kernel-plan.md) |
+| 反馈渠道、问题提交、QQ群讨论 | [docs/feedback.md](./docs/feedback.md) |
 
 ## License
 
 [MIT](./LICENSE) © 2026
-
----
 
 ## 致谢
 
@@ -107,7 +62,5 @@ Image Studio 面向 OpenAI 兼容图像上游，解决长时间图像推理在 C
   <br /><br />
   <a href="https://muxueai.pro"><img src="./docs/picture/%E8%B5%9E%E5%8A%A9-muxueai.pro.png" alt="赞助商 · muxueai.pro" width="720"></a>
 </p>
-
----
 
 [![Star History Chart](https://api.star-history.com/svg?repos=RoseKhlifa/Image-Studio&type=Date)](https://star-history.com/#RoseKhlifa/Image-Studio&Date)
