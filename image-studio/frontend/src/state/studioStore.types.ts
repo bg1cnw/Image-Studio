@@ -94,7 +94,7 @@ export interface StudioState {
   history: HistoryItem[];
   historyHasMore: boolean;
   historyLoading: boolean;
-  historyCursorBeforeCreatedAt: number | null;
+  historyCursorBeforeDayStart: number | null;
   batchResults: HistoryItem[];
   resultGridOpen: boolean;
   historyRailCollapsed: boolean;

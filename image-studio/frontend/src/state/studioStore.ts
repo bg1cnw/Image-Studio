@@ -401,7 +401,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   history: [],
   historyHasMore: false,
   historyLoading: false,
-  historyCursorBeforeCreatedAt: null,
+  historyCursorBeforeDayStart: null,
   batchResults: [],
   resultGridOpen: false,
   historyRailCollapsed: false,
@@ -932,7 +932,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         history: preview.history,
         historyHasMore: false,
         historyLoading: false,
-        historyCursorBeforeCreatedAt: null,
+        historyCursorBeforeDayStart: null,
         batchResults: [],
         resultGridOpen: false,
         historyRailCollapsed: false,
@@ -1179,7 +1179,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       apiKey: activeKey, history: items, promptHistory, presets, customAspectRatios, theme, fontScale,
       historyHasMore,
       historyLoading: false,
-      historyCursorBeforeCreatedAt: initialHistoryPage.nextCursor?.beforeCreatedAt ?? null,
+      historyCursorBeforeDayStart: initialHistoryPage.nextCursor?.beforeDayStart ?? null,
       apiMode, requestPolicy, imagesNewAPICompat, baseURL, textModelID, imageModelID, kernelRuntimeMode, noPromptRevision,
       proxyMode: proxyConfig.mode,
       proxyURL: proxyConfig.url,
@@ -1327,16 +1327,16 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     deferredHistoryLoadPromise = (async () => {
       try {
         const currentHistory = get().history;
-        const cursorBeforeCreatedAt = get().historyCursorBeforeCreatedAt;
+        const cursorBeforeDayStart = get().historyCursorBeforeDayStart;
         const nextPage = await loadHistoryPage({
-          cursor: typeof cursorBeforeCreatedAt === "number" ? { beforeCreatedAt: cursorBeforeCreatedAt } : null,
+          cursor: typeof cursorBeforeDayStart === "number" ? { beforeDayStart: cursorBeforeDayStart } : null,
           limit: INITIAL_HISTORY_LOAD,
         });
         const merged = trimHistory([...currentHistory, ...nextPage.items]);
         set({
           history: merged,
           historyHasMore: !!nextPage.nextCursor && merged.length < MAX_HISTORY_ITEMS,
-          historyCursorBeforeCreatedAt: nextPage.nextCursor?.beforeCreatedAt ?? null,
+          historyCursorBeforeDayStart: nextPage.nextCursor?.beforeDayStart ?? null,
         });
         void backfillHistoryPreviewRefs(nextPage.items);
       } catch (error) {

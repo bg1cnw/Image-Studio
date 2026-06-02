@@ -208,6 +208,17 @@ export function HistoryTimelineModal() {
               正在加载更多历史...
             </div>
           ) : null}
+          {historyHasMore && !historyLoading ? (
+            <div className="flex justify-center py-3">
+              <button
+                type="button"
+                onClick={() => void loadMoreHistory()}
+                className={`inline-flex min-h-[34px] items-center justify-center rounded-full border border-black/[0.08] bg-[var(--surface)] px-4 text-[12px] font-medium text-zinc-600 transition-colors hover:border-[color:var(--accent)]/35 hover:text-[var(--accent)] dark:border-white/[0.08] dark:text-zinc-300 ${usesFluentUI ? "rounded-[10px]" : "rounded-full"}`}
+              >
+                加载更多历史
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
       {menu ? (

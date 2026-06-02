@@ -15,7 +15,7 @@ const LEGACY_SHARED_API_KEY = "gptcodex.apiKey";
 type HistoryRecord = HistoryItem & { searchText: string; searchTokens: string[] };
 type FullRecord = { id: string; image: Blob };
 export type HistoryPageCursor = {
-  beforeCreatedAt: number;
+  beforeDayStart: number;
 };
 export type HistoryPageResult = {
   items: HistoryItem[];
@@ -342,45 +342,50 @@ export async function loadHistoryPage(opts?: {
   const limit = typeof opts?.limit === "number" && Number.isFinite(opts.limit) && opts.limit > 0
     ? Math.floor(opts.limit)
     : 24;
-  const beforeCreatedAt = opts?.cursor?.beforeCreatedAt ?? 0;
-  const range = beforeCreatedAt > 0
-    ? IDBKeyRange.upperBound(beforeCreatedAt, true)
+  const beforeDayStart = opts?.cursor?.beforeDayStart ?? 0;
+  const range = beforeDayStart > 0
+    ? IDBKeyRange.upperBound(beforeDayStart, true)
     : null;
-  const records = await cursorAsPromise<HistoryRecord>(
-    store.index("createdAt").openCursor(range, "prev"),
-    {
-      limit: limit + 1,
-      accept: () => true,
-    },
-  );
-  let normalized = records;
-  if (records.length > limit) {
-    const boundary = records[limit - 1];
-    if (boundary?.createdAt) {
-      const boundaryDayStart = startOfLocalDay(boundary.createdAt);
-      const extraSameDay: HistoryRecord[] = [];
-      const sameDayRange = IDBKeyRange.bound(boundaryDayStart, boundary.createdAt, false, true);
-      const sameDayTail = await cursorAsPromise<HistoryRecord>(
-        store.index("createdAt").openCursor(sameDayRange, "prev"),
-        { accept: () => true },
-      );
-      const seen = new Set(records.slice(0, limit).map((item) => item.id));
-      for (const item of sameDayTail) {
-        if (!seen.has(item.id)) {
-          extraSameDay.push(item);
-          seen.add(item.id);
-        }
+  const result = await new Promise<{ records: HistoryRecord[]; nextCursor: HistoryPageCursor | null }>((resolve, reject) => {
+    const out: HistoryRecord[] = [];
+    let currentDayStart: number | null = null;
+    const req = store.index("createdAt").openCursor(range, "prev");
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (!cursor) {
+        resolve({ records: out, nextCursor: null });
+        return;
       }
-      normalized = [...records.slice(0, limit), ...extraSameDay];
-    }
-  }
+      const value = cursor.value as HistoryRecord;
+      const dayStart = startOfLocalDay(value.createdAt);
+      if (currentDayStart === null) {
+        currentDayStart = dayStart;
+        out.push(value);
+        cursor.continue();
+        return;
+      }
+      if (dayStart === currentDayStart) {
+        out.push(value);
+        cursor.continue();
+        return;
+      }
+      if (out.length >= limit) {
+        resolve({
+          records: out,
+          nextCursor: { beforeDayStart: currentDayStart },
+        });
+        return;
+      }
+      currentDayStart = dayStart;
+      out.push(value);
+      cursor.continue();
+    };
+    req.onerror = () => reject(req.error);
+  });
   await txDone(tx);
-  const hasMore = records.length > limit;
-  const items = normalized.map(stripHistoryRecord);
-  const last = items[items.length - 1] ?? null;
   return {
-    items,
-    nextCursor: hasMore && last ? { beforeCreatedAt: last.createdAt } : null,
+    items: result.records.map(stripHistoryRecord),
+    nextCursor: result.nextCursor,
   };
 }
 
