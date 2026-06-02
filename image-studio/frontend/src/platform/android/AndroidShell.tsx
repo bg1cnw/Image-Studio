@@ -43,7 +43,11 @@ export function AndroidShell({
         data-android-pad-density={isPad ? (isExpandedPad ? "expanded" : "medium") : undefined}
       >
         {showRail ? <AndroidRail active={androidView} onChange={handleViewChange} /> : null}
-        <ControlPanel />
+        <ControlPanel
+          onAndroidSubmitStart={() => {
+            if (androidView !== "canvas") onChangeView("canvas");
+          }}
+        />
         <div className="canvas-shell">
           <AndroidCanvasWorkspace />
         </div>

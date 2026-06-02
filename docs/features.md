@@ -1,12 +1,13 @@
 # 功能说明
 
-本文档记录当前软件能力。安装与构建见 [build.md](./build.md)，首次配置见 [usage.md](./usage.md)。
+本文档记录当前软件能力。应用界面展示见 [showcase.md](./showcase.md)，安装包选择见 [packages.md](./packages.md)，首次配置见 [usage.md](./usage.md)。
 
 ## 生成能力
 
 - 文生图与图生图，支持多张参考图。
 - 输入图源:文件对话框、拖拽窗口、剪贴板粘贴、历史复用、双击历史项设为源图。
 - 参数:Auto 与固定尺寸、Auto / high / medium / low 质量、PNG / JPEG / WebP 输出格式、seed、negative prompt、风格 chip。
+- 比例管理:内置常用宽高比，也支持通过「自定义比例」弹窗添加多个用户自定义宽高比并持久化保存；新增比例会立即出现在参数按钮区，并按当前 1K / 2K / 4K 档位自动换算尺寸。
 - 双 API 形态:
   - Responses API:POST `/v1/responses`，使用 `image_generation` 工具，SSE 流式接收事件。
   - Images API:POST `/v1/images/generations` 与 `/v1/images/edits`。
@@ -51,6 +52,7 @@
 - 主题:深色 / 浅色。
 - 字号:小 / 中 / 大。
 - 参数预设:尺寸、质量、输出格式、风格。
+- 参数编辑:桌面端与 Android 端都共用同一套比例 / 分辨率 / 质量语义，差异只体现在展示形态与触控交互。
 - 输出目录选择、打开输出目录、历史导入 / 导出、清除 API Key、清空历史。
 - 关于窗口:版本号、MIT 协议、GitHub、Issues。
 

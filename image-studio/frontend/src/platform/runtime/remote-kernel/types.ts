@@ -27,9 +27,11 @@ export type RemoteGeneratePayload = {
   proxyURL?: string;
   apiMode: string;
   requestPolicy: RequestPolicy;
+  imagesNewAPICompat?: boolean;
   noPromptRevision: boolean;
   concurrencyLimit?: number;
   partialImages?: number;
+  disablePreview?: boolean;
 };
 
 export type ProgressCallback = (stage: string, elapsedSeconds: number, bytesReceived: number) => void;

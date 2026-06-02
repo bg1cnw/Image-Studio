@@ -47,6 +47,7 @@ export function tryParseProfile(raw: unknown): UpstreamProfile | null {
   const name = typeof o.name === "string" ? o.name : "";
   const apiMode = o.apiMode === "images" ? "images" : "responses";
   const requestPolicy = o.requestPolicy === "compat" ? "compat" : "openai";
+  const imagesNewAPICompat = o.imagesNewAPICompat === true;
   const baseURL = typeof o.baseURL === "string" ? o.baseURL : "";
   const textModelID = typeof o.textModelID === "string" ? o.textModelID : "";
   const imageModelID = typeof o.imageModelID === "string" ? o.imageModelID : "";
@@ -55,7 +56,7 @@ export function tryParseProfile(raw: unknown): UpstreamProfile | null {
   const createdAt = typeof o.createdAt === "number" ? o.createdAt : Date.now();
   const lastUsedAt = typeof o.lastUsedAt === "number" ? o.lastUsedAt : undefined;
   if (!id || !name) return null;
-  return { id, name, apiMode, requestPolicy, baseURL, textModelID, imageModelID, concurrencyLimit, createdAt, lastUsedAt };
+  return { id, name, apiMode, requestPolicy, imagesNewAPICompat, baseURL, textModelID, imageModelID, concurrencyLimit, createdAt, lastUsedAt };
 }
 
 // 列表里挑当前 active —— activeProfileId 命中时用它,否则用最近使用过的,
@@ -91,6 +92,7 @@ export function makeBlankProfile(apiMode: APIMode = "responses", profiles: Upstr
     name: nextDefaultProfileName(profiles),
     apiMode,
     requestPolicy: "openai",
+    imagesNewAPICompat: false,
     baseURL: "",
     textModelID: "",
     imageModelID: "",

@@ -1,9 +1,10 @@
 import { ClipboardCopy, Folder, RotateCw, Save, Sparkles } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
-import { OpenOutputDir, SaveImageAs, SaveImagePathAs } from "../../platform/runtime/host";
+import { OpenOutputDir } from "../../platform/runtime/host";
 import { submitShortcutLabel } from "../../platform";
 import { historyPreviewSrc, useBlobURL } from "../../lib/images";
-import { androidSaveHint, androidTarget, openOutputLocationForPlatform, saveImageForPlatform } from "../../platform/android/bridge";
+import { androidSaveHint, androidTarget, openOutputLocationForPlatform } from "../../platform/android/bridge";
+import { saveHistoryItemAs } from "../../lib/saveResultImage";
 import { Modal } from "../common/Modal";
 import { usePlatform } from "../../platform/context";
 import { qualityLabel, sizeLabel } from "../history/historyLabels";
@@ -36,11 +37,7 @@ export function ResultDetailDrawer() {
   }
 
   function openSaveDialog() {
-    const suggested = `image-${detail.mode}-${detail.id.slice(0, 8)}.png`;
-    const savePromise = detail.savedPath
-      ? SaveImagePathAs(detail.savedPath, suggested)
-      : saveImageForPlatform(detail.imageB64 ?? "", suggested, SaveImageAs);
-    savePromise.then(
+    saveHistoryItemAs(detail).then(
       (p) => p && pushToast(`已保存:${p.split(/[\\/]/).pop()}`, "success"),
       (e) => pushToast(`保存失败:${e?.message ?? e}`, "error"),
     );

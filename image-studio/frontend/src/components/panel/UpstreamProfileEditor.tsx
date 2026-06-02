@@ -195,6 +195,37 @@ export function UpstreamProfileEditor({
         <Hint>0/留空 = 不限制。填正整数后,此 profile 跨所有标签页最多同时运行这么多任务。</Hint>
       </Field>
 
+      {draft.apiMode === "images" ? (
+        <Field label="Images API 中转兼容">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={draft.imagesNewAPICompat === true}
+            onClick={() => onPatchDraft({ imagesNewAPICompat: !(draft.imagesNewAPICompat === true) })}
+            className={`flex w-full items-center justify-between gap-3 border border-black/[0.08] bg-[var(--surface)] px-3 py-2.5 text-left text-sm text-zinc-900 transition-colors hover:border-[color:var(--accent)]/35 dark:border-white/[0.08] dark:text-zinc-100 ${usesFluentUI ? "rounded-[10px]" : "rounded-[14px]"}`}
+          >
+            <span className="min-w-0">
+              <span className="block min-w-0 break-words font-medium">开启此开关可能可以解决newapi生图问题</span>
+              <span className="mt-1 block min-w-0 break-words text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+                开启后会为 Images API 强制发送 <code className="font-mono-token">response_format=b64_json</code>，并关闭 <code className="font-mono-token">stream</code> / <code className="font-mono-token">partial_images</code>，更适合部分 NewAPI / Packy 风格中转站。
+              </span>
+            </span>
+            <span
+              className={`inline-flex min-h-[26px] min-w-[58px] shrink-0 items-center justify-center border px-2.5 text-[11px] font-semibold tracking-[0.04em] ${
+                draft.imagesNewAPICompat
+                  ? "border-[color:var(--accent)]/20 bg-[var(--accent-soft)] text-[var(--accent)]"
+                  : "border-black/[0.08] bg-black/[0.04] text-zinc-500 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-zinc-300"
+              } ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
+            >
+              {draft.imagesNewAPICompat ? "已开启" : "已关闭"}
+            </span>
+          </button>
+          <Hint>
+            默认关闭，保持 OpenAI 标准 Images API 请求。只有默认标准参数用不了时，再尝试开启。
+          </Hint>
+        </Field>
+      ) : null}
+
       <button
         type="button"
         onClick={() => void onTest()}

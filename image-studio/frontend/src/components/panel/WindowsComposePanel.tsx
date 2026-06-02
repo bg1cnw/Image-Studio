@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { APIMode, Mode, QualityValue, RequestPolicy, SizeValue } from "../../types/domain";
 import { DesktopComposeSections } from "./DesktopComposeSections";
-import type { AspectPreset, ResolutionPreset } from "./sizeCapabilities";
+import type { AspectPreset, AspectPresetOption, ResolutionPreset } from "./sizeCapabilities";
 
 export function WindowsComposePanel({
   composeOpen,
@@ -10,6 +10,7 @@ export function WindowsComposePanel({
   activeStyleLabel,
   activeAspect,
   activeAspectLabel,
+  aspectOptions,
   activeResolution,
   activeResolutionLabel,
   activeQualityLabel,
@@ -20,6 +21,7 @@ export function WindowsComposePanel({
   handleAspectSelect,
   handleResolutionSelect,
   imageModelID,
+  onOpenCustomAspectRatioModal,
   mode,
   onRemoveSource,
   quality,
@@ -36,6 +38,7 @@ export function WindowsComposePanel({
   activeStyleLabel: string;
   activeAspect: AspectPreset;
   activeAspectLabel: string;
+  aspectOptions: AspectPresetOption[];
   activeResolution: ResolutionPreset;
   activeResolutionLabel: string;
   activeQualityLabel: string;
@@ -46,6 +49,7 @@ export function WindowsComposePanel({
   handleAspectSelect: (aspect: AspectPreset) => void;
   handleResolutionSelect: (resolution: ResolutionPreset) => void;
   imageModelID: string;
+  onOpenCustomAspectRatioModal: () => void;
   mode: Mode;
   onRemoveSource: (index: number) => void;
   quality: QualityValue;
@@ -93,6 +97,7 @@ export function WindowsComposePanel({
         <div className="windows-compose-body">
           <DesktopComposeSections
             activeAspect={activeAspect}
+            aspectOptions={aspectOptions}
             activeResolution={activeResolution}
             apiMode={apiMode}
             availableResolutions={availableResolutions}
@@ -102,6 +107,7 @@ export function WindowsComposePanel({
             handleAspectSelect={handleAspectSelect}
             handleResolutionSelect={handleResolutionSelect}
             imageModelID={imageModelID}
+            onOpenCustomAspectRatioModal={onOpenCustomAspectRatioModal}
             mode={mode}
             onRemoveSource={onRemoveSource}
             quality={quality}

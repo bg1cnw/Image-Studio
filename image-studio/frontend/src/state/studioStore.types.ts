@@ -4,8 +4,10 @@ import type {
   APIMode,
   HistoryItem,
   KernelRuntimeMode,
+  LoopGenerationConfig,
   Mode,
   OutputFormatValue,
+  CustomAspectRatio,
   Preset,
   ProgressInfo,
   ProxyMode,
@@ -71,6 +73,7 @@ export interface StudioState {
   imageModelID: string;
   apiMode: APIMode;
   requestPolicy: RequestPolicy;
+  imagesNewAPICompat: boolean;
   noPromptRevision: boolean;
   profiles: UpstreamProfile[];
   activeProfileId: string;
@@ -89,6 +92,9 @@ export interface StudioState {
   runningJobMeta: Record<string, RunningJobMeta>;
   currentImage: HistoryItem | null;
   history: HistoryItem[];
+  historyHasMore: boolean;
+  historyLoading: boolean;
+  historyCursorBeforeDayStart: number | null;
   batchResults: HistoryItem[];
   resultGridOpen: boolean;
   historyRailCollapsed: boolean;
@@ -111,7 +117,9 @@ export interface StudioState {
   fullscreen: boolean;
   promptHistory: string[];
   batchCount: number;
+  loopGeneration: LoopGenerationConfig;
   presets: Preset[];
+  customAspectRatios: CustomAspectRatio[];
   theme: ThemeMode;
   fontScale: number;
   workspaces: Workspace[];
@@ -129,6 +137,7 @@ export interface StudioState {
     apiMode: APIMode;
     baseURL?: string;
     requestPolicy?: RequestPolicy;
+    imagesNewAPICompat?: boolean;
     textModelID?: string;
     imageModelID?: string;
     concurrencyLimit?: number;
@@ -171,9 +180,16 @@ export interface StudioState {
   resultDetail: HistoryItem | null;
   openResultDetail: (item: HistoryItem) => Promise<void>;
   closeResultDetail: () => void;
+  savePromptItem: HistoryItem | null;
+  savePromptQueue: HistoryItem[];
+  savePromptSuppressed: boolean;
+  enqueueSavePrompt: (item: HistoryItem) => void;
+  closeSavePrompt: () => void;
+  setSavePromptSuppressed: (value: boolean) => void;
   materializeCurrentImage: (item: HistoryItem) => Promise<HistoryItem>;
   retryLast: () => Promise<void>;
   setHistoryRailCollapsed: (collapsed: boolean) => void;
+  loadMoreHistory: () => Promise<void>;
   openHistoryTimeline: () => void;
   closeHistoryTimeline: () => void;
   pruneHistoryOlderThanDays: (days: number) => Promise<number>;
@@ -185,6 +201,11 @@ export interface StudioState {
   setTheme: (t: ThemeMode) => void;
   setFontScale: (v: number) => void;
   setProxyConfig: (mode: ProxyMode, url?: string) => void;
+  customAspectRatioModalOpen: boolean;
+  openCustomAspectRatioModal: () => void;
+  closeCustomAspectRatioModal: () => void;
+  addCustomAspectRatio: (width: number, height: number) => boolean;
+  deleteCustomAspectRatio: (id: string) => void;
   settingsOpen: boolean;
   openSettings: () => void;
   closeSettings: () => void;

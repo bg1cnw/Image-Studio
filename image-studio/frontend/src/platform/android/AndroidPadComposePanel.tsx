@@ -13,20 +13,28 @@ import { AndroidPadParameterSection } from "./AndroidPadParameterSection";
 import { AndroidPadSourceSection } from "./AndroidPadSourceSection";
 import { AndroidPromptTemplateModal } from "./AndroidPromptTemplateModal";
 import {
+  aspectPresetLabel,
   availableResolutionPresets,
   deriveAspectPreset,
   deriveResolutionPreset,
+  listAspectPresetOptions,
 } from "../../components/panel/sizeCapabilities";
 import {
   buildAndroidAspectSizeSelection,
   buildAndroidResolutionSizeSelection,
 } from "./parameters/androidSizeSelection";
+import { LoopGenerationSection } from "../../components/panel/LoopGenerationSection";
 
-export function AndroidPadComposePanel() {
+export function AndroidPadComposePanel({
+  onSubmitStart,
+}: {
+  onSubmitStart?: () => void;
+} = {}) {
   const {
     apiKey, mode, prompt, negativePrompt, size, quality, seed, styleTag, outputFormat,
-    batchCount, sources, currentImage, isRunning, isOptimizingPrompt, apiMode, requestPolicy, baseURL, imageModelID,
-    profiles, setField, selectSourceImage, removeSource, clearSources,
+    batchCount, loopGeneration, sources, currentImage, isRunning, isOptimizingPrompt, apiMode, requestPolicy, baseURL, imageModelID,
+    profiles, customAspectRatios, setField, selectSourceImage, removeSource, clearSources,
+    openCustomAspectRatioModal,
     openUpstreamConfig, submit, cancel, optimizePrompt,
   } = useStudioStore();
   const [templateOpen, setTemplateOpen] = useState(false);
@@ -43,10 +51,11 @@ export function AndroidPadComposePanel() {
     prompt.trim() && (hasUsableResponsesProfile || (apiKey.trim() && baseURL.trim()))
   );
   const activeStyleLabel = STYLE_CHIPS.find((item) => item.id === styleTag)?.label ?? "默认风格";
-  const activeAspect = deriveAspectPreset(size);
+  const aspectOptions = listAspectPresetOptions(customAspectRatios);
+  const activeAspect = deriveAspectPreset(size, customAspectRatios);
   const activeResolution = deriveResolutionPreset(size);
   const availableResolutions = availableResolutionPresets({ apiMode, requestPolicy, imageModelID });
-  const activeAspectLabel = activeAspect === "auto" ? "Auto" : activeAspect;
+  const activeAspectLabel = aspectPresetLabel(activeAspect, customAspectRatios);
   const activeResolutionLabel = activeResolution === "auto" ? "自动" : activeResolution.toUpperCase();
   const activeQualityLabel = QUALITY_TIERS.find((item) => item.value === quality)?.label ?? quality;
   const editSourceLabel = sources.length > 0 ? `${sources.length} 张已添加` : currentImage?.savedPath ? "使用当前画板" : "未添加";
@@ -56,6 +65,7 @@ export function AndroidPadComposePanel() {
       aspect,
       activeResolution,
       { apiMode, requestPolicy, imageModelID },
+      customAspectRatios,
     ));
   };
 
@@ -64,6 +74,7 @@ export function AndroidPadComposePanel() {
       activeAspect,
       resolution,
       { apiMode, requestPolicy, imageModelID },
+      customAspectRatios,
     ));
   };
 
@@ -74,7 +85,9 @@ export function AndroidPadComposePanel() {
 
   const handleSubmit = () => {
     vibrateForPlatform(15);
-    submit();
+    void submit().then(() => {
+      if (useStudioStore.getState().isRunning) onSubmitStart?.();
+    });
   };
 
   const handleOptimize = () => {
@@ -110,7 +123,7 @@ export function AndroidPadComposePanel() {
       disabled={!apiKey || !prompt.trim()}
       className="liquid-primary-button h-[52px] w-full text-[15px] font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 dark:disabled:bg-zinc-800"
     >
-      {mode === "edit" ? "开始编辑" : "开始生成"}
+      {loopGeneration.enabled ? "开始循环" : mode === "edit" ? "开始编辑" : "开始生成"}
     </button>
   );
 
@@ -199,6 +212,7 @@ export function AndroidPadComposePanel() {
           <AndroidPadParameterSection
             activeAspect={activeAspect}
             activeAspectLabel={activeAspectLabel}
+            aspectOptions={aspectOptions}
             activeResolution={activeResolution}
             activeResolutionLabel={activeResolutionLabel}
             activeQualityLabel={activeQualityLabel}
@@ -211,6 +225,7 @@ export function AndroidPadComposePanel() {
             imageModelID={imageModelID}
             isMediumPad={isMediumPad}
             needsUpstreamSetup={needsUpstreamSetup}
+            onOpenCustomAspectRatioModal={openCustomAspectRatioModal}
             onOpenUpstream={() => { vibrateForPlatform(8); openUpstreamConfig("app"); }}
             quality={quality}
             requestPolicy={requestPolicy}
@@ -247,6 +262,11 @@ export function AndroidPadComposePanel() {
               setAdvancedOpen={setAdvancedOpen}
               setField={setField as any}
               surface="pad"
+            />
+
+            <LoopGenerationSection
+              value={loopGeneration}
+              onChange={(next) => setField("loopGeneration", next)}
             />
 
             <div className="android-pad-side-cta">

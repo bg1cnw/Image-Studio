@@ -67,6 +67,10 @@ export function shouldSendExtendedImageParameters(requestPolicy) {
   return isCompatRequestPolicy(requestPolicy);
 }
 
+export function shouldUseImagesNewAPICompat(payload) {
+  return payload?.imagesNewAPICompat === true;
+}
+
 export function fileNameFromPath(path) {
   if (!path) return "image.png";
   return String(path).split(/[\\/]/).pop() || "image.png";
@@ -92,6 +96,7 @@ export function buildResponsesImageTool(payload, sourceDataURLs, options = {}) {
   const outputFormat = payload.outputFormat || DEFAULT_OUTPUT_FORMAT;
   const negativePrompt = normalizeNegativePrompt(payload.negativePrompt);
   const compatExtensions = shouldSendExtendedImageParameters(payload.requestPolicy);
+  const partialImages = payload.disablePreview ? 0 : normalizePartialImages(payload.partialImages);
   const tool = {
     type: "image_generation",
     model: normalizeImageModel(payload.imageModelID),
@@ -100,7 +105,7 @@ export function buildResponsesImageTool(payload, sourceDataURLs, options = {}) {
     quality,
     output_format: outputFormat,
     moderation: "low",
-    partial_images: normalizePartialImages(payload.partialImages),
+    partial_images: partialImages,
   };
   if (compatExtensions && payload.seed) tool.seed = payload.seed;
   if (compatExtensions && negativePrompt) tool.negative_prompt = negativePrompt;

@@ -11,6 +11,7 @@ import {
   GetStoredAPIKey,
   SetStoredAPIKey,
   RegisterMediaAsset,
+  RegisterImportedImageAsset,
   SetOutputDir,
   probeCurrentUpstream,
   setKernelRuntimeMode,
@@ -20,6 +21,7 @@ import {
   APIMode,
   HistoryItem,
   KernelRuntimeMode,
+  LoopGenerationConfig,
   Mode,
   OutputFormatValue,
   Preset,
@@ -39,9 +41,22 @@ import {
   loadLegacySharedAPIKey,
   loadTrustedOutputRoots,
   persistHistoryItem,
+  persistHistoryItems,
   rememberTrustedOutputRoot,
   loadAllHistory,
+  loadHistoryPage,
 } from "../lib/storage";
+import {
+  compatibilityExportFingerprint,
+  importCompatibilityStateIfNewer,
+  scheduleCompatibilityExport,
+} from "../lib/compatState";
+import {
+  loadCustomAspectRatios,
+  makeCustomAspectRatio,
+  MAX_CUSTOM_ASPECT_RATIOS,
+  persistCustomAspectRatios,
+} from "../lib/customAspectRatios.ts";
 import {
   cleanBaseURL,
 } from "../lib/security";
@@ -57,8 +72,12 @@ import { dispatchFullscreenResize, setNativeFullscreen } from "../platform/nativ
 import {
   activeRuntimePatch,
   apiModeLabel,
+  defaultLoopGenerationConfig,
   normalizeBatchCount,
   normalizeConcurrencyLimit,
+  normalizeLoopGenerationConcurrency,
+  normalizeLoopGenerationConfig,
+  normalizeLoopGenerationCount,
   patchWorkspaceRuntime,
   workspaceRuntimeFromState,
   workspaceRunningCount,
@@ -66,7 +85,14 @@ import {
   type RunningJobMeta,
   type WorkspacePatch,
 } from "./workspaceRuntime";
-import { normalizeSizeSelection } from "../components/panel/sizeCapabilities";
+import {
+  buildAspectSizeSelection,
+  buildCustomAspectValue,
+  deriveAspectPreset,
+  deriveResolutionPreset,
+  isBuiltInAspectRatio,
+  normalizeSizeSelection,
+} from "../components/panel/sizeCapabilities";
 import { buildMacWorkspacePreview, readPreviewScenario } from "../app/dev/previewData";
 import {
   applyTheme,
@@ -78,6 +104,7 @@ import {
   loadModeConfig,
   loadStoredActiveProfileId,
   loadStoredProfiles,
+  MAX_HISTORY_ITEMS,
   persistActiveProfileId,
   persistProfiles,
   persistTrimmedHistory,
@@ -99,6 +126,7 @@ import { createMediaActions } from "./studioStore.media";
 import { createProfileActions } from "./studioStore.profiles";
 import { createWorkspaceActions } from "./studioStore.workspaces";
 import { createImageActions } from "./studioStore.images";
+import { saveHistoryItemToDirectory } from "../lib/saveResultImage";
 import {
   currentImageIdForWorkspaceSnapshot,
   removeStreamPreview,
@@ -111,6 +139,111 @@ type RuntimeGenerateOptions = backend.GenerateOptions & {
   sourceImages?: SourceImage[];
 };
 
+type JobSnapshot = {
+  workspaceId: string;
+  apiMode: APIModeValue;
+  batchIndex: number;
+  size: SizeValue;
+  quality: QualityValue;
+  outputFormat: OutputFormatValue;
+  sources: SourceImage[];
+  currentImage: HistoryItem | null;
+  styleTag: string;
+  loopGeneration: LoopGenerationConfig;
+};
+
+type LaunchOneJobHooks = {
+  onSettled?: (status: "success" | "error") => void;
+};
+
+type LoopRunController = {
+  workspaceId: string;
+  totalJobs: number;
+  maxConcurrent: number;
+  launchedJobs: number;
+  mode: Mode;
+  payload: RuntimeGenerateOptions;
+  snapshotBase: Omit<JobSnapshot, "batchIndex">;
+  stopped: boolean;
+};
+
+const loopRunControllers = new Map<string, LoopRunController>();
+
+function stopLoopRun(workspaceId: string): void {
+  const controller = loopRunControllers.get(workspaceId);
+  if (controller) controller.stopped = true;
+  loopRunControllers.delete(workspaceId);
+}
+
+function launchQueuedLoopJobs(controller: LoopRunController): void {
+  if (controller.stopped) return;
+  const state = useStudioStore.getState();
+  const workspaceExists = state.activeWorkspaceId === controller.workspaceId
+    || state.workspaces.some((workspace) => workspace.id === controller.workspaceId);
+  if (!workspaceExists) {
+    stopLoopRun(controller.workspaceId);
+    return;
+  }
+  const runtime = workspaceRuntimeFromState(state, controller.workspaceId);
+  if (runtime.jobsTotal === 0) {
+    stopLoopRun(controller.workspaceId);
+    return;
+  }
+
+  while (!controller.stopped && controller.launchedJobs < controller.totalJobs) {
+    const latestState = useStudioStore.getState();
+    const latestRuntime = workspaceRuntimeFromState(latestState, controller.workspaceId);
+    if (latestRuntime.jobsTotal === 0 || latestRuntime.runningJobs.length >= controller.maxConcurrent) break;
+    const batchIndex = controller.launchedJobs;
+    controller.launchedJobs += 1;
+    const payloadSeed = controller.payload.seed ? controller.payload.seed + batchIndex : 0;
+    const nextPayload: RuntimeGenerateOptions = { ...controller.payload, seed: payloadSeed };
+    void launchOneJob(controller.mode, nextPayload, {
+      ...controller.snapshotBase,
+      batchIndex,
+    }, {
+      onSettled: (status) => {
+        const current = loopRunControllers.get(controller.workspaceId);
+        if (!current || current !== controller) return;
+        if (status === "error") {
+          stopLoopRun(controller.workspaceId);
+          return;
+        }
+        const currentState = useStudioStore.getState();
+        const currentRuntime = workspaceRuntimeFromState(currentState, controller.workspaceId);
+        if (currentRuntime.jobsTotal === 0) {
+          stopLoopRun(controller.workspaceId);
+          return;
+        }
+        launchQueuedLoopJobs(controller);
+      },
+    });
+  }
+}
+
+const SAVE_PROMPT_SUPPRESSED_KEY = "gptcodex.savePromptSuppressed";
+const INITIAL_HISTORY_LOAD = 18;
+const HISTORY_MEDIA_HYDRATE_CONCURRENCY = 4;
+
+let deferredHistoryLoadPromise: Promise<void> | null = null;
+
+function readSavePromptSuppressed(): boolean {
+  try {
+    return localStorage.getItem(SAVE_PROMPT_SUPPRESSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeSavePromptSuppressed(value: boolean): void {
+  try {
+    if (value) localStorage.setItem(SAVE_PROMPT_SUPPRESSED_KEY, "1");
+    else localStorage.removeItem(SAVE_PROMPT_SUPPRESSED_KEY);
+  } catch {
+    // localStorage can be unavailable in tests/previews.
+  }
+}
+
 async function writeBase64ToTempFile(b64: string, _name: string): Promise<string> {
   // Backend doesn't currently expose a "write temp file from b64" binding,
   // but reuseAsSource needs a path for edit mode. Workaround: use SaveImageAs
@@ -120,6 +253,71 @@ async function writeBase64ToTempFile(b64: string, _name: string): Promise<string
   // use item.savedPath; this helper exists for parity and is currently unused.
   void b64;
   return "";
+}
+
+function needsHistoryPreviewHydration(item: HistoryItem): boolean {
+  return !!item.savedPath
+    && !item.savedPath.startsWith("memory://")
+    && !item.previewBlob
+    && !item.imageB64;
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  task: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await task(items[index], index);
+    }
+  };
+  const workerCount = Math.min(Math.max(1, concurrency), items.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+}
+
+function mergeHistoryMediaRef(current: HistoryItem | null, nextById: Map<string, HistoryItem>): HistoryItem | null {
+  if (!current) return current;
+  const next = nextById.get(current.id);
+  return next ? withMediaAssetRef(current, next) : current;
+}
+
+async function hydrateHistoryPreviewRefs(items: HistoryItem[]): Promise<HistoryItem[]> {
+  return mapWithConcurrency(items, HISTORY_MEDIA_HYDRATE_CONCURRENCY, async (item) => {
+    if (!needsHistoryPreviewHydration(item)) return item;
+    try {
+      const ref = item.thumbPath
+        ? await RegisterMediaAsset(item.savedPath!, item.thumbPath)
+        : await RegisterImportedImageAsset(item.savedPath!);
+      return withMediaAssetRef(item, ref);
+    } catch {
+      return item;
+    }
+  });
+}
+
+async function backfillHistoryPreviewRefs(items: HistoryItem[]): Promise<void> {
+  const hydrated = await hydrateHistoryPreviewRefs(items);
+  const changed = hydrated.filter((item, index) => item !== items[index]);
+  if (changed.length === 0) return;
+  const changedById = new Map(changed.map((item) => [item.id, item]));
+  useStudioStore.setState((state) => ({
+    history: state.history.map((item) => changedById.get(item.id) ?? item),
+    batchResults: state.batchResults.map((item) => {
+      const next = changedById.get(item.id);
+      return next ? withMediaAssetRef(item, next) : item;
+    }),
+    currentImage: mergeHistoryMediaRef(state.currentImage, changedById),
+    compareB: mergeHistoryMediaRef(state.compareB, changedById),
+    resultDetail: mergeHistoryMediaRef(state.resultDetail, changedById),
+  }));
+  await persistHistoryItems(changed).catch(() => undefined);
 }
 
 const mediaActions = createMediaActions({
@@ -183,6 +381,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   proxyURL: "",
   apiMode: "responses",
   requestPolicy: "openai",
+  imagesNewAPICompat: false,
   noPromptRevision: true,
   profiles: [],
   activeProfileId: "",
@@ -203,6 +402,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
 
   currentImage: null,
   history: [],
+  historyHasMore: false,
+  historyLoading: false,
+  historyCursorBeforeDayStart: null,
   batchResults: [],
   resultGridOpen: false,
   historyRailCollapsed: false,
@@ -230,11 +432,67 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   fullscreen: false,
   starPromptOpen: false,
   starPromptSource: "auto",
+  savePromptItem: null,
+  savePromptQueue: [],
+  savePromptSuppressed: readSavePromptSuppressed(),
   promptHistory: [],
   batchCount: 1,
+  loopGeneration: defaultLoopGenerationConfig(),
   presets: [],
+  customAspectRatios: [],
   theme: "system",
   fontScale: 1,
+  customAspectRatioModalOpen: false,
+  openCustomAspectRatioModal: () => set({ customAspectRatioModalOpen: true }),
+  closeCustomAspectRatioModal: () => set({ customAspectRatioModalOpen: false }),
+  addCustomAspectRatio: (width, height) => {
+    const nextRatio = makeCustomAspectRatio(width, height);
+    if (!nextRatio) {
+      get().pushToast("请输入有效的宽高比例", "warn");
+      return false;
+    }
+    if (isBuiltInAspectRatio(nextRatio.width, nextRatio.height)) {
+      get().pushToast("这个比例已经内置了", "warn");
+      return false;
+    }
+    const existing = get().customAspectRatios;
+    if (existing.some((item) => item.id === nextRatio.id)) {
+      get().pushToast(`比例 ${nextRatio.label} 已存在`, "warn");
+      return false;
+    }
+    if (existing.length >= MAX_CUSTOM_ASPECT_RATIOS) {
+      get().pushToast(`最多保存 ${MAX_CUSTOM_ASPECT_RATIOS} 个自定义比例`, "warn");
+      return false;
+    }
+    const next = [...existing, nextRatio];
+    persistCustomAspectRatios(next);
+    set({ customAspectRatios: next });
+    get().pushToast(`已添加比例 ${nextRatio.label}`, "success");
+    return true;
+  },
+  deleteCustomAspectRatio: (id) => {
+    const state = get();
+    const removed = state.customAspectRatios.find((item) => item.id === id);
+    if (!removed) return;
+    const next = state.customAspectRatios.filter((item) => item.id !== id);
+    persistCustomAspectRatios(next);
+    const patch: Partial<StudioState> = { customAspectRatios: next };
+    if (deriveAspectPreset(state.size, state.customAspectRatios) === buildCustomAspectValue(id)) {
+      const resolution = deriveResolutionPreset(state.size);
+      patch.size = buildAspectSizeSelection(
+        "1:1",
+        resolution === "auto" ? "1k" : resolution,
+        {
+          apiMode: state.apiMode,
+          requestPolicy: state.requestPolicy,
+          imageModelID: state.imageModelID,
+        },
+        next,
+      );
+    }
+    set(patch);
+    get().pushToast(`已删除比例 ${removed.label}`, "success");
+  },
   settingsOpen: false,
   openSettings: () => set({ settingsOpen: true, upstreamModalOpen: false }),
   closeSettings: () => set({ settingsOpen: false }),
@@ -263,6 +521,26 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     set({ starPromptOpen: false });
     try { localStorage.setItem("gptcodex.starPrompted", "1"); } catch {}
   },
+  enqueueSavePrompt: (item) => {
+    if (get().savePromptSuppressed) return;
+    set((state) => {
+      if (!state.savePromptItem) return { savePromptItem: item };
+      return { savePromptQueue: [...state.savePromptQueue, item].slice(-12) };
+    });
+  },
+  closeSavePrompt: () => {
+    set((state) => {
+      const [next, ...rest] = state.savePromptQueue;
+      return {
+        savePromptItem: next ?? null,
+        savePromptQueue: rest,
+      };
+    });
+  },
+  setSavePromptSuppressed: (value) => {
+    writeSavePromptSuppressed(value);
+    set(value ? { savePromptSuppressed: true, savePromptQueue: [] } : { savePromptSuppressed: false });
+  },
   workspaces: [],
   activeWorkspaceId: "",
   styleTag: "",
@@ -281,7 +559,11 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       return;
     }
     // 其他全局偏好字段
-    const normalizedValue = key === "batchCount" ? normalizeBatchCount(value) : value;
+    const normalizedValue = key === "batchCount"
+      ? normalizeBatchCount(value)
+      : key === "loopGeneration"
+        ? normalizeLoopGenerationConfig(value)
+        : value;
     set({ [key]: normalizedValue } as any);
     if (key === "currentImage") {
       const item = normalizedValue as HistoryItem | null;
@@ -299,6 +581,13 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       set({
         workspaces: get().workspaces.map((w) => (
           w.id === get().activeWorkspaceId ? { ...w, batchCount: value } : w
+        )),
+      });
+    } else if (key === "loopGeneration") {
+      const value = normalizedValue as LoopGenerationConfig;
+      set({
+        workspaces: get().workspaces.map((w) => (
+          w.id === get().activeWorkspaceId ? { ...w, loopGeneration: value } : w
         )),
       });
     } else if (key === "errorMessage") {
@@ -389,15 +678,28 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     }
     const cleanedBaseURL = cleanBaseURL(s.baseURL);
     const batchCount = normalizeBatchCount(s.batchCount);
+    const loopGeneration = normalizeLoopGenerationConfig(s.loopGeneration);
+    const loopEnabled = loopGeneration.enabled;
+    const requestedJobCount = loopEnabled ? normalizeLoopGenerationCount(loopGeneration.totalCount) : batchCount;
+    const requestedConcurrency = loopEnabled
+      ? Math.min(requestedJobCount, normalizeLoopGenerationConcurrency(loopGeneration.concurrency))
+      : batchCount;
+    if (loopEnabled && loopGeneration.autoSave && !loopGeneration.autoSaveDir.trim()) {
+      set({ errorMessage: "请先为循环出图配置自动另存为路径", errorRawPath: null });
+      return;
+    }
     const activeProfile = s.profiles.find((p) => p.id === s.activeProfileId);
     const concurrencyLimit = normalizeConcurrencyLimit(activeProfile?.concurrencyLimit ?? 0);
     if (concurrencyLimit > 0) {
       const activeCount = workspaceRunningCount(s, s.apiMode);
       const available = concurrencyLimit - activeCount;
-      if (available < batchCount) {
+      const requiredConcurrency = loopEnabled ? requestedConcurrency : batchCount;
+      if (available < requiredConcurrency) {
         const apiLabel = s.apiMode === "responses" ? "Responses API" : "Images API";
         set({
-          errorMessage: `${apiLabel} 并发限制 ${concurrencyLimit},当前还可提交 ${Math.max(0, available)} 个,本次需要 ${batchCount} 个。`,
+          errorMessage: loopEnabled
+            ? `${apiLabel} 并发限制 ${concurrencyLimit},当前还可提交 ${Math.max(0, available)} 个,循环模式并发需要 ${requiredConcurrency} 个。`
+            : `${apiLabel} 并发限制 ${concurrencyLimit},当前还可提交 ${Math.max(0, available)} 个,本次需要 ${batchCount} 个。`,
           errorRawPath: null,
         });
         return;
@@ -426,6 +728,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
 
     const workspaceId = s.activeWorkspaceId;
     const clearCurrentForNewRun = s.mode === "generate";
+    stopLoopRun(workspaceId);
     const runPatch = {
       errorMessage: null,
       errorRawPath: null,
@@ -434,7 +737,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       streamPreviews: {},
       lastLogLine: "",
       isRunning: true,
-      jobsTotal: batchCount,
+      jobsTotal: requestedJobCount,
       jobsCompleted: 0,
       runningJobs: [],
     };
@@ -442,7 +745,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       ...runPatch,
       batchCount,
       batchResults: [],
-      resultGridOpen: batchCount > 1,
+      resultGridOpen: requestedJobCount > 1,
       compareB: null,
       currentImage: clearCurrentForNewRun ? null : s.currentImage,
       maskDataURL: null,
@@ -452,7 +755,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         ...runPatch,
         currentImageId: clearCurrentForNewRun ? null : s.currentImage?.id ?? null,
         batchResultIds: [],
-        resultGridOpen: batchCount > 1,
+        resultGridOpen: requestedJobCount > 1,
       }),
     });
 
@@ -492,10 +795,12 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       proxyMode: s.proxyMode,
       proxyURL: s.proxyURL,
       requestPolicy: s.requestPolicy,
+      imagesNewAPICompat: s.imagesNewAPICompat,
       apiMode: s.apiMode,
       noPromptRevision: true,
       concurrencyLimit,
       partialImages: 1,
+      disablePreview: loopEnabled && !loopGeneration.livePreview,
     };
     const remotePayload: RuntimeGenerateOptions = {
       ...basePayload,
@@ -513,19 +818,40 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       workspaces: patchWorkspaceRuntime(get().workspaces, workspaceId, { lastPayload: persistedPayload }),
     });
 
+    const snapshotBase = {
+      workspaceId,
+      apiMode: s.apiMode,
+      size: s.size,
+      quality: s.quality,
+      outputFormat: s.outputFormat,
+      sources: s.sources,
+      currentImage: s.currentImage,
+      styleTag: s.styleTag,
+      loopGeneration,
+    } as const;
+
+    if (loopEnabled) {
+      const controller: LoopRunController = {
+        workspaceId,
+        totalJobs: requestedJobCount,
+        maxConcurrent: requestedConcurrency,
+        launchedJobs: 0,
+        mode: s.mode,
+        payload: remotePayload,
+        snapshotBase,
+        stopped: false,
+      };
+      loopRunControllers.set(workspaceId, controller);
+      launchQueuedLoopJobs(controller);
+      return;
+    }
+
     for (let i = 0; i < batchCount; i++) {
       const jobSeed = s.seed ? s.seed + i : 0;
       const p: RuntimeGenerateOptions = { ...remotePayload, seed: jobSeed };
       void launchOneJob(s.mode, p, {
-        workspaceId,
-        apiMode: s.apiMode,
+        ...snapshotBase,
         batchIndex: i,
-        size: s.size,
-        quality: s.quality,
-        outputFormat: s.outputFormat,
-        sources: s.sources,
-        currentImage: s.currentImage,
-        styleTag: s.styleTag,
       });
     }
   },
@@ -533,6 +859,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   cancel: async () => {
     const s = get();
     const workspaceId = s.activeWorkspaceId;
+    stopLoopRun(workspaceId);
     const ids = [...s.runningJobs];
     // Cancel every concurrent job in the batch.
     for (const id of ids) {
@@ -606,6 +933,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         runningJobMeta: {},
         currentImage: preview.currentImage,
         history: preview.history,
+        historyHasMore: false,
+        historyLoading: false,
+        historyCursorBeforeDayStart: null,
         batchResults: [],
         resultGridOpen: false,
         historyRailCollapsed: false,
@@ -628,7 +958,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         fullscreen: false,
         promptHistory: [],
         batchCount: 1,
+        loopGeneration: normalizeLoopGenerationConfig(preview.workspace.loopGeneration),
         presets: [],
+        customAspectRatios: [],
         theme: "dark",
         fontScale: 1,
         workspaces: [preview.workspace],
@@ -640,18 +972,28 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         settingsOpen: false,
         isTestingKey: false,
         isOptimizingPrompt: false,
+        customAspectRatioModalOpen: false,
         upstreamModalOpen: false,
         upstreamReturnTarget: "app",
         starPromptOpen: false,
         starPromptSource: "auto",
+        savePromptItem: null,
+        savePromptQueue: [],
+        savePromptSuppressed: readSavePromptSuppressed(),
       });
       return;
     }
 
-    const loadedItems = await loadAllHistory();
-    let items = trimHistory(loadedItems);
+    await importCompatibilityStateIfNewer().catch((error) => {
+      if (typeof console !== "undefined") console.warn("compat import failed", error);
+      return false;
+    });
+    const initialHistoryPage = await loadHistoryPage({ limit: INITIAL_HISTORY_LOAD });
+    const items = trimHistory(initialHistoryPage.items);
+    const historyHasMore = !!initialHistoryPage.nextCursor;
     let promptHistory: string[] = [];
     let presets: Preset[] = [];
+    const customAspectRatios = loadCustomAspectRatios();
     let theme: ThemeMode = "system";
     let fontScale = 1;
     try {
@@ -725,6 +1067,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
           name: "Responses · 默认",
           apiMode: "responses",
           requestPolicy: "openai",
+          imagesNewAPICompat: false,
           baseURL: legacyResponses.baseURL,
           textModelID: legacyResponses.textModelID,
           imageModelID: legacyResponses.imageModelID,
@@ -743,6 +1086,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
           name: "Images · 默认",
           apiMode: "images",
           requestPolicy: "openai",
+          imagesNewAPICompat: false,
           baseURL: legacyImages.baseURL,
           textModelID: legacyImages.textModelID,
           imageModelID: legacyImages.imageModelID,
@@ -777,6 +1121,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     }
     const apiMode: APIMode = activeProfile?.apiMode ?? "responses";
     const requestPolicy: RequestPolicy = activeProfile?.requestPolicy ?? "openai";
+    const imagesNewAPICompat = activeProfile?.imagesNewAPICompat === true;
     const baseURL = activeProfile?.baseURL ?? "";
     const textModelID = activeProfile?.textModelID ?? "";
     const imageModelID = activeProfile?.imageModelID ?? "";
@@ -800,15 +1145,6 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     if (effectiveOutput) trustedRoots.add(effectiveOutput);
     for (const root of trustedRoots) rememberTrustedOutputRoot(root);
     await registerTrustedOutputRoots(Array.from(trustedRoots));
-    items = await Promise.all(items.map(async (item) => {
-      if (!item.savedPath || !item.thumbPath) return item;
-      try {
-        const ref = await RegisterMediaAsset(item.savedPath, item.thumbPath);
-        return withMediaAssetRef(item, ref);
-      } catch {
-        return item;
-      }
-    }));
     // Make sure there's always at least one workspace.
     const wsId = genId();
     const initialWorkspace: Workspace = {
@@ -822,6 +1158,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       outputFormat,
       seed: 0,
       batchCount: 1,
+      loopGeneration: defaultLoopGenerationConfig(),
       sources: [],
       currentImageId: null,
       batchResultIds: [],
@@ -842,8 +1179,11 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       ? false
       : !activeProfile || !activeKey.trim() || !baseURL.trim();
     set({
-      apiKey: activeKey, history: items, promptHistory, presets, theme, fontScale,
-      apiMode, requestPolicy, baseURL, textModelID, imageModelID, kernelRuntimeMode, noPromptRevision,
+      apiKey: activeKey, history: items, promptHistory, presets, customAspectRatios, theme, fontScale,
+      historyHasMore,
+      historyLoading: false,
+      historyCursorBeforeDayStart: initialHistoryPage.nextCursor?.beforeDayStart ?? null,
+      apiMode, requestPolicy, imagesNewAPICompat, baseURL, textModelID, imageModelID, kernelRuntimeMode, noPromptRevision,
       proxyMode: proxyConfig.mode,
       proxyURL: proxyConfig.url,
       outputFormat,
@@ -851,11 +1191,18 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       activeProfileId,
       workspaces: [initialWorkspace],
       activeWorkspaceId: wsId,
+      loopGeneration: normalizeLoopGenerationConfig(initialWorkspace.loopGeneration),
       // Android 走首页 hero 引导，不用启动即弹设置；桌面仍保留首次引导。
       settingsOpen: shouldAutoOpenSettings,
+      customAspectRatioModalOpen: false,
       upstreamModalOpen: false,
       upstreamReturnTarget: shouldAutoOpenSettings ? "settings" : "app",
+      savePromptItem: null,
+      savePromptQueue: [],
+      savePromptSuppressed: readSavePromptSuppressed(),
     });
+    enableCompatibilityExport();
+    void backfillHistoryPreviewRefs(items);
   },
 
   setMaskDataURL: (v) => set({ maskDataURL: v }),
@@ -976,8 +1323,40 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   openResultDetail: async (item) => mediaActions.openResultDetail(item),
   closeResultDetail: () => mediaActions.closeResultDetail(),
   materializeCurrentImage: async (item) => mediaActions.materializeCurrentImage(item),
-  setHistoryRailCollapsed: (collapsed) => mediaActions.setHistoryRailCollapsed(collapsed),
-  openHistoryTimeline: () => mediaActions.openHistoryTimeline(),
+  loadMoreHistory: async () => {
+    if (deferredHistoryLoadPromise) return deferredHistoryLoadPromise;
+    if (!get().historyHasMore || get().historyLoading) return;
+    set({ historyLoading: true });
+    deferredHistoryLoadPromise = (async () => {
+      try {
+        const currentHistory = get().history;
+        const cursorBeforeDayStart = get().historyCursorBeforeDayStart;
+        const nextPage = await loadHistoryPage({
+          cursor: typeof cursorBeforeDayStart === "number" ? { beforeDayStart: cursorBeforeDayStart } : null,
+          limit: INITIAL_HISTORY_LOAD,
+        });
+        const merged = trimHistory([...currentHistory, ...nextPage.items]);
+        set({
+          history: merged,
+          historyHasMore: !!nextPage.nextCursor && merged.length < MAX_HISTORY_ITEMS,
+          historyCursorBeforeDayStart: nextPage.nextCursor?.beforeDayStart ?? null,
+        });
+        void backfillHistoryPreviewRefs(nextPage.items);
+      } catch (error) {
+        if (typeof console !== "undefined") console.warn("load more history failed", error);
+      } finally {
+        deferredHistoryLoadPromise = null;
+        set({ historyLoading: false });
+      }
+    })();
+    return deferredHistoryLoadPromise;
+  },
+  setHistoryRailCollapsed: (collapsed) => {
+    mediaActions.setHistoryRailCollapsed(collapsed);
+  },
+  openHistoryTimeline: () => {
+    mediaActions.openHistoryTimeline();
+  },
   closeHistoryTimeline: () => mediaActions.closeHistoryTimeline(),
   pruneHistoryOlderThanDays: async (days) => mediaActions.pruneHistoryOlderThanDays(days),
   rotateCurrent: async (degrees) => mediaActions.rotateCurrent(degrees),
@@ -1124,17 +1503,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
 async function launchOneJob(
   mode: string,
   payload: RuntimeGenerateOptions,
-  snapshot: {
-    workspaceId: string;
-    apiMode: APIModeValue;
-    batchIndex: number;
-    size: SizeValue;
-    quality: QualityValue;
-    outputFormat: OutputFormatValue;
-    sources: SourceImage[];
-    currentImage: HistoryItem | null;
-    styleTag: string;
-  },
+  snapshot: JobSnapshot,
+  hooks: LaunchOneJobHooks = {},
 ): Promise<void> {
   const store = useStudioStore;
   const jobId = cryptoIDFallback();
@@ -1144,6 +1514,12 @@ async function launchOneJob(
   let offResult = () => {};
   let offError = () => {};
   const cleanup = () => { offProgress(); offLog(); offPreview(); offResult(); offError(); };
+  let settled = false;
+  const settle = (status: "success" | "error") => {
+    if (settled) return;
+    settled = true;
+    hooks.onSettled?.(status);
+  };
   try {
     store.setState((state) => {
       const runtime = workspaceRuntimeFromState(state, snapshot.workspaceId);
@@ -1204,20 +1580,22 @@ async function launchOneJob(
         ...(state.activeWorkspaceId === snapshot.workspaceId ? activeRuntimePatch(patch) : {}),
       } as Partial<StudioState>));
     });
-    offPreview = EventsOn(`preview:${jobId}`, (preview: StreamPreviewPayload) => {
-      store.setState((state) => (
-        streamPreviewStatePatch(state, jobId, preview, {
-          workspaceId: snapshot.workspaceId,
-          mode: mode === "edit" ? "edit" : "generate",
-          prompt: payload.prompt,
-          size: snapshot.size,
-          quality: snapshot.quality,
-          outputFormat: snapshot.outputFormat,
-          currentImage: snapshot.currentImage,
-          batchIndex: snapshot.batchIndex,
-        }) ?? {}
-      ));
-    });
+    if (!payload.disablePreview) {
+      offPreview = EventsOn(`preview:${jobId}`, (preview: StreamPreviewPayload) => {
+        store.setState((state) => (
+          streamPreviewStatePatch(state, jobId, preview, {
+            workspaceId: snapshot.workspaceId,
+            mode: mode === "edit" ? "edit" : "generate",
+            prompt: payload.prompt,
+            size: snapshot.size,
+            quality: snapshot.quality,
+            outputFormat: snapshot.outputFormat,
+            currentImage: snapshot.currentImage,
+            batchIndex: snapshot.batchIndex,
+          }) ?? {}
+        ));
+      });
+    }
 
     const startedAt = Date.now();
     offResult = EventsOn(`result:${jobId}`, (r: any) => {
@@ -1306,20 +1684,38 @@ async function launchOneJob(
           });
           persistTrimmedHistory(trimmed);
           persistHistoryItem(historyItem).catch(() => undefined);
+          const loopMode = snapshot.loopGeneration.enabled;
+          const isFinalLoopResult = loopMode && completedNow === totalNow;
           // 桌面通知 —— 点击拉前台 + 直达详情抽屉
-          if (willNotify) {
+          if (willNotify && (!loopMode || isFinalLoopResult)) {
             tryNotify("Image Studio · 已完成", r.prompt ?? "", () => {
               store.getState().openResultDetail(historyItem);
             });
           }
-          store.getState().pushToast(
-            totalNow > 1
-              ? `已完成 (${completedNow}/${totalNow}) · ${elapsedSec.toFixed(0)}s`
-              : `已${historyItem.mode === "edit" ? "编辑" : "生成"} · ${elapsedSec.toFixed(0)}s`,
-            "success",
-            6000,
-            { label: "查看详情", onClick: () => store.getState().openResultDetail(historyItem) },
-          );
+          if (!loopMode) {
+            store.getState().pushToast(
+              totalNow > 1
+                ? `已完成 (${completedNow}/${totalNow}) · ${elapsedSec.toFixed(0)}s`
+                : `已${historyItem.mode === "edit" ? "编辑" : "生成"} · ${elapsedSec.toFixed(0)}s`,
+              "success",
+              6000,
+              { label: "查看详情", onClick: () => store.getState().openResultDetail(historyItem) },
+            );
+            store.getState().enqueueSavePrompt(historyItem);
+          } else if (isFinalLoopResult) {
+            store.getState().pushToast(
+              `循环出图完成 · ${completedNow} 张`,
+              "success",
+              6000,
+              { label: "查看详情", onClick: () => store.getState().openResultDetail(historyItem) },
+            );
+          }
+          settle("success");
+          if (loopMode && snapshot.loopGeneration.autoSave && snapshot.loopGeneration.autoSaveDir.trim()) {
+            void saveHistoryItemToDirectory(historyItem, snapshot.loopGeneration.autoSaveDir).catch((error: any) => {
+              store.getState().pushToast(`自动另存为失败:${error?.message ?? error}`, "warn", 6000);
+            });
+          }
           // 首次成功生图 → 延迟 2s 弹 GitHub Star 引导。localStorage 标志一旦
           // 写入就再也不弹(无论用户点 star 还是关闭)。延迟是为了让用户先看
           // 到图,然后再被礼貌打扰。
@@ -1349,6 +1745,7 @@ async function launchOneJob(
             ...(state.activeWorkspaceId === snapshot.workspaceId ? activeRuntimePatch(patch) : {}),
           } as Partial<StudioState>));
           removeFromRunning();
+          settle("error");
         }
       })();
     });
@@ -1382,6 +1779,7 @@ async function launchOneJob(
         } as Partial<StudioState>;
       });
       removeFromRunning();
+      settle("error");
     });
     const started = mode === "edit"
       ? await wailsEdit({ ...payload, requestedJobId: jobId } as backend.GenerateOptions)
@@ -1418,10 +1816,29 @@ async function launchOneJob(
         ...(state.activeWorkspaceId === snapshot.workspaceId ? activeRuntimePatch(nextPatch) : {}),
       } as Partial<StudioState>;
     });
+    settle("error");
   }
 }
 
 export { tempDataURLFromB64, writeBase64ToTempFile };
+
+let compatibilityExportEnabled = false;
+let compatibilityFingerprint = "";
+
+function enableCompatibilityExport() {
+  const state = useStudioStore.getState();
+  compatibilityExportEnabled = true;
+  compatibilityFingerprint = compatibilityExportFingerprint(state);
+  scheduleCompatibilityExport(state);
+}
+
+useStudioStore.subscribe((state) => {
+  if (!compatibilityExportEnabled) return;
+  const next = compatibilityExportFingerprint(state);
+  if (next === compatibilityFingerprint) return;
+  compatibilityFingerprint = next;
+  scheduleCompatibilityExport(state);
+});
 
 async function materializeHistoryItem(item: HistoryItem): Promise<HistoryItem> {
   return materializeHistoryItemRuntime(item, {

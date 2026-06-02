@@ -1,5 +1,11 @@
 import type { backend } from "../../wailsjs/go/models";
-import type { ProgressInfo, StreamPreview, StreamPreviewMap, Workspace } from "../types/domain";
+import type {
+  LoopGenerationConfig,
+  ProgressInfo,
+  StreamPreview,
+  StreamPreviewMap,
+  Workspace,
+} from "../types/domain";
 
 export type APIModeValue = "responses" | "images";
 
@@ -61,11 +67,54 @@ export function normalizeBatchCount(value: unknown): number {
   return Math.max(1, Math.min(9, Math.floor(n)));
 }
 
+export const DEFAULT_LOOP_GENERATION_COUNT = 10;
+export const DEFAULT_LOOP_GENERATION_CONCURRENCY = 2;
+export const MAX_LOOP_GENERATION_COUNT = 99;
+export const MAX_LOOP_GENERATION_CONCURRENCY = 9;
+
+export function defaultLoopGenerationConfig(): LoopGenerationConfig {
+  return {
+    enabled: false,
+    totalCount: DEFAULT_LOOP_GENERATION_COUNT,
+    concurrency: DEFAULT_LOOP_GENERATION_CONCURRENCY,
+    autoSave: false,
+    autoSaveDir: "",
+    livePreview: true,
+  };
+}
+
+export function normalizeLoopGenerationCount(value: unknown): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return DEFAULT_LOOP_GENERATION_COUNT;
+  return Math.max(1, Math.min(MAX_LOOP_GENERATION_COUNT, Math.floor(n)));
+}
+
+export function normalizeLoopGenerationConcurrency(value: unknown): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return DEFAULT_LOOP_GENERATION_CONCURRENCY;
+  return Math.max(1, Math.min(MAX_LOOP_GENERATION_CONCURRENCY, Math.floor(n)));
+}
+
+export function normalizeLoopGenerationConfig(value: unknown): LoopGenerationConfig {
+  const source = value && typeof value === "object"
+    ? value as Partial<LoopGenerationConfig>
+    : {};
+  return {
+    enabled: source.enabled === true,
+    totalCount: normalizeLoopGenerationCount(source.totalCount),
+    concurrency: normalizeLoopGenerationConcurrency(source.concurrency),
+    autoSave: source.autoSave === true,
+    autoSaveDir: typeof source.autoSaveDir === "string" ? source.autoSaveDir.trim() : "",
+    livePreview: source.livePreview !== false,
+  };
+}
+
 export function patchWorkspaceRuntime(workspaces: Workspace[], workspaceId: string, patch: WorkspacePatch): Workspace[] {
   return workspaces.map((w) => {
     if (w.id !== workspaceId) return w;
     const next: Workspace = { ...w };
     if (patch.name !== undefined) next.name = patch.name;
+    if (patch.loopGeneration !== undefined) next.loopGeneration = normalizeLoopGenerationConfig(patch.loopGeneration);
     if (patch.currentImageId !== undefined) next.currentImageId = patch.currentImageId;
     if (patch.batchResultIds !== undefined) next.batchResultIds = patch.batchResultIds;
     if (patch.resultGridOpen !== undefined) next.resultGridOpen = patch.resultGridOpen;

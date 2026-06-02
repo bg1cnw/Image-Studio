@@ -14,6 +14,13 @@ const LEGACY_SHARED_API_KEY = "gptcodex.apiKey";
 
 type HistoryRecord = HistoryItem & { searchText: string; searchTokens: string[] };
 type FullRecord = { id: string; image: Blob };
+export type HistoryPageCursor = {
+  beforeDayStart: number;
+};
+export type HistoryPageResult = {
+  items: HistoryItem[];
+  nextCursor: HistoryPageCursor | null;
+};
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -180,16 +187,52 @@ export function rememberTrustedOutputRoot(root: string): string[] {
   return next;
 }
 
-export async function persistHistoryItem(item: HistoryItem): Promise<void> {
+function stripHistoryRecord(record: HistoryRecord): HistoryItem {
+  const { searchText, searchTokens, ...item } = record;
+  void searchText;
+  void searchTokens;
+  if (item.savedPath && !item.savedPath.startsWith("memory://") && !item.imageB64) {
+    return {
+      ...item,
+      imageId: undefined,
+      previewUrl: undefined,
+      fullUrl: undefined,
+    };
+  }
+  return item;
+}
+
+function startOfLocalDay(createdAt: number): number {
+  const d = new Date(createdAt);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+export async function persistHistoryItems(items: HistoryItem[]): Promise<void> {
+  if (items.length === 0) return;
   const { store, tx } = await openHistoryTx("readwrite");
-  store.put(normalizeHistoryRecord(item));
+  for (const item of items) {
+    store.put(normalizeHistoryRecord(item));
+  }
+  await txDone(tx);
+}
+
+export async function persistHistoryItem(item: HistoryItem): Promise<void> {
+  await persistHistoryItems([item]);
+}
+
+export async function persistHistoryFullImages(items: Array<{ id: string; imageB64: string }>): Promise<void> {
+  if (items.length === 0) return;
+  const { store, tx } = await openFullTx("readwrite");
+  for (const item of items) {
+    if (!item.id || !item.imageB64.trim()) continue;
+    store.put({ id: item.id, image: base64ToBlob(item.imageB64) });
+  }
   await txDone(tx);
 }
 
 export async function persistHistoryFullImage(id: string, imageB64: string): Promise<void> {
-  const { store, tx } = await openFullTx("readwrite");
-  store.put({ id, image: base64ToBlob(imageB64) });
-  await txDone(tx);
+  await persistHistoryFullImages([{ id, imageB64 }]);
 }
 
 export async function loadHistoryFullImage(id: string): Promise<string> {
@@ -281,22 +324,77 @@ async function withFullCount(): Promise<number> {
   return count;
 }
 
-export async function loadAllHistory(): Promise<HistoryItem[]> {
+export async function loadAllHistory(limit?: number): Promise<HistoryItem[]> {
   await migrateLegacyHistoryIfNeeded();
   const { store, tx } = await openHistoryTx("readonly");
-  // ★ 必须走 createdAt index,不是默认 primary key —— primary key 是 uuid
-  // 字符串,逆序排列等于随机,会让历史侧栏顺序看起来抽象。createdAt index
-  // direction="prev" 才是真正的「由近及远(新→旧)」。
+  const cappedLimit = typeof limit === "number" && Number.isFinite(limit) && limit > 0
+    ? Math.floor(limit)
+    : undefined;
   const items = await cursorAsPromise<HistoryRecord>(
     store.index("createdAt").openCursor(null, "prev"),
-    { accept: () => true },
+    {
+      limit: cappedLimit,
+      accept: () => true,
+    },
   );
   await txDone(tx);
-  // 双保险:即便老数据 createdAt 字段缺失被丢到末尾,这里再用 JS sort 一道
-  // 兜底,保证 UI 拿到的永远是新→旧顺序。
-  const out = items.map(({ searchText, searchTokens, ...item }) => item);
-  out.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
-  return out;
+  return items.map(stripHistoryRecord);
+}
+
+export async function loadHistoryPage(opts?: {
+  cursor?: HistoryPageCursor | null;
+  limit?: number;
+}): Promise<HistoryPageResult> {
+  await migrateLegacyHistoryIfNeeded();
+  const { store, tx } = await openHistoryTx("readonly");
+  const limit = typeof opts?.limit === "number" && Number.isFinite(opts.limit) && opts.limit > 0
+    ? Math.floor(opts.limit)
+    : 24;
+  const beforeDayStart = opts?.cursor?.beforeDayStart ?? 0;
+  const range = beforeDayStart > 0
+    ? IDBKeyRange.upperBound(beforeDayStart, true)
+    : null;
+  const result = await new Promise<{ records: HistoryRecord[]; nextCursor: HistoryPageCursor | null }>((resolve, reject) => {
+    const out: HistoryRecord[] = [];
+    let currentDayStart: number | null = null;
+    const req = store.index("createdAt").openCursor(range, "prev");
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (!cursor) {
+        resolve({ records: out, nextCursor: null });
+        return;
+      }
+      const value = cursor.value as HistoryRecord;
+      const dayStart = startOfLocalDay(value.createdAt);
+      if (currentDayStart === null) {
+        currentDayStart = dayStart;
+        out.push(value);
+        cursor.continue();
+        return;
+      }
+      if (dayStart === currentDayStart) {
+        out.push(value);
+        cursor.continue();
+        return;
+      }
+      if (out.length >= limit) {
+        resolve({
+          records: out,
+          nextCursor: { beforeDayStart: currentDayStart },
+        });
+        return;
+      }
+      currentDayStart = dayStart;
+      out.push(value);
+      cursor.continue();
+    };
+    req.onerror = () => reject(req.error);
+  });
+  await txDone(tx);
+  return {
+    items: result.records.map(stripHistoryRecord),
+    nextCursor: result.nextCursor,
+  };
 }
 
 export async function loadHistoryByFilters(opts: {
@@ -343,7 +441,7 @@ export async function loadHistoryByFilters(opts: {
   }
 
   await txDone(tx);
-  return items.map(({ searchText, searchTokens, ...item }) => item);
+  return items.map(stripHistoryRecord);
 }
 
 async function collectCandidateIDs(store: IDBObjectStore, terms: string[]): Promise<string[]> {

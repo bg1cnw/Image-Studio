@@ -174,6 +174,25 @@ export function AndroidUpstreamProfileForm({
         </div>
       </AndroidField>
 
+      {draft.apiMode === "images" ? (
+        <AndroidField
+          label="Images API 中转兼容"
+          hint="默认关闭，只有默认标准参数无法生图时，再尝试开启。"
+        >
+          <button
+            type="button"
+            className={`android-upstream-compat-toggle ${draft.imagesNewAPICompat ? "active" : ""}`}
+            onClick={() => onPatchDraft({ imagesNewAPICompat: !(draft.imagesNewAPICompat === true) })}
+          >
+            <span>
+              <strong>开启此开关可能可以解决newapi生图问题</strong>
+              <small>开启后会强制使用 b64_json，并关闭 stream / partial_images。</small>
+            </span>
+            <em>{draft.imagesNewAPICompat ? "已开启" : "已关闭"}</em>
+          </button>
+        </AndroidField>
+      ) : null}
+
       <div className="android-upstream-actions">
         <button type="button" onClick={() => void onSave()} disabled={!canSave || busy}>
           <Save className="h-4 w-4" />

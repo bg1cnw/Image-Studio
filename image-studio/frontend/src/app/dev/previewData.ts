@@ -1,5 +1,6 @@
 import type {
   HistoryItem,
+  LoopGenerationConfig,
   SourceImage,
   UpstreamProfile,
   Workspace,
@@ -160,6 +161,14 @@ function buildWorkspace(
   currentImage: HistoryItem,
   sources: SourceImage[],
 ): Workspace {
+  const loopGeneration: LoopGenerationConfig = {
+    enabled: false,
+    totalCount: 10,
+    concurrency: 2,
+    autoSave: false,
+    autoSaveDir: "",
+    livePreview: true,
+  };
   return {
     id: workspaceId,
     name: "联调样例",
@@ -171,6 +180,7 @@ function buildWorkspace(
     outputFormat: "png",
     seed: 3200,
     batchCount: 1,
+    loopGeneration,
     sources,
     currentImageId: currentImage.id,
     batchResultIds: [],

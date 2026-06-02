@@ -96,3 +96,19 @@ test("explicit Auto selections keep upstream-determined size", () => {
   assert.equal(caps.buildAspectSizeSelection("auto", "2k", input), "auto");
   assert.equal(caps.buildResolutionSizeSelection("16:9", "auto", input), "auto");
 });
+
+test("custom aspect ratios can build sizes and round-trip back to the active custom button", () => {
+  const input = {
+    apiMode: "responses",
+    requestPolicy: "compat",
+    imageModelID: "relay-image-model",
+  };
+  const customRatios = [
+    { id: "4:5", label: "4:5", width: 4, height: 5, createdAt: 1 },
+  ];
+  const value = caps.buildCustomAspectValue("4:5");
+  const size = caps.buildAspectSizeSelection(value, "2k", input, customRatios);
+  assert.equal(size, "1496x1864");
+  assert.equal(caps.deriveAspectPreset(size, customRatios), value);
+  assert.equal(caps.deriveResolutionPreset(size), "2k");
+});

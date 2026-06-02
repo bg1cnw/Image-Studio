@@ -1,10 +1,24 @@
 import { classifyImageModel } from "../../../../../shared/kernel/requestModel.js";
-import type { APIMode, RequestPolicy, SizeValue } from "../../types/domain";
+import {
+  buildCustomAspectRatioId,
+  reduceAspectRatio,
+} from "../../lib/customAspectRatios.ts";
+import type { APIMode, CustomAspectRatio, RequestPolicy, SizeValue } from "../../types/domain";
 
-export type AspectPreset = "auto" | "1:1" | "3:2" | "2:3" | "16:9" | "9:16";
+export type BuiltinAspectPreset = "auto" | "1:1" | "3:2" | "2:3" | "16:9" | "9:16";
+export type AspectPreset = BuiltinAspectPreset | `custom:${string}`;
 export type ResolutionPreset = "auto" | "1k" | "2k" | "4k";
 
-export const ASPECT_PRESETS: Array<{ value: AspectPreset; label: string; w: number; h: number; auto?: boolean }> = [
+export interface AspectPresetOption {
+  value: AspectPreset;
+  label: string;
+  w: number;
+  h: number;
+  auto?: boolean;
+  custom?: boolean;
+}
+
+export const ASPECT_PRESETS: AspectPresetOption[] = [
   { value: "auto", label: "Auto", w: 18, h: 18, auto: true },
   { value: "1:1", label: "1:1", w: 18, h: 18 },
   { value: "3:2", label: "3:2", w: 22, h: 14 },
@@ -20,7 +34,15 @@ export const RESOLUTION_PRESETS: Array<{ value: ResolutionPreset; label: string 
   { value: "4k", label: "4K" },
 ];
 
-const SIZE_MATRIX: Record<Exclude<AspectPreset, "auto">, Record<Exclude<ResolutionPreset, "auto">, SizeValue>> = {
+const BUILTIN_ASPECT_DIMENSIONS: Record<Exclude<BuiltinAspectPreset, "auto">, { width: number; height: number }> = {
+  "1:1": { width: 1, height: 1 },
+  "3:2": { width: 3, height: 2 },
+  "2:3": { width: 2, height: 3 },
+  "16:9": { width: 16, height: 9 },
+  "9:16": { width: 9, height: 16 },
+};
+
+const SIZE_MATRIX: Record<Exclude<BuiltinAspectPreset, "auto">, Record<Exclude<ResolutionPreset, "auto">, SizeValue>> = {
   "1:1": {
     "1k": "1024x1024",
     "2k": "2048x2048",
@@ -48,7 +70,7 @@ const SIZE_MATRIX: Record<Exclude<AspectPreset, "auto">, Record<Exclude<Resoluti
   },
 };
 
-const SIZE_TO_ASPECT: Record<string, AspectPreset> = {
+const SIZE_TO_ASPECT: Record<string, BuiltinAspectPreset> = {
   auto: "auto",
   "1024x1024": "1:1",
   "2048x2048": "1:1",
@@ -87,8 +109,15 @@ const SIZE_TO_RESOLUTION: Record<string, ResolutionPreset> = {
 };
 
 const LARGE_RESOLUTION_PRESETS = new Set<ResolutionPreset>(["2k", "4k"]);
-const DEFAULT_ASPECT_FROM_AUTO: Exclude<AspectPreset, "auto"> = "1:1";
+const DEFAULT_ASPECT_FROM_AUTO: Exclude<BuiltinAspectPreset, "auto"> = "1:1";
 const DEFAULT_RESOLUTION_FROM_AUTO: Exclude<ResolutionPreset, "auto"> = "1k";
+const CUSTOM_RESOLUTION_REFERENCES: Record<Exclude<ResolutionPreset, "auto">, { area: number; maxSide: number }> = {
+  "1k": { area: 1536 * 1024, maxSide: 1536 },
+  "2k": { area: 2048 * 1360, maxSide: 2048 },
+  "4k": { area: 3840 * 2160, maxSide: 3840 },
+};
+const CUSTOM_ASPECT_TOLERANCE = 0.035;
+const BUILTIN_ASPECT_TOLERANCE = 0.08;
 
 export function supportsExplicitLargeSizes({
   apiMode,
@@ -121,12 +150,68 @@ export function availableResolutionPresets(input: {
   return all.filter((value) => !LARGE_RESOLUTION_PRESETS.has(value));
 }
 
-export function deriveAspectPreset(size: SizeValue): AspectPreset {
-  return SIZE_TO_ASPECT[size] ?? "1:1";
+export function buildCustomAspectValue(id: string): AspectPreset {
+  return `custom:${id}` as AspectPreset;
+}
+
+export function customAspectIdFromValue(aspect: AspectPreset): string | null {
+  return aspect.startsWith("custom:") ? aspect.slice("custom:".length) : null;
+}
+
+export function aspectPresetLabel(aspect: AspectPreset, customRatios: CustomAspectRatio[] = []): string {
+  if (aspect === "auto") return "Auto";
+  const customId = customAspectIdFromValue(aspect);
+  if (customId) {
+    return customRatios.find((item) => item.id === customId)?.label ?? customId;
+  }
+  return ASPECT_PRESETS.find((item) => item.value === aspect)?.label ?? aspect;
+}
+
+export function listAspectPresetOptions(customRatios: CustomAspectRatio[] = []): AspectPresetOption[] {
+  return [
+    ...ASPECT_PRESETS,
+    ...customRatios.map((ratio) => {
+      const shape = aspectShapeFromRatio(ratio.width, ratio.height);
+      return {
+        value: buildCustomAspectValue(ratio.id),
+        label: ratio.label,
+        w: shape.w,
+        h: shape.h,
+        custom: true,
+      };
+    }),
+  ];
+}
+
+export function deriveAspectPreset(size: SizeValue, customRatios: CustomAspectRatio[] = []): AspectPreset {
+  if (size === "auto") return "auto";
+  const exact = SIZE_TO_ASPECT[size];
+  if (exact) return exact;
+  const parsed = parseSizeValue(size);
+  if (!parsed) return DEFAULT_ASPECT_FROM_AUTO;
+  const customMatch = findMatchingCustomAspect(parsed.width, parsed.height, customRatios);
+  if (customMatch) return buildCustomAspectValue(customMatch.id);
+  const builtinMatch = nearestBuiltinAspect(parsed.width, parsed.height);
+  return builtinMatch.distance <= BUILTIN_ASPECT_TOLERANCE ? builtinMatch.value : DEFAULT_ASPECT_FROM_AUTO;
 }
 
 export function deriveResolutionPreset(size: SizeValue): ResolutionPreset {
-  return SIZE_TO_RESOLUTION[size] ?? "1k";
+  if (size === "auto") return "auto";
+  const exact = SIZE_TO_RESOLUTION[size];
+  if (exact) return exact;
+  const parsed = parseSizeValue(size);
+  if (!parsed) return DEFAULT_RESOLUTION_FROM_AUTO;
+  const area = parsed.width * parsed.height;
+  let best: ResolutionPreset = DEFAULT_RESOLUTION_FROM_AUTO;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const [resolution, reference] of Object.entries(CUSTOM_RESOLUTION_REFERENCES) as Array<[Exclude<ResolutionPreset, "auto">, { area: number }]>) {
+    const distance = Math.abs(area - reference.area);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = resolution;
+    }
+  }
+  return best;
 }
 
 export function buildSizeSelection(
@@ -137,6 +222,7 @@ export function buildSizeSelection(
     requestPolicy: RequestPolicy;
     imageModelID?: string;
   },
+  customRatios: CustomAspectRatio[] = [],
 ): SizeValue {
   if (aspect === "auto" || resolution === "auto") {
     return "auto";
@@ -145,7 +231,12 @@ export function buildSizeSelection(
   if (normalizedResolution === "auto") {
     return "auto";
   }
-  return SIZE_MATRIX[aspect][normalizedResolution];
+  const custom = customAspectIdFromValue(aspect);
+  if (custom) {
+    const ratio = customRatios.find((item) => item.id === custom);
+    return ratio ? buildCustomSizeSelection(ratio, normalizedResolution) : SIZE_MATRIX[DEFAULT_ASPECT_FROM_AUTO][normalizedResolution];
+  }
+  return SIZE_MATRIX[aspect as Exclude<BuiltinAspectPreset, "auto">][normalizedResolution];
 }
 
 export function buildAspectSizeSelection(
@@ -156,6 +247,7 @@ export function buildAspectSizeSelection(
     requestPolicy: RequestPolicy;
     imageModelID?: string;
   },
+  customRatios: CustomAspectRatio[] = [],
 ): SizeValue {
   if (aspect === "auto") return "auto";
   const normalizedResolution = normalizeResolutionSelection(currentResolution, input);
@@ -163,6 +255,7 @@ export function buildAspectSizeSelection(
     aspect,
     normalizedResolution === "auto" ? DEFAULT_RESOLUTION_FROM_AUTO : normalizedResolution,
     input,
+    customRatios,
   );
 }
 
@@ -174,12 +267,14 @@ export function buildResolutionSizeSelection(
     requestPolicy: RequestPolicy;
     imageModelID?: string;
   },
+  customRatios: CustomAspectRatio[] = [],
 ): SizeValue {
   if (resolution === "auto") return "auto";
   return buildSizeSelection(
     currentAspect === "auto" ? DEFAULT_ASPECT_FROM_AUTO : currentAspect,
     normalizeResolutionSelection(resolution, input),
     input,
+    customRatios,
   );
 }
 
@@ -192,7 +287,7 @@ export function normalizeResolutionSelection(
   },
 ): ResolutionPreset {
   const allowed = new Set(availableResolutionPresets(input));
-  return allowed.has(resolution) ? resolution : "1k";
+  return allowed.has(resolution) ? resolution : DEFAULT_RESOLUTION_FROM_AUTO;
 }
 
 export function normalizeSizeSelection(
@@ -202,10 +297,11 @@ export function normalizeSizeSelection(
     requestPolicy: RequestPolicy;
     imageModelID?: string;
   },
+  customRatios: CustomAspectRatio[] = [],
 ): SizeValue {
-  const aspect = deriveAspectPreset(size);
+  const aspect = deriveAspectPreset(size, customRatios);
   const resolution = deriveResolutionPreset(size);
-  return buildSizeSelection(aspect, resolution, input);
+  return buildSizeSelection(aspect, resolution, input, customRatios);
 }
 
 export function sizeCapabilityHint(input: {
@@ -217,4 +313,101 @@ export function sizeCapabilityHint(input: {
     return "";
   }
   return "当前链路只保证基础尺寸稳定可用。";
+}
+
+function buildCustomSizeSelection(
+  ratio: CustomAspectRatio,
+  resolution: Exclude<ResolutionPreset, "auto">,
+): SizeValue {
+  const reference = CUSTOM_RESOLUTION_REFERENCES[resolution];
+  const aspect = ratio.width / ratio.height;
+  let width = Math.sqrt(reference.area * aspect);
+  let height = Math.sqrt(reference.area / aspect);
+  const maxSide = Math.max(width, height);
+  if (maxSide > reference.maxSide) {
+    const scale = reference.maxSide / maxSide;
+    width *= scale;
+    height *= scale;
+  }
+  return `${roundDimension(width)}x${roundDimension(height)}` as SizeValue;
+}
+
+function aspectShapeFromRatio(width: number, height: number): { w: number; h: number } {
+  const maxWidth = 24;
+  const maxHeight = 22;
+  const safeWidth = Math.max(1, width);
+  const safeHeight = Math.max(1, height);
+  const scale = Math.min(maxWidth / safeWidth, maxHeight / safeHeight);
+  return {
+    w: Math.max(10, Math.round(safeWidth * scale)),
+    h: Math.max(10, Math.round(safeHeight * scale)),
+  };
+}
+
+function parseSizeValue(size: SizeValue): { width: number; height: number } | null {
+  const match = /^(\d+)x(\d+)$/.exec(size);
+  if (!match) return null;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return null;
+  }
+  return { width, height };
+}
+
+function findMatchingCustomAspect(
+  width: number,
+  height: number,
+  customRatios: CustomAspectRatio[],
+): CustomAspectRatio | null {
+  let best: CustomAspectRatio | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const ratio of customRatios) {
+    const distance = aspectRatioDistance(width, height, ratio.width, ratio.height);
+    if (distance < bestDistance) {
+      best = ratio;
+      bestDistance = distance;
+    }
+  }
+  return best && bestDistance <= CUSTOM_ASPECT_TOLERANCE ? best : null;
+}
+
+function nearestBuiltinAspect(width: number, height: number): {
+  value: Exclude<BuiltinAspectPreset, "auto">;
+  distance: number;
+} {
+  let bestValue: Exclude<BuiltinAspectPreset, "auto"> = DEFAULT_ASPECT_FROM_AUTO;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const [value, dims] of Object.entries(BUILTIN_ASPECT_DIMENSIONS) as Array<[Exclude<BuiltinAspectPreset, "auto">, { width: number; height: number }]>) {
+    const distance = aspectRatioDistance(width, height, dims.width, dims.height);
+    if (distance < bestDistance) {
+      bestValue = value;
+      bestDistance = distance;
+    }
+  }
+  return { value: bestValue, distance: bestDistance };
+}
+
+function aspectRatioDistance(width: number, height: number, targetWidth: number, targetHeight: number): number {
+  const left = width / height;
+  const right = targetWidth / targetHeight;
+  return Math.abs(left - right) / right;
+}
+
+function roundDimension(value: number): number {
+  return Math.max(64, Math.round(value / 8) * 8);
+}
+
+export function builtInAspectId(width: number, height: number): string {
+  return buildCustomAspectRatioId(width, height);
+}
+
+export function isBuiltInAspectRatio(width: number, height: number): boolean {
+  const id = buildCustomAspectRatioId(width, height);
+  return id === "1:1" || id === "3:2" || id === "2:3" || id === "16:9" || id === "9:16";
+}
+
+export function reduceAspectRatioLabel(width: number, height: number): string {
+  const reduced = reduceAspectRatio(width, height);
+  return reduced.width > 0 && reduced.height > 0 ? `${reduced.width}:${reduced.height}` : "";
 }

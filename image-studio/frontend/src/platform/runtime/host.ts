@@ -43,6 +43,7 @@ import type {
   GenerateOptionsLike,
   HostCapabilities,
   HostKind,
+  CompatibilityStateLike,
   ImageTransformResultLike,
   ImportedImageLike,
   JobStartedLike,
@@ -141,6 +142,7 @@ async function startRemoteJob(options: GenerateOptionsLike): Promise<JobStartedL
       const result = await runRemoteImageJob({ payload: {
         ...options,
         requestPolicy: normalizeRequestPolicy(options.requestPolicy),
+        imagesNewAPICompat: options.imagesNewAPICompat === true,
       }, sourceImages: options.sourceImages }, {
         signal: controller.signal,
         onLog: (line) => emitLocalEvent(`log:${jobId}`, line),
@@ -421,6 +423,30 @@ export function SaveImagePathAs(path: string, suggestedName: string): Promise<st
   return ReadImageAsBase64(path).then((b64) => SaveImageAs(b64, suggestedName));
 }
 
+export function SaveImageToDir(imageB64: string, directory: string, suggestedName: string): Promise<string> {
+  if (hasServiceMethod("SaveImageToDir")) {
+    return invokeService<string>(unsupportedMessage, "SaveImageToDir", imageB64, directory, suggestedName);
+  }
+  if (canInvokeAndroidMethod("SaveImageToDir")) {
+    return invokeAndroid<string>(unsupportedMessage, "SaveImageToDir", imageB64, directory, suggestedName);
+  }
+  return Promise.reject(new Error(unsupportedMessage("SaveImageToDir")));
+}
+
+export function SaveImagePathToDir(path: string, directory: string, suggestedName: string): Promise<string> {
+  if (hasServiceMethod("SaveImagePathToDir")) {
+    return invokeService<string>(unsupportedMessage, "SaveImagePathToDir", path, directory, suggestedName);
+  }
+  if (isVirtualPath(path)) {
+    return ReadImageAsBase64(path).then((b64) => SaveImageToDir(b64, directory, suggestedName));
+  }
+  if (canInvokeAndroidMethod("SaveImagePathToDir")) {
+    return invokeAndroid<string>(unsupportedMessage, "SaveImagePathToDir", path, directory, suggestedName)
+      .catch(() => ReadImageAsBase64(path).then((b64) => SaveImageToDir(b64, directory, suggestedName)));
+  }
+  return ReadImageAsBase64(path).then((b64) => SaveImageToDir(b64, directory, suggestedName));
+}
+
 export function RegisterMediaAsset(savedPath: string, thumbPath: string): Promise<MediaAssetRefLike> {
   if (hasServiceMethod("RegisterMediaAsset")) {
     return invokeService<MediaAssetRefLike>(unsupportedMessage, "RegisterMediaAsset", savedPath, thumbPath);
@@ -502,6 +528,21 @@ export function ImportHistoryFromFile(): Promise<string> {
     return invokeAndroid<string>(unsupportedMessage, "ImportHistoryFromFile");
   }
   return importHistoryFallback();
+}
+
+export function LoadCompatibilityState(): Promise<CompatibilityStateLike | null> {
+  if (hasServiceMethod("LoadCompatibilityState")) {
+    return invokeService<CompatibilityStateLike>(unsupportedMessage, "LoadCompatibilityState")
+      .catch(() => null);
+  }
+  return Promise.resolve(null);
+}
+
+export function SaveCompatibilityState(state: CompatibilityStateLike): Promise<void> {
+  if (hasServiceMethod("SaveCompatibilityState")) {
+    return invokeService<void>(unsupportedMessage, "SaveCompatibilityState", state);
+  }
+  return Promise.resolve();
 }
 
 export function RegisterTrustedOutputDir(root: string): Promise<void> {

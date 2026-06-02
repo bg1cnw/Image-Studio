@@ -17,9 +17,11 @@ export type GenerateOptionsLike = {
   proxyURL?: string;
   apiMode: string;
   requestPolicy: string;
+  imagesNewAPICompat?: boolean;
   noPromptRevision: boolean;
   concurrencyLimit?: number;
   partialImages?: number;
+  disablePreview?: boolean;
   requestedJobId?: string;
   sourceImages?: Array<{
     path?: string;
@@ -81,6 +83,7 @@ export type MediaAssetRefLike = {
   previewWidth?: number;
   previewHeight?: number;
 };
+export type CompatibilityStateLike = Record<string, unknown>;
 export type HostKind = "wails-desktop" | "android-shell" | "browser";
 
 export type HostCapabilities = {

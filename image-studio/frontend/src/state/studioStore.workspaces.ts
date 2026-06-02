@@ -6,6 +6,7 @@ import type { HistoryItem, Workspace } from "../types/domain";
 import type { StudioState } from "./studioStore.types";
 import { historyItemsByIds, saveActiveWorkspaceSnapshot } from "./studioStore.runtime";
 import { streamPreviewItemFromWorkspace } from "./studioStore.streamPreview";
+import { defaultLoopGenerationConfig, normalizeLoopGenerationConfig } from "./workspaceRuntime";
 
 type StateAdapter = {
   getState: () => StudioState;
@@ -29,6 +30,7 @@ export function createWorkspaceActions(store: StateAdapter) {
         outputFormat: state.outputFormat,
         seed: 0,
         batchCount: 1,
+        loopGeneration: defaultLoopGenerationConfig(),
         sources: [],
         currentImageId: null,
         batchResultIds: [],
@@ -55,6 +57,7 @@ export function createWorkspaceActions(store: StateAdapter) {
         outputFormat: newWorkspace.outputFormat,
         seed: newWorkspace.seed,
         batchCount: newWorkspace.batchCount,
+        loopGeneration: normalizeLoopGenerationConfig(newWorkspace.loopGeneration),
         sources: newWorkspace.sources,
         currentImage: null,
         batchResults: [],
@@ -99,6 +102,7 @@ export function createWorkspaceActions(store: StateAdapter) {
         outputFormat: target.outputFormat ?? store.getState().outputFormat,
         seed: target.seed,
         batchCount: target.batchCount,
+        loopGeneration: normalizeLoopGenerationConfig(target.loopGeneration),
         sources: target.sources,
         currentImage: newCurrent,
         batchResults,
@@ -154,6 +158,7 @@ export function createWorkspaceActions(store: StateAdapter) {
           outputFormat: next.outputFormat ?? store.getState().outputFormat,
           seed: next.seed,
           batchCount: next.batchCount,
+          loopGeneration: normalizeLoopGenerationConfig(next.loopGeneration),
           sources: next.sources,
           currentImage: newCurrent,
           batchResults,

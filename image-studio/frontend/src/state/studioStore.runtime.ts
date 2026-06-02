@@ -19,6 +19,7 @@ import type {
 } from "../types/domain";
 import type { StudioState } from "./studioStore.types";
 import { currentImageIdForWorkspaceSnapshot } from "./studioStore.streamPreview";
+import { normalizeLoopGenerationConfig } from "./workspaceRuntime";
 
 export function historyItemsByIds(history: HistoryItem[], ids: string[]): HistoryItem[] {
   if (ids.length === 0) return [];
@@ -101,10 +102,7 @@ export async function ensureFullHistoryItem(
   },
 ): Promise<HistoryItem | null> {
   if (!item) return null;
-  if ((item.fullUrl || item.imageId) && !item.imageB64 && !item.imageBlob) {
-    return { ...item, fullUrl: item.fullUrl || fullUrlFromImageID(item.imageId), previewOnly: false };
-  }
-  if (item.savedPath && !item.savedPath.startsWith("memory://") && !item.imageB64 && !item.imageBlob && item.previewOnly) {
+  if (item.savedPath && !item.savedPath.startsWith("memory://") && !item.imageB64 && !item.imageBlob) {
     try {
       const ref = item.thumbPath
         ? await RegisterMediaAsset(item.savedPath, item.thumbPath)
@@ -118,8 +116,11 @@ export async function ensureFullHistoryItem(
         return { ...withMediaAssetRef(item, ref), imageB64: fullB64, imageBlob: base64ToBlob(fullB64), previewOnly: false };
       }
     } catch {
-      // Fall through to legacy full-image materialization.
+      // Fall through to legacy full-image materialization / stale URLs.
     }
+  }
+  if ((item.fullUrl || item.imageId) && !item.imageB64 && !item.imageBlob) {
+    return { ...item, fullUrl: item.fullUrl || fullUrlFromImageID(item.imageId), previewOnly: false };
   }
   if (item.savedPath && item.thumbPath && !item.imageB64 && !item.imageBlob) {
     try {
@@ -186,6 +187,7 @@ export function saveActiveWorkspaceSnapshot(s: StudioState): Workspace[] {
       outputFormat: s.outputFormat,
       seed: s.seed,
       batchCount: s.batchCount,
+      loopGeneration: normalizeLoopGenerationConfig(s.loopGeneration),
       sources: s.sources,
       currentImageId: currentImageIdForWorkspaceSnapshot(s.currentImage, s.streamPreview, s.streamPreviews, w.currentImageId),
       batchResultIds: s.batchResults.map((item) => item.id),

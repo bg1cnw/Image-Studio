@@ -7,6 +7,7 @@
 ├── README.md
 ├── docs/
 ├── image-studio/
+├── gio-client/
 ├── go-cli/
 ├── shared/
 ├── cloudflare-worker/
@@ -51,6 +52,22 @@ image-studio/
 - `state/`:zustand store 和 workspace runtime。
 - `lib/`:平台无关工具。
 - `styles/`:全局样式和平台主题 token。
+
+## `gio-client/`
+
+独立 Gio 原生桌面测试客户端。
+
+```text
+gio-client/
+├── cmd/image-studio-gio/
+├── internal/ui/
+├── internal/kernel/
+└── go.mod
+```
+
+`internal/ui/` 使用 Gio immediate-mode UI 重新组织前端架构，保留桌面端控制面板、画布、日志栏的视觉结构。`internal/kernel/` 只做薄适配，真正的请求构建、SSE、Images API、重试和 proxy 行为继续来自 `go-cli/pkg/client`。
+
+该客户端不依赖 Wails、WebView2、WebKitGTK 或 `image-studio/frontend/dist`，release workflow 中作为 `image-studio-gio-*` 独立 artifact 构建。
 
 ## `go-cli/`
 

@@ -7,6 +7,7 @@ import { AndroidPadComposePanel } from "../../platform/android/AndroidPadCompose
 import { DesktopAdvancedPanel } from "./DesktopAdvancedPanel";
 import { ErrorNotice } from "./ErrorNotice";
 import { DesktopComposeSections } from "./DesktopComposeSections";
+import { LoopGenerationSection } from "./LoopGenerationSection";
 import { MacAdvancedPanel } from "./MacAdvancedPanel";
 import { MacComposePanel } from "./MacComposePanel";
 import { QUALITY_TIERS, STYLE_CHIPS } from "./panelOptions";
@@ -15,24 +16,31 @@ import { Section, Seg, SegItem } from "./panelChrome";
 import { SubmitBar } from "./SubmitBar";
 import { WindowsComposePanel } from "./WindowsComposePanel";
 import {
-  ASPECT_PRESETS,
   RESOLUTION_PRESETS,
+  aspectPresetLabel,
   availableResolutionPresets,
   buildAspectSizeSelection,
   buildResolutionSizeSelection,
   deriveAspectPreset,
   deriveResolutionPreset,
+  listAspectPresetOptions,
 } from "./sizeCapabilities";
 
-export function ControlPanel() {
+export function ControlPanel({
+  onAndroidSubmitStart,
+}: {
+  onAndroidSubmitStart?: () => void;
+} = {}) {
   const {
     apiKey, mode, prompt, negativePrompt, size, quality, seed, styleTag,
-    outputFormat, batchCount,
+    outputFormat, batchCount, loopGeneration,
     sources, currentImage,
     errorMessage, errorRawPath, isRunning, lastPayload, isTestingKey, isOptimizingPrompt,
     apiMode, requestPolicy, baseURL, profiles, imageModelID,
+    customAspectRatios,
     setField, clearError, pushToast,
     selectSourceImage, removeSource, clearSources,
+    openCustomAspectRatioModal,
     openUpstreamConfig,
     submit, cancel, retryLast, optimizePrompt,
   } = useStudioStore();
@@ -43,11 +51,11 @@ export function ControlPanel() {
   const { isAndroid, isAndroidPhone, isAndroidPad, isMac, isWindows, usesAndroidUI, usesAppleUI, usesFluentUI } = usePlatform();
 
   if (isAndroidPhone) {
-    return <AndroidPhoneComposePanel />;
+    return <AndroidPhoneComposePanel onSubmitStart={onAndroidSubmitStart} />;
   }
 
   if (isAndroidPad) {
-    return <AndroidPadComposePanel />;
+    return <AndroidPadComposePanel onSubmitStart={onAndroidSubmitStart} />;
   }
 
   const promptLen = prompt.length;
@@ -58,9 +66,10 @@ export function ControlPanel() {
     (p) => p.apiMode === "responses" && p.baseURL.trim(),
   );
   const activeStyleLabel = STYLE_CHIPS.find((item) => item.id === styleTag)?.label ?? styleTag;
-  const activeAspect = deriveAspectPreset(size);
+  const aspectOptions = listAspectPresetOptions(customAspectRatios);
+  const activeAspect = deriveAspectPreset(size, customAspectRatios);
   const activeResolution = deriveResolutionPreset(size);
-  const activeAspectLabel = ASPECT_PRESETS.find((item) => item.value === activeAspect)?.label ?? activeAspect;
+  const activeAspectLabel = aspectPresetLabel(activeAspect, customAspectRatios);
   const activeResolutionLabel = RESOLUTION_PRESETS.find((item) => item.value === activeResolution)?.label ?? activeResolution;
   const activeQualityLabel = QUALITY_TIERS.find((item) => item.value === quality)?.label ?? quality;
   const availableResolutions = availableResolutionPresets({ apiMode, requestPolicy, imageModelID });
@@ -74,12 +83,16 @@ export function ControlPanel() {
     outputFormat.toUpperCase(),
     seed > 0 ? `Seed ${seed}` : "随机 Seed",
   ].join(" · ");
+  const submitLabel = loopGeneration.enabled
+    ? (mode === "edit" ? "循环编辑" : "循环生成")
+    : (mode === "edit" ? "编辑" : "生成");
 
   function handleAspectSelect(aspect: typeof activeAspect) {
     setField("size", buildAspectSizeSelection(
       aspect,
       activeResolution,
       { apiMode, requestPolicy, imageModelID },
+      customAspectRatios,
     ));
   }
 
@@ -88,6 +101,7 @@ export function ControlPanel() {
       activeAspect,
       resolution,
       { apiMode, requestPolicy, imageModelID },
+      customAspectRatios,
     ));
   }
 
@@ -174,6 +188,7 @@ export function ControlPanel() {
       {!compactMacCompose && !compactWindowsCompose ? (
         <DesktopComposeSections
           activeAspect={activeAspect}
+          aspectOptions={aspectOptions}
           activeResolution={activeResolution}
           apiMode={apiMode}
           availableResolutions={availableResolutions}
@@ -183,6 +198,7 @@ export function ControlPanel() {
           handleAspectSelect={handleAspectSelect}
           handleResolutionSelect={handleResolutionSelect}
           imageModelID={imageModelID}
+          onOpenCustomAspectRatioModal={openCustomAspectRatioModal}
           usesFluentUI={usesFluentUI}
           mode={mode}
           onRemoveSource={removeSource}
@@ -204,6 +220,7 @@ export function ControlPanel() {
           activeStyleLabel={activeStyleLabel}
           activeAspect={activeAspect}
           activeAspectLabel={activeAspectLabel}
+          aspectOptions={aspectOptions}
           activeResolution={activeResolution}
           activeResolutionLabel={activeResolutionLabel}
           activeQualityLabel={activeQualityLabel}
@@ -214,6 +231,7 @@ export function ControlPanel() {
           handleAspectSelect={handleAspectSelect}
           handleResolutionSelect={handleResolutionSelect}
           imageModelID={imageModelID}
+          onOpenCustomAspectRatioModal={openCustomAspectRatioModal}
           mode={mode}
           onRemoveSource={removeSource}
           quality={quality}
@@ -234,6 +252,7 @@ export function ControlPanel() {
           activeStyleLabel={activeStyleLabel}
           activeAspect={activeAspect}
           activeAspectLabel={activeAspectLabel}
+          aspectOptions={aspectOptions}
           activeResolution={activeResolution}
           activeResolutionLabel={activeResolutionLabel}
           activeQualityLabel={activeQualityLabel}
@@ -248,6 +267,7 @@ export function ControlPanel() {
           setField={setField as any}
           handleAspectSelect={handleAspectSelect}
           handleResolutionSelect={handleResolutionSelect}
+          onOpenCustomAspectRatioModal={openCustomAspectRatioModal}
           selectSourceImage={selectSourceImage}
           clearSources={clearSources}
           quality={quality}
@@ -280,12 +300,17 @@ export function ControlPanel() {
         />
       )}
 
+      <LoopGenerationSection
+        value={loopGeneration}
+        onChange={(next) => setField("loopGeneration", next)}
+      />
+
       <SubmitBar
         apiKey={apiKey}
         baseURL={baseURL}
         prompt={prompt}
-        mode={mode}
         isRunning={isRunning}
+        submitLabel={submitLabel}
         onOpenUpstreamConfig={() => openUpstreamConfig("app")}
         onCancel={cancel}
         onSubmit={submit}

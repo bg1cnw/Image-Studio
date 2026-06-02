@@ -152,6 +152,11 @@ type Options struct {
 	// such as seed / negative_prompt ("compat").
 	RequestPolicy RequestPolicy
 
+	// ImagesNewAPICompat toggles a relay-oriented Images API compatibility mode:
+	// force response_format=b64_json and do not send stream/partial_images.
+	// This is useful for some NewAPI-style relays that reject streaming fields.
+	ImagesNewAPICompat bool
+
 	MaskB64 string // optional, reserved for Phase 3 GUI; omitted from payload when empty
 
 	// Seed pins the random source so users can reproduce a result. 0 means

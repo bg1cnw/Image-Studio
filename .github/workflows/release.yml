@@ -262,6 +262,96 @@ jobs:
           path: ${{ steps.package.outputs.artifact_path }}
           retention-days: 14
 
+  build-gio-desktop:
+    name: Build Gio ${{ matrix.id }}
+    runs-on: ${{ matrix.runner }}
+    needs: prepare-version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: windows-amd64
+            runner: windows-latest
+            goos: windows
+            artifact_suffix: windows-amd64.exe
+            exe_ext: .exe
+            package_cmd: cp dist/gio/image-studio-gio.exe "$artifact_path"
+          - id: windows-arm64
+            runner: windows-11-arm
+            goos: windows
+            artifact_suffix: windows-arm64.exe
+            exe_ext: .exe
+            package_cmd: cp dist/gio/image-studio-gio.exe "$artifact_path"
+          - id: linux-amd64
+            runner: ubuntu-24.04
+            goos: linux
+            artifact_suffix: linux-amd64.tar.gz
+            exe_ext: ""
+            package_cmd: tar -C dist/gio -czf "$artifact_path" image-studio-gio
+          - id: linux-arm64
+            runner: ubuntu-24.04-arm
+            goos: linux
+            artifact_suffix: linux-arm64.tar.gz
+            exe_ext: ""
+            package_cmd: tar -C dist/gio -czf "$artifact_path" image-studio-gio
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          check-latest: true
+          cache-dependency-path: gio-client/go.sum
+
+      - name: Install Linux Gio build dependencies
+        if: matrix.goos == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config \
+            libegl1-mesa-dev \
+            libvulkan-dev \
+            libwayland-dev \
+            libx11-dev \
+            libx11-xcb-dev \
+            libxcursor-dev \
+            libxfixes-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev
+
+      - name: Build Gio client
+        working-directory: gio-client
+        shell: bash
+        run: |
+          mkdir -p ../dist/gio
+          go build -trimpath \
+            -ldflags "-s -w -X github.com/yuanhua/image-gptcodex/pkg/client.Version=${{ needs.prepare-version.outputs.app_version }}" \
+            -o "../dist/gio/image-studio-gio${{ matrix.exe_ext }}" \
+            ./cmd/image-studio-gio
+
+      - name: Stage Gio artifact
+        id: package
+        shell: bash
+        run: |
+          artifact_name="image-studio-gio-${{ needs.prepare-version.outputs.app_version }}-${{ matrix.artifact_suffix }}"
+          artifact_path="dist/${artifact_name}"
+          ${{ matrix.package_cmd }}
+          ls -la dist/
+          {
+            echo "artifact_name=${artifact_name}"
+            echo "artifact_path=${artifact_path}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload Gio artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: ${{ steps.package.outputs.artifact_path }}
+          retention-days: 14
+
   publish-release:
     name: Publish release assets
     runs-on: ubuntu-24.04
@@ -269,6 +359,7 @@ jobs:
       - prepare-version
       - build-desktop
       - build-android-apk
+      - build-gio-desktop
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: Download all artifacts

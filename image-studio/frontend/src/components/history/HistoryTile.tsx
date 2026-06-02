@@ -1,6 +1,6 @@
 import { Ellipsis, X } from "lucide-react";
 import type React from "react";
-import { historyPreviewSrc, useBlobURL } from "../../lib/images";
+import { historyPreviewSrc, useBlobURL, useImageLoadState } from "../../lib/images";
 import { usePlatform } from "../../platform/context";
 import type { HistoryItem } from "../../types/domain";
 import { HistoryMetaBadges } from "./HistoryMetaBadges";
@@ -31,6 +31,10 @@ export function HistoryTile({
   const { isMac, usesFluentUI } = usePlatform();
   const previewURL = useBlobURL(item.previewBlob ?? item.imageBlob ?? null, item.imageB64 ?? null);
   const imageSrc = historyPreviewSrc(item, previewURL);
+  const imageLoadState = useImageLoadState(imageSrc || null);
+  const imageNode = imageLoadState === "ready"
+    ? <img src={imageSrc} alt={item.prompt} loading="eager" decoding="async" />
+    : <div className="history-thumb-fallback" aria-hidden="true" />;
 
   function openMenuFromEvent(e: React.MouseEvent) {
     e.preventDefault();
@@ -64,12 +68,7 @@ export function HistoryTile({
         onContextMenu={openMenuFromEvent}
         className={`android-history-feature-tile ${isCurrent ? "active" : ""} ${isCompare ? "compare" : ""}`}
       >
-        <img
-          src={imageSrc}
-          alt={item.prompt}
-          loading="eager"
-          decoding="async"
-        />
+        {imageNode}
         <HistoryModeBadge mode={item.mode} className="android-history-tile-mode" />
         <button type="button" className="android-history-tile-menu" onClick={openMenuFromEvent} onContextMenu={openMenuFromEvent} title="更多">
           <Ellipsis className="h-4 w-4" />
@@ -89,12 +88,7 @@ export function HistoryTile({
         className={`android-history-tile ${isCurrent ? "active" : ""} ${isCompare ? "compare" : ""}`}
       >
         <div className="android-history-tile-image">
-          <img
-            src={imageSrc}
-            alt={item.prompt}
-            loading="eager"
-            decoding="async"
-          />
+          {imageNode}
           <HistoryModeBadge mode={item.mode} className="android-history-tile-mode" />
           {isCompare ? <span className="android-history-compare-badge">B</span> : null}
         </div>
@@ -133,12 +127,7 @@ export function HistoryTile({
         className={`windows-history-feature-tile ${isCurrent ? "active" : ""} ${isCompare ? "compare" : ""}`}
       >
         <div className="windows-history-feature-image">
-          <img
-            src={imageSrc}
-            alt={item.prompt}
-            loading="eager"
-            decoding="async"
-          />
+          {imageNode}
           <HistoryModeBadge mode={item.mode} className="windows-history-mode" />
           {isCompare ? <span className="windows-history-compare-badge">B</span> : null}
         </div>
@@ -166,12 +155,7 @@ export function HistoryTile({
         className={`windows-history-row ${isCurrent ? "active" : ""} ${isCompare ? "compare" : ""}`}
       >
         <div className="windows-history-row-thumb">
-          <img
-            src={imageSrc}
-            alt={item.prompt}
-            loading="eager"
-            decoding="async"
-          />
+          {imageNode}
         </div>
         <div className="windows-history-row-main">
           <p>{item.prompt || "(无 prompt)"}</p>
@@ -218,13 +202,17 @@ export function HistoryTile({
         }`}
       >
         <div className="relative aspect-[5/4] overflow-hidden">
-          <img
-            src={imageSrc}
-            alt={item.prompt}
-            loading="eager"
-            decoding="async"
-            className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
-          />
+          {imageLoadState === "ready" ? (
+            <img
+              src={imageSrc}
+              alt={item.prompt}
+              loading="eager"
+              decoding="async"
+              className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+            />
+          ) : (
+            <div className="history-thumb-fallback" aria-hidden="true" />
+          )}
           <HistoryModeBadge mode={item.mode} className="absolute left-2 top-2" />
           {isCompare ? (
             <span className={`absolute right-2 top-2 bg-blue-500/90 px-1.5 py-0.5 text-[10px] text-white ${usesFluentUI ? "rounded-[6px]" : "rounded-full"}`}>B</span>
@@ -280,13 +268,17 @@ export function HistoryTile({
             : "border-black/[0.06] hover:border-[color:var(--accent)]/30 dark:border-white/[0.06]"
       }`}
     >
-      <img
-        src={imageSrc}
-        alt={item.prompt}
-        loading="eager"
-        decoding="async"
-        className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
-      />
+      {imageLoadState === "ready" ? (
+        <img
+          src={imageSrc}
+          alt={item.prompt}
+          loading="eager"
+          decoding="async"
+          className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+        />
+      ) : (
+        <div className="history-thumb-fallback" aria-hidden="true" />
+      )}
       <HistoryModeBadge mode={item.mode} className="absolute left-1.5 top-1.5 bg-black/55" />
       {isCompare ? (
         <span className={`absolute right-1.5 top-1.5 bg-blue-500 px-1.5 py-0.5 text-[10px] text-white ${usesFluentUI ? "rounded-[6px]" : "rounded-full"}`}>B</span>

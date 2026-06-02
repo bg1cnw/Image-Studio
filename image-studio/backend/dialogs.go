@@ -99,10 +99,102 @@ func (s *Service) SaveImagePathAs(path, suggestedName string) (string, error) {
 	return abs, nil
 }
 
+// SaveImageToDir writes a base64 image into the specified directory without
+// opening a save dialog. Used by loop-generation auto-save.
+func (s *Service) SaveImageToDir(imageB64, directory, suggestedName string) (string, error) {
+	if strings.TrimSpace(imageB64) == "" {
+		return "", errors.New("图片数据为空")
+	}
+	root, err := ensureTargetDirectory(directory)
+	if err != nil {
+		return "", err
+	}
+	name := ensureTargetFileName(suggestedName, fmt.Sprintf("image-%d.png", time.Now().Unix()))
+	dst, err := uniqueTargetPath(root, name)
+	if err != nil {
+		return "", err
+	}
+	return writeBase64PNG(imageB64, dst)
+}
+
+// SaveImagePathToDir copies an existing managed image into the specified
+// directory without prompting the user.
+func (s *Service) SaveImagePathToDir(path, directory, suggestedName string) (string, error) {
+	allowed, err := s.ensureManagedReadablePath(path, managedImageFile)
+	if err != nil {
+		return "", err
+	}
+	root, err := ensureTargetDirectory(directory)
+	if err != nil {
+		return "", err
+	}
+	name := ensureTargetFileName(suggestedName, filepath.Base(allowed))
+	dst, err := uniqueTargetPath(root, name)
+	if err != nil {
+		return "", err
+	}
+	data, err := os.ReadFile(allowed)
+	if err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(dst, data, secureFileMode); err != nil {
+		return "", err
+	}
+	abs, _ := filepath.Abs(dst)
+	return abs, nil
+}
+
 // GetOutputDir returns the directory where generated images and raw response
 // dumps are written —— 用户自定义优先,空时回退到默认。
 func (s *Service) GetOutputDir() (string, error) {
 	return s.resolvedOutputDir()
+}
+
+func ensureTargetDirectory(directory string) (string, error) {
+	clean := strings.TrimSpace(directory)
+	if clean == "" {
+		return "", errors.New("目标目录不能为空")
+	}
+	abs, err := filepath.Abs(clean)
+	if err != nil {
+		return "", fmt.Errorf("路径无效:%w", err)
+	}
+	if err := os.MkdirAll(abs, secureDirMode); err != nil {
+		return "", fmt.Errorf("无法创建目标目录 %s: %w", abs, err)
+	}
+	return abs, nil
+}
+
+func ensureTargetFileName(suggestedName, fallback string) string {
+	name := strings.TrimSpace(suggestedName)
+	if name == "" {
+		name = fallback
+	}
+	name = filepath.Base(name)
+	if name == "." || name == string(filepath.Separator) || name == "" {
+		return fallback
+	}
+	return name
+}
+
+func uniqueTargetPath(dir, fileName string) (string, error) {
+	ext := filepath.Ext(fileName)
+	base := strings.TrimSuffix(fileName, ext)
+	candidate := filepath.Join(dir, fileName)
+	if _, err := os.Stat(candidate); errors.Is(err, os.ErrNotExist) {
+		return candidate, nil
+	} else if err != nil {
+		return "", err
+	}
+	for i := 2; i < 10_000; i++ {
+		next := filepath.Join(dir, fmt.Sprintf("%s-%d%s", base, i, ext))
+		if _, err := os.Stat(next); errors.Is(err, os.ErrNotExist) {
+			return next, nil
+		} else if err != nil {
+			return "", err
+		}
+	}
+	return "", fmt.Errorf("目标目录中同名文件过多:%s", fileName)
 }
 
 // OpenOutputDir reveals the output directory in the OS file explorer.

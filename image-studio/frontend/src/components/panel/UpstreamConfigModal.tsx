@@ -35,6 +35,7 @@ export function UpstreamConfigModal({
   const [showKey, setShowKey] = useState(false);
   const [savedKeyLoaded, setSavedKeyLoaded] = useState(false);
   const [faqOpen, setFaqOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   // 打开 modal / 切 selected → 重新加载草稿与 keyring 里的 apiKey
   useEffect(() => {
@@ -56,6 +57,12 @@ export function UpstreamConfigModal({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, selectedId, profiles.length]);
+
+  useEffect(() => {
+    if (open) return;
+    setFaqOpen(false);
+    setDeleteConfirmOpen(false);
+  }, [open]);
 
   // 列表切换 selected
   function selectProfile(id: string) {
@@ -89,12 +96,12 @@ export function UpstreamConfigModal({
 
   async function handleDelete() {
     if (!draft) return;
-    if (!window.confirm(`确认删除「${draft.name}」配置?对应的 API Key 也会从系统凭据存储清除。`)) return;
     const deletingId = draft.id;
     await deleteProfile(deletingId);
     // 删完 selected:切到第一个剩余(action 内部已经更新 active);UI 跟着
     const remaining = useStudioStore.getState().profiles;
     setSelectedId(remaining[0]?.id ?? "");
+    setDeleteConfirmOpen(false);
   }
 
   async function handleSave() {
@@ -103,6 +110,7 @@ export function UpstreamConfigModal({
       name: draft.name,
       apiMode: draft.apiMode,
       requestPolicy: draft.requestPolicy,
+      imagesNewAPICompat: draft.imagesNewAPICompat === true,
       baseURL: draft.baseURL,
       textModelID: draft.textModelID,
       imageModelID: draft.imageModelID,
@@ -218,7 +226,7 @@ export function UpstreamConfigModal({
           onSelectProfile={selectProfile}
           onHandleNew={() => handleNew()}
           onHandleDuplicate={handleDuplicate}
-          onHandleDelete={handleDelete}
+          onHandleDelete={() => setDeleteConfirmOpen(true)}
           onHandleSetActive={handleSetActive}
         />
 
@@ -251,6 +259,41 @@ export function UpstreamConfigModal({
       </div>
     </Modal>
     <FAQModal open={faqOpen} onClose={() => setFaqOpen(false)} />
+    <Modal
+      open={deleteConfirmOpen}
+      onClose={() => setDeleteConfirmOpen(false)}
+      title="删除上游配置"
+      width={448}
+      cardClassName="upstream-delete-confirm-modal"
+      bodyClassName="upstream-delete-confirm-modal-body"
+    >
+      <div className="upstream-delete-confirm-shell">
+        <div className="upstream-delete-confirm-copy rounded-[18px] border border-red-500/16 bg-red-500/[0.06] px-4 py-3 text-[13px] leading-6 text-zinc-700 dark:border-red-400/20 dark:bg-red-400/[0.08] dark:text-zinc-200">
+          <p className="m-0">
+            确认删除「{draft?.name || "当前配置"}」?
+          </p>
+          <p className="mt-1.5 mb-0 text-[12px] leading-5 text-zinc-500 dark:text-zinc-400">
+            这会同时清除这条配置对应的 API Key 凭据。删除后不可恢复。
+          </p>
+        </div>
+        <div className="upstream-delete-confirm-actions">
+          <button
+            type="button"
+            onClick={() => setDeleteConfirmOpen(false)}
+            className={`platform-action-btn upstream-delete-confirm-btn upstream-delete-confirm-btn-secondary inline-flex items-center justify-center ${usesAppleUI ? "rounded-[14px]" : usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleDelete()}
+            className={`platform-action-btn upstream-delete-confirm-btn upstream-delete-confirm-btn-danger inline-flex items-center justify-center ${usesAppleUI ? "rounded-[14px]" : usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
+          >
+            确认删除
+          </button>
+        </div>
+      </div>
+    </Modal>
     </>
   );
 }

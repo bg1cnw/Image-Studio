@@ -11,6 +11,7 @@ import {
   Moon,
   Network,
   PlugZap,
+  Save,
   Shield,
   SlidersHorizontal,
   Sun,
@@ -43,6 +44,7 @@ export type AndroidSettingsPanelProps = {
   onSetFontScale: (value: number) => void;
   onSetKernelRuntimeMode: (value: KernelRuntimeMode) => void;
   onSetProxyConfig: (mode: ProxyMode, url?: string) => void;
+  onSetSavePromptSuppressed: (value: boolean) => void;
   onSetTheme: (value: ThemeMode) => void;
   openOutputLocation: () => void;
   outputLabel: string;
@@ -50,6 +52,7 @@ export type AndroidSettingsPanelProps = {
   proxyMode: ProxyMode;
   proxyURL: string;
   pruneHistory: (days: number) => void;
+  savePromptSuppressed: boolean;
   surface: AndroidSettingsSurface;
   testAPIKey: () => void;
   theme: ThemeMode;
@@ -100,6 +103,7 @@ export function AndroidSettingsPanel({
   onSetFontScale,
   onSetKernelRuntimeMode,
   onSetProxyConfig,
+  onSetSavePromptSuppressed,
   onSetTheme,
   openOutputLocation,
   outputLabel,
@@ -107,6 +111,7 @@ export function AndroidSettingsPanel({
   proxyMode,
   proxyURL,
   pruneHistory,
+  savePromptSuppressed,
   surface,
   testAPIKey,
   theme,
@@ -119,6 +124,7 @@ export function AndroidSettingsPanel({
     `代理 ${proxyLabel(proxyMode)}`,
     `主题 ${themeLabel(theme)}`,
     `字号 ${Math.round(fontScale * 100)}%`,
+    savePromptSuppressed ? "保存提示 关" : "保存提示 开",
     `${historyCount} 条历史`,
   ];
 
@@ -238,6 +244,31 @@ export function AndroidSettingsPanel({
         <ChevronRight className="h-4 w-4 text-zinc-400" />
       </button>
       <p className="android-settings-note">{androidSaveHint()}</p>
+
+      <div className="android-settings-field android-settings-field-stacked">
+        <div>
+          <span className="android-settings-field-title">生成后保存提示</span>
+          <span className="android-settings-field-subtitle">
+            {savePromptSuppressed ? "当前不再弹出另存提醒。" : "生成完成后询问是否另存。"}
+          </span>
+        </div>
+        <div className="android-settings-segmented" role="group" aria-label="生成后保存提示">
+          <button
+            type="button"
+            className={!savePromptSuppressed ? "active" : ""}
+            onClick={() => onSetSavePromptSuppressed(false)}
+          >
+            <Save className="h-3.5 w-3.5" /> 提示
+          </button>
+          <button
+            type="button"
+            className={savePromptSuppressed ? "active" : ""}
+            onClick={() => onSetSavePromptSuppressed(true)}
+          >
+            不提示
+          </button>
+        </div>
+      </div>
     </section>
   );
 

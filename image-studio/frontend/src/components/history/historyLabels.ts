@@ -48,6 +48,9 @@ export function sizeLabel(raw: string): string {
     case "auto":
       return "自动";
     default:
+      if (/^\d+x\d+$/.test(raw)) {
+        return raw.replace("x", "×");
+      }
       return raw;
   }
 }

@@ -8,15 +8,16 @@ import type {
 import { QUALITY_TIERS, STYLE_CHIPS } from "./panelOptions";
 import { Section, Seg, SegItem } from "./panelChrome";
 import {
-  ASPECT_PRESETS,
   RESOLUTION_PRESETS,
   type AspectPreset,
+  type AspectPresetOption,
   type ResolutionPreset,
   sizeCapabilityHint,
 } from "./sizeCapabilities";
 
 export function DesktopComposeSections({
   activeAspect,
+  aspectOptions,
   activeResolution,
   apiMode,
   batchCount,
@@ -25,6 +26,7 @@ export function DesktopComposeSections({
   handleAspectSelect,
   handleResolutionSelect,
   imageModelID,
+  onOpenCustomAspectRatioModal,
   onRemoveSource,
   mode,
   quality,
@@ -38,6 +40,7 @@ export function DesktopComposeSections({
   availableResolutions,
 }: {
   activeAspect: AspectPreset;
+  aspectOptions: AspectPresetOption[];
   activeResolution: ResolutionPreset;
   apiMode: "responses" | "images";
   batchCount: number;
@@ -46,6 +49,7 @@ export function DesktopComposeSections({
   handleAspectSelect: (aspect: AspectPreset) => void;
   handleResolutionSelect: (resolution: ResolutionPreset) => void;
   imageModelID: string;
+  onOpenCustomAspectRatioModal: () => void;
   usesFluentUI: boolean;
   mode: Mode;
   onRemoveSource: (index: number) => void;
@@ -87,15 +91,26 @@ export function DesktopComposeSections({
         </div>
       </section>
 
-      <Section label="比例">
+      <Section
+        label="比例"
+        trailing={(
+          <button
+            type="button"
+            onClick={onOpenCustomAspectRatioModal}
+            className="text-[11px] text-[var(--accent)] transition-opacity hover:opacity-80"
+          >
+            自定义比例
+          </button>
+        )}
+      >
         <div className="grid grid-cols-3 gap-2.5">
-          {ASPECT_PRESETS.map((aspect) => {
+          {aspectOptions.map((aspect) => {
             const active = activeAspect === aspect.value;
             return (
               <button
                 key={aspect.value}
                 onClick={() => handleAspectSelect(aspect.value)}
-                title={aspect.auto ? "让上游决定尺寸 / 比例" : aspect.value}
+                title={aspect.auto ? "让上游决定尺寸 / 比例" : aspect.label}
                 className={`flex min-h-[56px] flex-col items-center justify-center gap-1 ring-1 transition-colors ${
                   active
                     ? "bg-[var(--accent-soft)] ring-[color:var(--accent)]/35"

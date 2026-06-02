@@ -155,6 +155,28 @@ export function historyPreviewSrc(
   return item.previewUrl || objectURL || (item.imageB64 ? dataURLFromBase64(item.imageB64) : "");
 }
 
+export function useImageLoadState(src: string | null | undefined): "idle" | "loading" | "ready" | "error" {
+  const [state, setState] = useState<"idle" | "loading" | "ready" | "error">(() => src ? "loading" : "idle");
+
+  useEffect(() => {
+    if (!src) {
+      setState("idle");
+      return;
+    }
+    setState("loading");
+    const image = new Image();
+    image.onload = () => setState("ready");
+    image.onerror = () => setState("error");
+    image.src = src;
+    return () => {
+      image.onload = null;
+      image.onerror = null;
+    };
+  }, [src]);
+
+  return state;
+}
+
 export function mediaFullUrlFromImageId(imageId?: string | null): string {
   return imageId ? `/media/full/${imageId}` : "";
 }

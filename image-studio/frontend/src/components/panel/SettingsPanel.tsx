@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   Download, Folder, FolderEdit, Github, Info, KeyRound,
-  MessageSquare, Monitor, Moon, Network, RotateCw, Sun, Trash2, Upload,
+  MessageSquare, Monitor, Moon, Network, RotateCw, Save, Sun, Trash2, Upload,
 } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
 import {
@@ -10,6 +10,7 @@ import {
 import type { KernelRuntimeMode, ProxyMode } from "../../types/domain";
 import { Modal } from "../common/Modal";
 import { rememberTrustedOutputRoot } from "../../lib/storage";
+import { scheduleCompatibilityExport } from "../../lib/compatState";
 import { platformOutputRootLabel } from "../../platform";
 import { androidSaveHint, androidTarget, openExternalURLForPlatform, openOutputLocationForPlatform } from "../../platform/android/bridge";
 import { AndroidSettingsPanel } from "../../platform/android/settings/AndroidSettingsPanel";
@@ -29,6 +30,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
     theme, fontScale,
     setField, setAPIKey, setProxyConfig,
     history,
+    loadMoreHistory,
     exportHistory, importHistory,
     pruneHistoryOlderThanDays,
     setTheme, setFontScale,
@@ -36,6 +38,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
     apiKey, baseURL, apiMode,
     profiles, activeProfileId, setActiveProfile,
     openUpstreamConfig, testAPIKey, isTestingKey,
+    savePromptSuppressed, setSavePromptSuppressed,
   } = useStudioStore();
 
   const [outputDir, setOutputDir] = useState("");
@@ -58,8 +61,10 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
   }
 
   async function clearHistory() {
-    if (!confirm(`确定清除 ${history.length} 条历史记录吗?(本地数据库也会删除)`)) return;
-    for (const h of history) {
+    await loadMoreHistory();
+    const loadedHistory = useStudioStore.getState().history;
+    if (!confirm(`确定清除 ${loadedHistory.length} 条历史记录吗?(本地数据库也会删除)`)) return;
+    for (const h of loadedHistory) {
       await useStudioStore.getState().deleteHistoryItem(h.id);
     }
   }
@@ -76,6 +81,12 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
 
   function openExternal(url: string) {
     openExternalURLForPlatform(url, OpenExternalURL).catch(() => undefined);
+  }
+
+  function updateSavePromptSuppressed(value: boolean) {
+    setSavePromptSuppressed(value);
+    scheduleCompatibilityExport(useStudioStore.getState());
+    pushToast(value ? "已关闭生成后保存提示" : "已开启生成后保存提示", "success");
   }
 
   function closeSettings() {
@@ -110,6 +121,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
       onSetFontScale={setFontScale}
       onSetKernelRuntimeMode={(value) => setField("kernelRuntimeMode", value)}
       onSetProxyConfig={setProxyConfig}
+      onSetSavePromptSuppressed={updateSavePromptSuppressed}
       onSetTheme={setTheme}
       openOutputLocation={openOutputLocation}
       outputLabel={outputLabel}
@@ -117,6 +129,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
       proxyMode={proxyMode}
       proxyURL={proxyURL}
       pruneHistory={(days) => void pruneHistory(days)}
+      savePromptSuppressed={savePromptSuppressed}
       surface={isAndroidPad ? "pad" : "phone"}
       testAPIKey={() => void testAPIKey()}
       theme={theme}
@@ -203,6 +216,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
                         try { localStorage.setItem("gptcodex.outputDir", chosen); } catch {}
                         rememberTrustedOutputRoot(chosen);
                         setOutputDir(chosen);
+                        scheduleCompatibilityExport(useStudioStore.getState());
                         pushToast(`输出目录已切换:${chosen}`, "success");
                       }
                     } catch (e: any) {
@@ -221,6 +235,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
                       const def = await GetOutputDir();
                       rememberTrustedOutputRoot(def);
                       setOutputDir(def);
+                      scheduleCompatibilityExport(useStudioStore.getState());
                       pushToast("已恢复默认输出目录", "success");
                     } catch (e: any) {
                       pushToast(`重置失败:${e?.message ?? e}`, "error", 5000);
@@ -233,6 +248,20 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
                 </button>
               </div>
             )}
+          </SettingsRow>
+
+          <SettingsRow label="生成后保存提示">
+            <div className={`platform-seg flex flex-wrap gap-1 bg-black/[0.04] p-0.5 ring-1 ring-black/[0.05] dark:bg-white/[0.06] dark:ring-white/[0.06] ${usesFluentUI ? "rounded-[10px]" : "rounded-[18px]"}`}>
+              <SettingsSegButton active={!savePromptSuppressed} onClick={() => updateSavePromptSuppressed(false)}>
+                <Save className="w-3 h-3" /> 提示
+              </SettingsSegButton>
+              <SettingsSegButton active={savePromptSuppressed} onClick={() => updateSavePromptSuppressed(true)}>
+                不提示
+              </SettingsSegButton>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-300">
+              生成完成后询问是否另存到指定位置。
+            </p>
           </SettingsRow>
 
           <SettingsRow label="主题">

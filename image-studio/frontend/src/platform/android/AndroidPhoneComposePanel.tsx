@@ -7,9 +7,11 @@ import { OpenFile } from "../runtime/host";
 import { Mode } from "../../types/domain";
 import { QUALITY_TIERS, STYLE_CHIPS } from "../../components/panel/panelOptions";
 import {
+  aspectPresetLabel,
   availableResolutionPresets,
   deriveAspectPreset,
   deriveResolutionPreset,
+  listAspectPresetOptions,
 } from "../../components/panel/sizeCapabilities";
 import { AndroidModeSwitch } from "./AndroidModeSwitch";
 import { AndroidPhoneAdvancedSection } from "./AndroidPhoneAdvancedSection";
@@ -21,14 +23,20 @@ import {
   buildAndroidResolutionSizeSelection,
 } from "./parameters/androidSizeSelection";
 import { vibrateForPlatform } from "./bridge";
+import { LoopGenerationSection } from "../../components/panel/LoopGenerationSection";
 
-export function AndroidPhoneComposePanel() {
+export function AndroidPhoneComposePanel({
+  onSubmitStart,
+}: {
+  onSubmitStart?: () => void;
+} = {}) {
   const {
     apiKey, mode, prompt, negativePrompt, size, quality, seed, styleTag,
-    outputFormat, batchCount, sources, currentImage, errorMessage, errorRawPath,
+    outputFormat, batchCount, loopGeneration, sources, currentImage, errorMessage, errorRawPath,
     isRunning, lastPayload, isOptimizingPrompt, apiMode, requestPolicy, baseURL, profiles, imageModelID,
+    customAspectRatios,
     setField, clearError, pushToast, selectSourceImage,
-    removeSource, clearSources, openUpstreamConfig, submit, cancel, retryLast, optimizePrompt,
+    removeSource, clearSources, openCustomAspectRatioModal, openUpstreamConfig, submit, cancel, retryLast, optimizePrompt,
   } = useStudioStore();
   const [templateOpen, setTemplateOpen] = useState(false);
   const [parametersOpen, setParametersOpen] = useState(false);
@@ -42,10 +50,11 @@ export function AndroidPhoneComposePanel() {
     prompt.trim() && (hasUsableResponsesProfile || (apiKey.trim() && baseURL.trim()))
   );
   const activeStyleLabel = STYLE_CHIPS.find((item) => item.id === styleTag)?.label ?? "默认风格";
-  const activeAspect = deriveAspectPreset(size);
+  const aspectOptions = listAspectPresetOptions(customAspectRatios);
+  const activeAspect = deriveAspectPreset(size, customAspectRatios);
   const activeResolution = deriveResolutionPreset(size);
   const availableResolutions = availableResolutionPresets({ apiMode, requestPolicy, imageModelID });
-  const activeAspectLabel = activeAspect === "auto" ? "Auto" : activeAspect;
+  const activeAspectLabel = aspectPresetLabel(activeAspect, customAspectRatios);
   const activeResolutionLabel = activeResolution === "auto" ? "自动" : activeResolution.toUpperCase();
   const activeQualityLabel = QUALITY_TIERS.find((item) => item.value === quality)?.label ?? quality;
   const editSourceLabel = sources.length > 0 ? `${sources.length} 张已添加` : currentImage?.savedPath ? "使用当前画板" : "未添加";
@@ -56,6 +65,7 @@ export function AndroidPhoneComposePanel() {
       aspect,
       activeResolution,
       { apiMode, requestPolicy, imageModelID },
+      customAspectRatios,
     ));
   };
 
@@ -64,6 +74,7 @@ export function AndroidPhoneComposePanel() {
       activeAspect,
       resolution,
       { apiMode, requestPolicy, imageModelID },
+      customAspectRatios,
     ));
   };
 
@@ -74,7 +85,9 @@ export function AndroidPhoneComposePanel() {
 
   const handleSubmit = () => {
     vibrateForPlatform(15);
-    submit();
+    void submit().then(() => {
+      if (useStudioStore.getState().isRunning) onSubmitStart?.();
+    });
   };
 
   const handleOptimize = () => {
@@ -234,6 +247,7 @@ export function AndroidPhoneComposePanel() {
         <AndroidPhoneParameterSection
           activeAspect={activeAspect}
           activeAspectLabel={activeAspectLabel}
+          aspectOptions={aspectOptions}
           activeResolution={activeResolution}
           activeResolutionLabel={activeResolutionLabel}
           activeQualityLabel={activeQualityLabel}
@@ -243,6 +257,7 @@ export function AndroidPhoneComposePanel() {
           handleAspectSelect={handleAspectSelect}
           handleResolutionSelect={handleResolutionSelect}
           imageModelID={imageModelID}
+          onOpenCustomAspectRatioModal={openCustomAspectRatioModal}
           apiMode={apiMode}
           parametersOpen={parametersOpen}
           quality={quality}
@@ -275,6 +290,13 @@ export function AndroidPhoneComposePanel() {
         />
       ) : null}
 
+      {!needsUpstreamSetup ? (
+        <LoopGenerationSection
+          value={loopGeneration}
+          onChange={(next) => setField("loopGeneration", next)}
+        />
+      ) : null}
+
       <div className="android-phone-sticky-cta" style={{ paddingLeft: "calc(env(safe-area-inset-left, 0px) + 12px)", paddingRight: "calc(env(safe-area-inset-right, 0px) + 12px)" }}>
         {needsUpstreamSetup ? (
           <button
@@ -299,7 +321,7 @@ export function AndroidPhoneComposePanel() {
             disabled={!apiKey || !prompt.trim()}
             className="liquid-primary-button h-[54px] w-full text-[15px] font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 dark:disabled:bg-zinc-800"
           >
-            {mode === "edit" ? "开始编辑" : "开始生成"}
+            {loopGeneration.enabled ? "开始循环" : mode === "edit" ? "开始编辑" : "开始生成"}
           </button>
         )}
       </div>

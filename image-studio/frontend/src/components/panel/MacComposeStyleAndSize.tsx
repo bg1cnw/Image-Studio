@@ -2,8 +2,8 @@ import type { APIMode, QualityValue, RequestPolicy } from "../../types/domain";
 import { Check } from "lucide-react";
 import { QUALITY_TIERS, STYLE_CHIPS } from "./panelOptions";
 import {
-  ASPECT_PRESETS,
   type AspectPreset,
+  type AspectPresetOption,
   RESOLUTION_PRESETS,
   type ResolutionPreset,
   sizeCapabilityHint,
@@ -11,6 +11,7 @@ import {
 
 export function MacComposeStyleAndSize({
   activeAspect,
+  aspectOptions,
   activeResolution,
   apiMode,
   availableResolutions,
@@ -18,6 +19,7 @@ export function MacComposeStyleAndSize({
   handleAspectSelect,
   handleResolutionSelect,
   imageModelID,
+  onOpenCustomAspectRatioModal,
   quality,
   requestPolicy,
   setField,
@@ -26,6 +28,7 @@ export function MacComposeStyleAndSize({
   SegItem,
 }: {
   activeAspect: AspectPreset;
+  aspectOptions: AspectPresetOption[];
   activeResolution: ResolutionPreset;
   apiMode: APIMode;
   availableResolutions: ResolutionPreset[];
@@ -33,6 +36,7 @@ export function MacComposeStyleAndSize({
   handleAspectSelect: (aspect: AspectPreset) => void;
   handleResolutionSelect: (resolution: ResolutionPreset) => void;
   imageModelID: string;
+  onOpenCustomAspectRatioModal: () => void;
   quality: QualityValue;
   requestPolicy: RequestPolicy;
   setField: (key: string, value: any) => void;
@@ -68,15 +72,24 @@ export function MacComposeStyleAndSize({
       </div>
 
       <div>
-        <div className="mb-2 text-[12px] text-zinc-500">比例</div>
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-[12px] text-zinc-500">比例</span>
+          <button
+            type="button"
+            onClick={onOpenCustomAspectRatioModal}
+            className="text-[12px] text-[var(--accent)] transition-opacity hover:opacity-80"
+          >
+            自定义比例
+          </button>
+        </div>
         <div className="grid grid-cols-3 gap-2.5">
-          {ASPECT_PRESETS.map((aspect) => {
+          {aspectOptions.map((aspect) => {
             const active = activeAspect === aspect.value;
             return (
               <button
                 key={aspect.value}
                 onClick={() => handleAspectSelect(aspect.value)}
-                title={aspect.auto ? "让上游决定尺寸 / 比例" : aspect.value}
+                title={aspect.auto ? "让上游决定尺寸 / 比例" : aspect.label}
                 className={`flex min-h-[64px] flex-col items-center justify-center gap-1.5 rounded-[14px] px-2 py-2 ring-1 transition-colors ${
                   active
                     ? "bg-[var(--accent-soft)] ring-[color:var(--accent)]/35"

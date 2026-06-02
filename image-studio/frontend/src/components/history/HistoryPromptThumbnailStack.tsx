@@ -1,4 +1,4 @@
-import { historyPreviewSrc, useBlobURL } from "../../lib/images";
+import { historyPreviewSrc, useBlobURL, useImageLoadState } from "../../lib/images";
 import type { HistoryItem } from "../../types/domain";
 import { HistoryModeBadge } from "./HistoryModeBadge";
 
@@ -24,10 +24,15 @@ export function HistoryPromptThumbnailStack({
 function HistoryPromptThumbnailStackLayer({ item, index }: { item: HistoryItem; index: number }) {
   const previewURL = useBlobURL(item.previewBlob ?? item.imageBlob ?? null, item.imageB64 ?? null);
   const imageSrc = historyPreviewSrc(item, previewURL);
+  const loadState = useImageLoadState(imageSrc || null);
 
   return (
     <span className={`timeline-prompt-card-layer layer-${index}`}>
-      <img src={imageSrc} alt="" loading="eager" decoding="async" />
+      {loadState === "ready" ? (
+        <img src={imageSrc} alt="" loading="eager" decoding="async" />
+      ) : (
+        <span className="timeline-prompt-card-fallback" />
+      )}
       {index === 0 ? <HistoryModeBadge mode={item.mode} className="timeline-prompt-card-mode" /> : null}
     </span>
   );

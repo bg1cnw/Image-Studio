@@ -1,6 +1,7 @@
 import type { APIMode, QualityValue, RequestPolicy } from "../../types/domain";
 import {
   type AspectPreset,
+  type AspectPresetOption,
   type ResolutionPreset,
 } from "./sizeCapabilities";
 import { MacComposeSources } from "./MacComposeSources";
@@ -13,6 +14,7 @@ export function MacComposePanel({
   activeStyleLabel,
   activeAspect,
   activeAspectLabel,
+  aspectOptions,
   activeResolution,
   activeResolutionLabel,
   activeQualityLabel,
@@ -27,6 +29,7 @@ export function MacComposePanel({
   setField,
   handleAspectSelect,
   handleResolutionSelect,
+  onOpenCustomAspectRatioModal,
   selectSourceImage,
   clearSources,
   quality,
@@ -39,6 +42,7 @@ export function MacComposePanel({
   activeStyleLabel: string;
   activeAspect: AspectPreset;
   activeAspectLabel: string;
+  aspectOptions: AspectPresetOption[];
   activeResolution: ResolutionPreset;
   activeResolutionLabel: string;
   activeQualityLabel: string;
@@ -53,6 +57,7 @@ export function MacComposePanel({
   setField: (key: string, value: any) => void;
   handleAspectSelect: (aspect: AspectPreset) => void;
   handleResolutionSelect: (resolution: ResolutionPreset) => void;
+  onOpenCustomAspectRatioModal: () => void;
   selectSourceImage: () => void;
   clearSources: () => void;
   quality: QualityValue;
@@ -78,6 +83,7 @@ export function MacComposePanel({
         <div className="mt-4 flex flex-col gap-[18px]">
           <MacComposeStyleAndSize
             activeAspect={activeAspect}
+            aspectOptions={aspectOptions}
             activeResolution={activeResolution}
             apiMode={apiMode}
             availableResolutions={availableResolutions}
@@ -85,6 +91,7 @@ export function MacComposePanel({
             handleAspectSelect={handleAspectSelect}
             handleResolutionSelect={handleResolutionSelect}
             imageModelID={imageModelID}
+            onOpenCustomAspectRatioModal={onOpenCustomAspectRatioModal}
             quality={quality}
             requestPolicy={requestPolicy}
             setField={setField}

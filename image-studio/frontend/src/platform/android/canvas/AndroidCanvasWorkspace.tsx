@@ -189,29 +189,25 @@ export function AndroidCanvasWorkspace() {
         onToggleSources={() => runAction(() => setSourceOpen((value) => !value), 5)}
         onOpenGrid={showBatchToggle ? () => runAction(() => (resultGridOpen ? closeResultGrid() : openResultGrid()), 8) : undefined}
         gridOpen={resultGridOpen}
+        progressMeta={isRunning ? {
+          elapsed: progress?.elapsed,
+          bytes: progress?.bytes,
+          runningJobs: runningJobs.length,
+          jobsCompleted,
+          jobsTotal,
+        } : null}
       />
 
       <div className="android-canvas-main">
         <div className="android-canvas-stage-panel">
           <AndroidCanvasStage />
-          {!hasImage ? (
+          {!hasImage && !isRunning && !resultGridOpen ? (
             <AndroidCanvasEmptyState
               onImport={importToCanvas}
               onGoCompose={() => {
                 vibrateForPlatform(8);
                 document.querySelector<HTMLButtonElement>(".android-bottom-nav .android-nav-button:first-child")?.click();
               }}
-            />
-          ) : null}
-          {isRunning ? (
-            <AndroidCanvasProgressOverlay
-              stage={progress?.stage}
-              elapsed={progress?.elapsed}
-              bytes={progress?.bytes}
-              runningJobs={runningJobs.length}
-              jobsCompleted={jobsCompleted}
-              jobsTotal={jobsTotal}
-              streamPreviewActive={!!streamPreview}
             />
           ) : null}
           {hasImage ? (
@@ -361,6 +357,7 @@ function AndroidCanvasHeader({
   onToggleSources,
   onOpenGrid,
   gridOpen,
+  progressMeta,
 }: {
   currentImage: HistoryItem | null;
   isRunning: boolean;
@@ -374,6 +371,13 @@ function AndroidCanvasHeader({
   onToggleSources: () => void;
   onOpenGrid?: () => void;
   gridOpen: boolean;
+  progressMeta: {
+    elapsed?: number;
+    bytes?: number;
+    runningJobs: number;
+    jobsCompleted: number;
+    jobsTotal: number;
+  } | null;
 }) {
   const prompt = currentImage?.revisedPrompt || currentImage?.prompt || "";
   return (
@@ -414,41 +418,17 @@ function AndroidCanvasHeader({
             参考 {sourceCount}
           </button>
         ) : null}
+        {progressMeta && typeof progressMeta.elapsed === "number" ? (
+          <span className="android-canvas-status-chip progress-meta-chip">{progressMeta.elapsed.toFixed(1)}s</span>
+        ) : null}
+        {progressMeta && typeof progressMeta.bytes === "number" && progressMeta.bytes > 0 ? (
+          <span className="android-canvas-status-chip progress-meta-chip">{formatBytes(progressMeta.bytes)}</span>
+        ) : null}
+        {progressMeta && progressMeta.jobsTotal > 1 ? (
+          <span className="android-canvas-status-chip progress-meta-chip">{progressMeta.runningJobs} 并发 · {progressMeta.jobsCompleted}/{progressMeta.jobsTotal}</span>
+        ) : null}
       </div>
     </header>
-  );
-}
-
-function AndroidCanvasProgressOverlay({
-  stage,
-  elapsed,
-  bytes,
-  runningJobs,
-  jobsCompleted,
-  jobsTotal,
-  streamPreviewActive,
-}: {
-  stage?: string;
-  elapsed?: number;
-  bytes?: number;
-  runningJobs: number;
-  jobsCompleted: number;
-  jobsTotal: number;
-  streamPreviewActive: boolean;
-}) {
-  return (
-    <div className="android-canvas-progress">
-      <div className="android-canvas-progress-head">
-        <Loader2 />
-        <span>{stage ?? "正在请求"}</span>
-      </div>
-      <div className="android-canvas-progress-meta">
-        {typeof elapsed === "number" ? <span>{elapsed.toFixed(1)}s</span> : null}
-        {typeof bytes === "number" && bytes > 0 ? <span>{formatBytes(bytes)}</span> : null}
-        {jobsTotal > 1 ? <span>{runningJobs} 并发 · {jobsCompleted}/{jobsTotal}</span> : null}
-        {streamPreviewActive ? <span>流式预览</span> : null}
-      </div>
-    </div>
   );
 }
 
