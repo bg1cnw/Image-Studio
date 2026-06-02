@@ -237,3 +237,50 @@ test("desktop remote kernel can reach mock upstream through worker for images ap
     await upstream.close();
   }
 });
+
+test("desktop remote kernel worker path supports NewAPI image compat mode", async () => {
+  const upstream = await startMockUpstream();
+  try {
+    await withWorkerProxy(upstream.baseURL, async () => {
+      const kernel = await loadRemoteKernel();
+
+      const result = await kernel.runRemoteImageJob(
+        {
+          payload: {
+            apiKey: "worker-key",
+            mode: "generate",
+            prompt: "bird",
+            size: "1024x1024",
+            quality: "medium",
+            outputFormat: "png",
+            imagePaths: [],
+            imagePath: "",
+            maskB64: "",
+            seed: 0,
+            negativePrompt: "",
+            baseURL: "https://worker.local",
+            textModelID: "",
+            imageModelID: "gpt-image-2",
+            apiMode: "images",
+            requestPolicy: "openai",
+            imagesNewAPICompat: true,
+            noPromptRevision: false,
+            concurrencyLimit: 0,
+          },
+        },
+        { signal: new AbortController().signal },
+      );
+      assert.equal(result.imageB64, "aW1hZ2VzLWdlbg==");
+      assert.equal(result.revisedPrompt, "images revised");
+
+      const generationReq = upstream.requests.find((req) => req.url === "/v1/images/generations");
+      assert.ok(generationReq);
+      const generationBody = JSON.parse(generationReq.body.toString("utf8"));
+      assert.equal(generationBody.response_format, "b64_json");
+      assert.equal("stream" in generationBody, false);
+      assert.equal("partial_images" in generationBody, false);
+    });
+  } finally {
+    await upstream.close();
+  }
+});

@@ -110,6 +110,7 @@ export function UpstreamConfigModal({
       name: draft.name,
       apiMode: draft.apiMode,
       requestPolicy: draft.requestPolicy,
+      imagesNewAPICompat: draft.imagesNewAPICompat === true,
       baseURL: draft.baseURL,
       textModelID: draft.textModelID,
       imageModelID: draft.imageModelID,

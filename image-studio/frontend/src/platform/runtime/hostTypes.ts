@@ -17,6 +17,7 @@ export type GenerateOptionsLike = {
   proxyURL?: string;
   apiMode: string;
   requestPolicy: string;
+  imagesNewAPICompat?: boolean;
   noPromptRevision: boolean;
   concurrencyLimit?: number;
   partialImages?: number;

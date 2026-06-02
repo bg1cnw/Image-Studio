@@ -367,6 +367,62 @@ test("runtimeHost remote images mode forwards partial image previews", async () 
   });
 });
 
+test("runtimeHost remote images mode supports NewAPI compat JSON responses", async () => {
+  await withPatchedGlobals(async () => {
+    globalThis.fetch = async (url, init) => {
+      if (String(url).endsWith("/v1/images/generations")) {
+        const body = JSON.parse(init.body);
+        assert.equal(body.response_format, "b64_json");
+        assert.equal("stream" in body, false);
+        assert.equal("partial_images" in body, false);
+        return new Response(
+          '{"data":[{"b64_json":"aW1hZ2VzLW5ld2FwaQ==","revised_prompt":"compat rev"}]}',
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    };
+  }, async () => {
+    const runtimeHost = await loadRuntimeHost();
+    runtimeHost.setKernelRuntimeMode("remote");
+
+    const started = await runtimeHost.Generate({
+      apiKey: "key",
+      mode: "generate",
+      prompt: "cat",
+      size: "1024x1024",
+      quality: "low",
+      outputFormat: "png",
+      imagePaths: [],
+      imagePath: "",
+      maskB64: "",
+      seed: 0,
+      negativePrompt: "",
+      baseURL: "https://upstream.example",
+      textModelID: "",
+      imageModelID: "gpt-image-2",
+      apiMode: "images",
+      requestPolicy: "openai",
+      imagesNewAPICompat: true,
+      noPromptRevision: false,
+      concurrencyLimit: 0,
+      partialImages: 1,
+    });
+
+    const seen = { result: [] };
+    const offResult = runtimeHost.EventsOn(`result:${started.jobId}`, (payload) => {
+      seen.result.push(payload);
+    });
+
+    await new Promise((resolve) => setImmediate(resolve));
+    offResult();
+
+    assert.equal(seen.result.length, 1);
+    assert.equal(seen.result[0].imageB64, "aW1hZ2VzLW5ld2FwaQ==");
+    assert.equal(seen.result[0].revisedPrompt, "compat rev");
+  });
+});
+
 test("runtimeHost Android transforms persist GPU-backed results to host files", async () => {
   await withPatchedGlobals(async () => {
     globalThis.createImageBitmap = async () => ({

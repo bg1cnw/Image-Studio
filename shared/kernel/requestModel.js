@@ -67,6 +67,10 @@ export function shouldSendExtendedImageParameters(requestPolicy) {
   return isCompatRequestPolicy(requestPolicy);
 }
 
+export function shouldUseImagesNewAPICompat(payload) {
+  return payload?.imagesNewAPICompat === true;
+}
+
 export function fileNameFromPath(path) {
   if (!path) return "image.png";
   return String(path).split(/[\\/]/).pop() || "image.png";

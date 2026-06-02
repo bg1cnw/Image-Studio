@@ -22,6 +22,7 @@ export type SharedImageRequestPayload = {
   maskB64?: string;
   seed?: number;
   requestPolicy?: RequestPolicy;
+  imagesNewAPICompat?: boolean;
   noPromptRevision?: boolean;
   mode?: string;
   partialImages?: number;
@@ -39,6 +40,7 @@ export function isCompatRequestPolicy(requestPolicy: string): boolean;
 export function classifyImageModel(modelID: string): "gpt-image" | "dalle2" | "dalle3" | "other";
 export function supportsImagesResponseFormat(imageModelID: string, mode?: string): boolean;
 export function shouldSendExtendedImageParameters(requestPolicy: string): boolean;
+export function shouldUseImagesNewAPICompat(payload: SharedImageRequestPayload | Record<string, unknown>): boolean;
 export function fileNameFromPath(path?: string): string;
 export function dataURLFromBase64Image(b64: string, mimeType?: string): string;
 export function buildResponsesInputContent(prompt: string, sourceDataURLs: string[]): Array<Record<string, unknown>>;

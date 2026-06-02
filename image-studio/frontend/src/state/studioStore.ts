@@ -44,6 +44,7 @@ import {
   persistHistoryItems,
   rememberTrustedOutputRoot,
   loadAllHistory,
+  loadHistoryPage,
 } from "../lib/storage";
 import {
   compatibilityExportFingerprint,
@@ -221,7 +222,7 @@ function launchQueuedLoopJobs(controller: LoopRunController): void {
 }
 
 const SAVE_PROMPT_SUPPRESSED_KEY = "gptcodex.savePromptSuppressed";
-const INITIAL_HISTORY_LOAD = 6;
+const INITIAL_HISTORY_LOAD = 18;
 const HISTORY_MEDIA_HYDRATE_CONCURRENCY = 4;
 
 let deferredHistoryLoadPromise: Promise<void> | null = null;
@@ -377,6 +378,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   proxyURL: "",
   apiMode: "responses",
   requestPolicy: "openai",
+  imagesNewAPICompat: false,
   noPromptRevision: true,
   profiles: [],
   activeProfileId: "",
@@ -399,6 +401,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   history: [],
   historyHasMore: false,
   historyLoading: false,
+  historyCursorBeforeCreatedAt: null,
   batchResults: [],
   resultGridOpen: false,
   historyRailCollapsed: false,
@@ -789,6 +792,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       proxyMode: s.proxyMode,
       proxyURL: s.proxyURL,
       requestPolicy: s.requestPolicy,
+      imagesNewAPICompat: s.imagesNewAPICompat,
       apiMode: s.apiMode,
       noPromptRevision: true,
       concurrencyLimit,
@@ -928,6 +932,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         history: preview.history,
         historyHasMore: false,
         historyLoading: false,
+        historyCursorBeforeCreatedAt: null,
         batchResults: [],
         resultGridOpen: false,
         historyRailCollapsed: false,
@@ -980,9 +985,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       if (typeof console !== "undefined") console.warn("compat import failed", error);
       return false;
     });
-    const loadedItems = await loadAllHistory(INITIAL_HISTORY_LOAD + 1);
-    const historyHasMore = loadedItems.length > INITIAL_HISTORY_LOAD;
-    const items = trimHistory(loadedItems.slice(0, INITIAL_HISTORY_LOAD));
+    const initialHistoryPage = await loadHistoryPage({ limit: INITIAL_HISTORY_LOAD });
+    const items = trimHistory(initialHistoryPage.items);
+    const historyHasMore = !!initialHistoryPage.nextCursor;
     let promptHistory: string[] = [];
     let presets: Preset[] = [];
     const customAspectRatios = loadCustomAspectRatios();
@@ -1059,6 +1064,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
           name: "Responses · 默认",
           apiMode: "responses",
           requestPolicy: "openai",
+          imagesNewAPICompat: false,
           baseURL: legacyResponses.baseURL,
           textModelID: legacyResponses.textModelID,
           imageModelID: legacyResponses.imageModelID,
@@ -1077,6 +1083,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
           name: "Images · 默认",
           apiMode: "images",
           requestPolicy: "openai",
+          imagesNewAPICompat: false,
           baseURL: legacyImages.baseURL,
           textModelID: legacyImages.textModelID,
           imageModelID: legacyImages.imageModelID,
@@ -1111,6 +1118,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     }
     const apiMode: APIMode = activeProfile?.apiMode ?? "responses";
     const requestPolicy: RequestPolicy = activeProfile?.requestPolicy ?? "openai";
+    const imagesNewAPICompat = activeProfile?.imagesNewAPICompat === true;
     const baseURL = activeProfile?.baseURL ?? "";
     const textModelID = activeProfile?.textModelID ?? "";
     const imageModelID = activeProfile?.imageModelID ?? "";
@@ -1171,7 +1179,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       apiKey: activeKey, history: items, promptHistory, presets, customAspectRatios, theme, fontScale,
       historyHasMore,
       historyLoading: false,
-      apiMode, requestPolicy, baseURL, textModelID, imageModelID, kernelRuntimeMode, noPromptRevision,
+      historyCursorBeforeCreatedAt: initialHistoryPage.nextCursor?.beforeCreatedAt ?? null,
+      apiMode, requestPolicy, imagesNewAPICompat, baseURL, textModelID, imageModelID, kernelRuntimeMode, noPromptRevision,
       proxyMode: proxyConfig.mode,
       proxyURL: proxyConfig.url,
       outputFormat,
@@ -1317,12 +1326,19 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     set({ historyLoading: true });
     deferredHistoryLoadPromise = (async () => {
       try {
-        const fullHistory = trimHistory(await loadAllHistory(MAX_HISTORY_ITEMS));
-        set({
-          history: fullHistory,
-          historyHasMore: false,
+        const currentHistory = get().history;
+        const cursorBeforeCreatedAt = get().historyCursorBeforeCreatedAt;
+        const nextPage = await loadHistoryPage({
+          cursor: typeof cursorBeforeCreatedAt === "number" ? { beforeCreatedAt: cursorBeforeCreatedAt } : null,
+          limit: INITIAL_HISTORY_LOAD,
         });
-        void backfillHistoryPreviewRefs(fullHistory);
+        const merged = trimHistory([...currentHistory, ...nextPage.items]);
+        set({
+          history: merged,
+          historyHasMore: !!nextPage.nextCursor && merged.length < MAX_HISTORY_ITEMS,
+          historyCursorBeforeCreatedAt: nextPage.nextCursor?.beforeCreatedAt ?? null,
+        });
+        void backfillHistoryPreviewRefs(nextPage.items);
       } catch (error) {
         if (typeof console !== "undefined") console.warn("load more history failed", error);
       } finally {
@@ -1334,11 +1350,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   },
   setHistoryRailCollapsed: (collapsed) => {
     mediaActions.setHistoryRailCollapsed(collapsed);
-    if (!collapsed) void get().loadMoreHistory();
   },
   openHistoryTimeline: () => {
     mediaActions.openHistoryTimeline();
-    void get().loadMoreHistory();
   },
   closeHistoryTimeline: () => mediaActions.closeHistoryTimeline(),
   pruneHistoryOlderThanDays: async (days) => mediaActions.pruneHistoryOlderThanDays(days),

@@ -14,6 +14,13 @@ const LEGACY_SHARED_API_KEY = "gptcodex.apiKey";
 
 type HistoryRecord = HistoryItem & { searchText: string; searchTokens: string[] };
 type FullRecord = { id: string; image: Blob };
+export type HistoryPageCursor = {
+  beforeCreatedAt: number;
+};
+export type HistoryPageResult = {
+  items: HistoryItem[];
+  nextCursor: HistoryPageCursor | null;
+};
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -187,6 +194,12 @@ function stripHistoryRecord(record: HistoryRecord): HistoryItem {
   return item;
 }
 
+function startOfLocalDay(createdAt: number): number {
+  const d = new Date(createdAt);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
 export async function persistHistoryItems(items: HistoryItem[]): Promise<void> {
   if (items.length === 0) return;
   const { store, tx } = await openHistoryTx("readwrite");
@@ -318,6 +331,57 @@ export async function loadAllHistory(limit?: number): Promise<HistoryItem[]> {
   );
   await txDone(tx);
   return items.map(stripHistoryRecord);
+}
+
+export async function loadHistoryPage(opts?: {
+  cursor?: HistoryPageCursor | null;
+  limit?: number;
+}): Promise<HistoryPageResult> {
+  await migrateLegacyHistoryIfNeeded();
+  const { store, tx } = await openHistoryTx("readonly");
+  const limit = typeof opts?.limit === "number" && Number.isFinite(opts.limit) && opts.limit > 0
+    ? Math.floor(opts.limit)
+    : 24;
+  const beforeCreatedAt = opts?.cursor?.beforeCreatedAt ?? 0;
+  const range = beforeCreatedAt > 0
+    ? IDBKeyRange.upperBound(beforeCreatedAt, true)
+    : null;
+  const records = await cursorAsPromise<HistoryRecord>(
+    store.index("createdAt").openCursor(range, "prev"),
+    {
+      limit: limit + 1,
+      accept: () => true,
+    },
+  );
+  let normalized = records;
+  if (records.length > limit) {
+    const boundary = records[limit - 1];
+    if (boundary?.createdAt) {
+      const boundaryDayStart = startOfLocalDay(boundary.createdAt);
+      const extraSameDay: HistoryRecord[] = [];
+      const sameDayRange = IDBKeyRange.bound(boundaryDayStart, boundary.createdAt, false, true);
+      const sameDayTail = await cursorAsPromise<HistoryRecord>(
+        store.index("createdAt").openCursor(sameDayRange, "prev"),
+        { accept: () => true },
+      );
+      const seen = new Set(records.slice(0, limit).map((item) => item.id));
+      for (const item of sameDayTail) {
+        if (!seen.has(item.id)) {
+          extraSameDay.push(item);
+          seen.add(item.id);
+        }
+      }
+      normalized = [...records.slice(0, limit), ...extraSameDay];
+    }
+  }
+  await txDone(tx);
+  const hasMore = records.length > limit;
+  const items = normalized.map(stripHistoryRecord);
+  const last = items[items.length - 1] ?? null;
+  return {
+    items,
+    nextCursor: hasMore && last ? { beforeCreatedAt: last.createdAt } : null,
+  };
 }
 
 export async function loadHistoryByFilters(opts: {

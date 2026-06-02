@@ -27,6 +27,7 @@ export type RemoteGeneratePayload = {
   proxyURL?: string;
   apiMode: string;
   requestPolicy: RequestPolicy;
+  imagesNewAPICompat?: boolean;
   noPromptRevision: boolean;
   concurrencyLimit?: number;
   partialImages?: number;

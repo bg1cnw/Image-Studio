@@ -478,6 +478,74 @@ html[data-platform="android"] .android-upstream-option-grid button.active {
   color: var(--accent);
 }
 
+html[data-platform="android"] .android-upstream-compat-toggle {
+  display: flex;
+  width: 100%;
+  min-height: 70px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgb(15 23 42 / 0.08);
+  border-radius: 18px;
+  background: rgb(248 250 249 / 0.9);
+  padding: 11px 12px;
+  color: rgb(39 39 42);
+  text-align: left;
+}
+
+html[data-platform="android"] .android-upstream-compat-toggle > span {
+  min-width: 0;
+}
+
+html[data-platform="android"] .android-upstream-compat-toggle strong,
+html[data-platform="android"] .android-upstream-compat-toggle small {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+html[data-platform="android"] .android-upstream-compat-toggle strong {
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+html[data-platform="android"] .android-upstream-compat-toggle small {
+  margin-top: 4px;
+  color: rgb(113 113 122);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+html[data-platform="android"] .android-upstream-compat-toggle > em {
+  display: inline-flex;
+  min-height: 28px;
+  min-width: 58px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(15 23 42 / 0.08);
+  border-radius: 999px;
+  background: rgb(15 23 42 / 0.04);
+  padding: 0 10px;
+  color: rgb(113 113 122);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+html[data-platform="android"] .android-upstream-compat-toggle.active {
+  border-color: rgb(0 106 96 / 0.22);
+  background: rgb(0 106 96 / 0.11);
+  color: var(--accent);
+}
+
+html[data-platform="android"] .android-upstream-compat-toggle.active > em {
+  border-color: rgb(0 106 96 / 0.18);
+  background: rgb(0 106 96 / 0.12);
+  color: var(--accent);
+}
+
 html[data-platform="android"] .android-upstream-secret,
 html[data-platform="android"] .android-upstream-stepper {
   display: grid;

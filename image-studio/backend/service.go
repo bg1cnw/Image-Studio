@@ -296,6 +296,7 @@ func (s *Service) runJob(ctx context.Context, jobID string, opts GenerateOptions
 		Proxy:            client.ProxyConfig{Mode: opts.ProxyMode, URL: opts.ProxyURL},
 		APIMode:          apiMode,
 		RequestPolicy:    client.RequestPolicy(strings.TrimSpace(opts.RequestPolicy)),
+		ImagesNewAPICompat: opts.ImagesNewAPICompat,
 		NoPromptRevision: opts.NoPromptRevision,
 		PartialImages:    client.DefaultPartialImages,
 	}

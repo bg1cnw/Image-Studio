@@ -1,5 +1,5 @@
 import {
-  ChevronDown, ChevronRight, Clock3, CopyPlus, Filter, Image as ImageIcon,
+  ChevronDown, ChevronRight, Clock3, CopyPlus, Filter, Image as ImageIcon, Loader2,
   Search, Settings2, Split,
 } from "lucide-react";
 import type { APIMode, HistoryItem } from "../../types/domain";
@@ -29,6 +29,7 @@ export function WindowsHistoryRail({
   entries,
   history,
   historyHasMore,
+  historyLoading,
   historyFiltersActive,
   historyRailCollapsed,
   isTestingKey,
@@ -68,6 +69,7 @@ export function WindowsHistoryRail({
   entries: HistoryPromptEntry[];
   history: HistoryItem[];
   historyHasMore: boolean;
+  historyLoading: boolean;
   historyFiltersActive: boolean;
   historyRailCollapsed: boolean;
   isTestingKey: boolean;
@@ -248,7 +250,14 @@ export function WindowsHistoryRail({
               </div>
             )}
 
-            {entries.length > list.length ? (
+            {historyLoading ? (
+              <div className="windows-history-empty">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                正在加载更多历史...
+              </div>
+            ) : null}
+
+            {historyHasMore || entries.length > list.length ? (
               <button type="button" onClick={openHistoryTimeline} className="windows-history-more">
                 查看更多历史
               </button>

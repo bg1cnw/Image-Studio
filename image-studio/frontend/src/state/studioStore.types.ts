@@ -73,6 +73,7 @@ export interface StudioState {
   imageModelID: string;
   apiMode: APIMode;
   requestPolicy: RequestPolicy;
+  imagesNewAPICompat: boolean;
   noPromptRevision: boolean;
   profiles: UpstreamProfile[];
   activeProfileId: string;
@@ -93,6 +94,7 @@ export interface StudioState {
   history: HistoryItem[];
   historyHasMore: boolean;
   historyLoading: boolean;
+  historyCursorBeforeCreatedAt: number | null;
   batchResults: HistoryItem[];
   resultGridOpen: boolean;
   historyRailCollapsed: boolean;
@@ -135,6 +137,7 @@ export interface StudioState {
     apiMode: APIMode;
     baseURL?: string;
     requestPolicy?: RequestPolicy;
+    imagesNewAPICompat?: boolean;
     textModelID?: string;
     imageModelID?: string;
     concurrencyLimit?: number;

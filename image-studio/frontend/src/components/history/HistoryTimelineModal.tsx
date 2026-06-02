@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { CalendarDays, Search } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CalendarDays, Loader2, Search } from "lucide-react";
 import { Modal } from "../common/Modal";
 import { useStudioStore } from "../../state/studioStore";
 import type { HistoryItem, Mode } from "../../types/domain";
@@ -26,6 +26,9 @@ export function HistoryTimelineModal() {
     historyTimelineOpen,
     closeHistoryTimeline,
     history,
+    historyHasMore,
+    historyLoading,
+    loadMoreHistory,
     currentImage,
     compareB,
     setCompareB,
@@ -44,6 +47,7 @@ export function HistoryTimelineModal() {
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const [pickedDate, setPickedDate] = useState("");
   const [expandedPromptGroups, setExpandedPromptGroups] = useState<Set<string>>(() => new Set());
+  const listRef = useRef<HTMLDivElement | null>(null);
   const {
     buildMenu,
     closeMenu,
@@ -101,6 +105,22 @@ export function HistoryTimelineModal() {
     }
   }
 
+  useEffect(() => {
+    if (!historyTimelineOpen) return;
+    if (query.trim() || modeFilter !== "all" || dateFilter !== "all") {
+      void loadMoreHistory();
+    }
+  }, [dateFilter, historyTimelineOpen, loadMoreHistory, modeFilter, query]);
+
+  function handleScroll() {
+    const node = listRef.current;
+    if (!node || historyLoading || !historyHasMore) return;
+    const distanceToBottom = node.scrollHeight - node.scrollTop - node.clientHeight;
+    if (distanceToBottom < 240) {
+      void loadMoreHistory();
+    }
+  }
+
   if (!historyTimelineOpen) return null;
 
   return (
@@ -146,7 +166,7 @@ export function HistoryTimelineModal() {
           />
         )}
 
-        <div className="max-h-[68vh] overflow-y-auto pr-1">
+        <div ref={listRef} className="max-h-[68vh] overflow-y-auto pr-1" onScroll={handleScroll}>
           {groups.length === 0 ? (
             <div className={`border border-dashed border-black/[0.08] py-12 text-center text-[13px] text-zinc-500 dark:border-white/[0.08] dark:text-zinc-300 ${usesFluentUI ? "rounded-[12px]" : "rounded-[20px]"}`}>
               没有匹配的历史记录
@@ -182,6 +202,12 @@ export function HistoryTimelineModal() {
               ))}
             </div>
           )}
+          {historyLoading ? (
+            <div className="flex items-center justify-center gap-2 py-4 text-[12px] text-zinc-500 dark:text-zinc-300">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              正在加载更多历史...
+            </div>
+          ) : null}
         </div>
       </div>
       {menu ? (

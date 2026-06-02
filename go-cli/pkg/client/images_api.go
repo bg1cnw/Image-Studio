@@ -187,6 +187,7 @@ func RequestImagesAPIWithPartial(
 		outputFormat = OutputFormat
 	}
 	includeExtended := shouldSendExtendedImageParameters(opts.RequestPolicy)
+	useNewAPICompat := opts.ImagesNewAPICompat
 
 	var (
 		url         string
@@ -199,7 +200,7 @@ func RequestImagesAPIWithPartial(
 		if len(paths) == 0 {
 			return ImageResult{}, errors.New("图生图模式需要至少一张源图(请在面板里添加参考图)")
 		}
-		multipartBuf, mpType, err := buildEditsMultipart(paths, opts.MaskB64, opts.Prompt, model, size, quality, outputFormat, opts.NegativePrompt, opts.Seed, opts.RequestPolicy, normalizePartialImages(opts.PartialImages))
+		multipartBuf, mpType, err := buildEditsMultipart(paths, opts.MaskB64, opts.Prompt, model, size, quality, outputFormat, opts.NegativePrompt, opts.Seed, opts.RequestPolicy, normalizePartialImages(opts.PartialImages), useNewAPICompat)
 		if err != nil {
 			return ImageResult{}, err
 		}
@@ -215,11 +216,13 @@ func RequestImagesAPIWithPartial(
 			"quality":       quality,
 			"output_format": outputFormat,
 		}
-		if supportsImagesResponseFormat(model, opts.Mode) {
+		if useNewAPICompat || supportsImagesResponseFormat(model, opts.Mode) {
 			payload["response_format"] = "b64_json"
 		}
-		payload["stream"] = true
-		payload["partial_images"] = normalizePartialImages(opts.PartialImages)
+		if !useNewAPICompat {
+			payload["stream"] = true
+			payload["partial_images"] = normalizePartialImages(opts.PartialImages)
+		}
 		if includeExtended && opts.Seed != 0 {
 			payload["seed"] = opts.Seed
 		}
@@ -474,7 +477,7 @@ func writeDataURLToTemp(dataURL string) (string, error) {
 // 多张源图按 image[] / image[1] / ... 形式串联 —— 不同中转站对多图编辑支持不一,
 // 仅第一张是 OpenAI 官方接受的最小可用形态,其余作为兼容性 best-effort。
 func buildEditsMultipart(
-	paths []string, maskB64, prompt, model, size, quality, outputFormat, negativePrompt string, seed int64, requestPolicy RequestPolicy, partialImages int,
+	paths []string, maskB64, prompt, model, size, quality, outputFormat, negativePrompt string, seed int64, requestPolicy RequestPolicy, partialImages int, useNewAPICompat bool,
 ) (*bytes.Buffer, string, error) {
 	buf := &bytes.Buffer{}
 	w := multipart.NewWriter(buf)
@@ -515,11 +518,13 @@ func buildEditsMultipart(
 	if strings.TrimSpace(outputFormat) != "" {
 		_ = w.WriteField("output_format", outputFormat)
 	}
-	if supportsImagesResponseFormat(model, ModeEdit) {
+	if useNewAPICompat || supportsImagesResponseFormat(model, ModeEdit) {
 		_ = w.WriteField("response_format", "b64_json")
 	}
-	_ = w.WriteField("stream", "true")
-	_ = w.WriteField("partial_images", fmt.Sprintf("%d", partialImages))
+	if !useNewAPICompat {
+		_ = w.WriteField("stream", "true")
+		_ = w.WriteField("partial_images", fmt.Sprintf("%d", partialImages))
+	}
 	if shouldSendExtendedImageParameters(requestPolicy) && seed != 0 {
 		_ = w.WriteField("seed", fmt.Sprintf("%d", seed))
 	}

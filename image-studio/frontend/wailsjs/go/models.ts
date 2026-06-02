@@ -20,6 +20,7 @@ export namespace backend {
 	    proxyURL: string;
 	    apiMode: string;
 	    requestPolicy: string;
+	    imagesNewAPICompat: boolean;
 	    noPromptRevision: boolean;
 	    concurrencyLimit: number;
 	    partialImages: number;
@@ -50,6 +51,7 @@ export namespace backend {
 	        this.proxyURL = source["proxyURL"];
 	        this.apiMode = source["apiMode"];
 	        this.requestPolicy = source["requestPolicy"];
+	        this.imagesNewAPICompat = source["imagesNewAPICompat"];
 	        this.noPromptRevision = source["noPromptRevision"];
 	        this.concurrencyLimit = source["concurrencyLimit"];
 	        this.partialImages = source["partialImages"];

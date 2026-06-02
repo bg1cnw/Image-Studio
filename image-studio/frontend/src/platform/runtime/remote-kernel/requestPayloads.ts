@@ -6,6 +6,7 @@ import {
   buildResponsesPayload as buildSharedResponsesPayload,
   normalizePartialImages,
   shouldSendExtendedImageParameters,
+  shouldUseImagesNewAPICompat,
   supportsImagesResponseFormat,
 } from "../../../../../../shared/kernel/requestModel.js";
 import { normalizeBaseURL, normalizeImageModel } from "./common.ts";
@@ -33,6 +34,7 @@ export async function buildImagesRequestBody(
   const outputFormat = request.payload.outputFormat || "png";
   const includeExtended = shouldSendExtendedImageParameters(request.payload.requestPolicy);
   const partialImages = request.payload.disablePreview ? 0 : normalizePartialImages(request.payload.partialImages);
+  const useNewAPICompat = shouldUseImagesNewAPICompat(request.payload);
 
   if (mode === "edit") {
     if (sourceDataURLs.length === 0) {
@@ -57,11 +59,13 @@ export async function buildImagesRequestBody(
     form.append("size", size);
     form.append("quality", quality);
     form.append("output_format", outputFormat);
-    if (supportsImagesResponseFormat(imageModel, mode)) {
+    if (useNewAPICompat || supportsImagesResponseFormat(imageModel, mode)) {
       form.append("response_format", "b64_json");
     }
-    form.append("stream", "true");
-    form.append("partial_images", String(partialImages));
+    if (!useNewAPICompat) {
+      form.append("stream", "true");
+      form.append("partial_images", String(partialImages));
+    }
     if (includeExtended && request.payload.seed) form.append("seed", String(request.payload.seed));
     if (includeExtended && request.payload.negativePrompt.trim()) form.append("negative_prompt", request.payload.negativePrompt.trim());
     return { url: `${baseURL}/v1/images/edits`, body: form };
@@ -75,11 +79,13 @@ export async function buildImagesRequestBody(
     quality,
     output_format: outputFormat,
   };
-  if (supportsImagesResponseFormat(imageModel, mode)) {
+  if (useNewAPICompat || supportsImagesResponseFormat(imageModel, mode)) {
     payload.response_format = "b64_json";
   }
-  payload.stream = true;
-  payload.partial_images = partialImages;
+  if (!useNewAPICompat) {
+    payload.stream = true;
+    payload.partial_images = partialImages;
+  }
   if (includeExtended && request.payload.seed) payload.seed = request.payload.seed;
   if (includeExtended && request.payload.negativePrompt.trim()) payload.negative_prompt = request.payload.negativePrompt.trim();
   return {

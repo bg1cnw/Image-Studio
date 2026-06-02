@@ -142,6 +142,7 @@ async function startRemoteJob(options: GenerateOptionsLike): Promise<JobStartedL
       const result = await runRemoteImageJob({ payload: {
         ...options,
         requestPolicy: normalizeRequestPolicy(options.requestPolicy),
+        imagesNewAPICompat: options.imagesNewAPICompat === true,
       }, sourceImages: options.sourceImages }, {
         signal: controller.signal,
         onLog: (line) => emitLocalEvent(`log:${jobId}`, line),

@@ -1,7 +1,7 @@
 import { Suspense, lazy, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown, ChevronRight, Clock3, CopyPlus, Filter, GalleryVerticalEnd,
-  Image as ImageIcon, ListFilter, RotateCcw, Search, Settings2, Split, Trash2,
+  Image as ImageIcon, ListFilter, Loader2, RotateCcw, Search, Settings2, Split, Trash2,
 } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
 import type { HistoryItem, Mode } from "../../types/domain";
@@ -146,6 +146,7 @@ export function HistoryRail() {
           generateCount={generateCount}
           history={history}
           historyHasMore={historyHasMore}
+          historyLoading={historyLoading}
           historyFiltersActive={historyFiltersActive}
           historyRailCollapsed={historyRailCollapsed}
           isTestingKey={isTestingKey}
@@ -346,6 +347,14 @@ export function HistoryRail() {
               })}
             </div>
           )}
+
+          {historyLoading ? (
+            <div className="android-history-empty">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <strong>正在加载更多历史</strong>
+              <span>稍等一下，旧记录正在补齐。</span>
+            </div>
+          ) : null}
 
           {historyHasMore || promptEntries.length > androidHistoryEntries.length ? (
             <button type="button" className="android-history-more" onClick={openHistoryTimeline}>
@@ -570,38 +579,48 @@ export function HistoryRail() {
           {q || modeF !== "all" || dateF !== "all" ? "没有匹配项" : "还没有结果"}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2.5">
-          {visibleDesktopEntries.map((entry) => {
-            if (entry.kind === "group") {
+        <>
+          <div className="grid grid-cols-2 gap-2.5">
+            {visibleDesktopEntries.map((entry) => {
+              if (entry.kind === "group") {
+                return (
+                  <HistoryPromptGroupCard
+                    key={entry.key}
+                    group={entry.group}
+                    currentItemId={currentImage?.id ?? null}
+                    compareItemId={compareB?.id ?? null}
+                    onSelect={selectCurrent}
+                    onToggleCompare={(next) => setCompareB(next)}
+                    onOpenMenu={(item, x, y) => openMenu(item, x, y)}
+                    onOpenGroup={() => setActivePromptGroup(entry.group)}
+                  />
+                );
+              }
+              const h = entry.item;
               return (
-                <HistoryPromptGroupCard
-                  key={entry.key}
-                  group={entry.group}
-                  currentItemId={currentImage?.id ?? null}
-                  compareItemId={compareB?.id ?? null}
+                <HistoryTile
+                  key={h.id}
+                  item={h}
+                  isCurrent={currentImage?.id === h.id}
+                  isCompare={compareB?.id === h.id}
                   onSelect={selectCurrent}
                   onToggleCompare={(next) => setCompareB(next)}
-                  onOpenMenu={(item, x, y) => openMenu(item, x, y)}
-                  onOpenGroup={() => setActivePromptGroup(entry.group)}
+                  onReuse={reuseAsSource}
+                  onDelete={deleteHistoryItem}
+                  onOpenMenu={(x, y) => openMenu(h, x, y)}
                 />
               );
-            }
-            const h = entry.item;
-            return (
-              <HistoryTile
-                key={h.id}
-                item={h}
-                isCurrent={currentImage?.id === h.id}
-                isCompare={compareB?.id === h.id}
-                onSelect={selectCurrent}
-                onToggleCompare={(next) => setCompareB(next)}
-                onReuse={reuseAsSource}
-                onDelete={deleteHistoryItem}
-                onOpenMenu={(x, y) => openMenu(h, x, y)}
-              />
-            );
-          })}
-        </div>
+            })}
+          </div>
+          {historyLoading ? (
+            <div className="platform-card border border-black/[0.05] bg-white/70 px-3 py-3 text-center text-[12px] text-zinc-500 shadow-[var(--shadow-card)] dark:border-white/[0.06] dark:bg-white/[0.03] dark:text-zinc-300">
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                正在加载更多历史...
+              </span>
+            </div>
+          ) : null}
+        </>
       )}
 
       {menu && <ContextMenu x={menu.x} y={menu.y} items={buildMenu(menu.item)} onClose={closeMenu} />}

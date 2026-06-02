@@ -349,6 +349,56 @@ test("runRemoteImageJob emits Images API stream partial image previews", async (
   });
 });
 
+test("runRemoteImageJob uses NewAPI images compat mode without stream fields", async () => {
+  let captured = null;
+  await withPatchedGlobals(async () => {
+    globalThis.fetch = async (url, init) => {
+      captured = {
+        url: String(url),
+        body: JSON.parse(init.body),
+      };
+      return new Response('{"data":[{"b64_json":"img-data","revised_prompt":"img-rev"}]}', {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    };
+  }, async () => {
+    const kernel = await loadRemoteKernel();
+    const result = await kernel.runRemoteImageJob(
+      {
+        payload: {
+          apiKey: "key",
+          mode: "generate",
+          prompt: "bird",
+          size: "1024x1024",
+          quality: "medium",
+          outputFormat: "png",
+          imagePaths: [],
+          imagePath: "",
+          maskB64: "",
+          seed: 0,
+          negativePrompt: "",
+          baseURL: "https://upstream.example",
+          textModelID: "",
+          imageModelID: "gpt-image-2",
+          apiMode: "images",
+          requestPolicy: "openai",
+          imagesNewAPICompat: true,
+          noPromptRevision: false,
+          partialImages: 3,
+        },
+      },
+      { signal: new AbortController().signal },
+    );
+    assert.equal(captured.url, "https://upstream.example/v1/images/generations");
+    assert.equal(captured.body.response_format, "b64_json");
+    assert.equal("stream" in captured.body, false);
+    assert.equal("partial_images" in captured.body, false);
+    assert.equal(result.imageB64, "img-data");
+    assert.equal(result.revisedPrompt, "img-rev");
+  });
+});
+
 test("runRemoteImageJob sends Responses API mask as input_image_mask data URL", async () => {
   let captured = null;
   await withPatchedGlobals(async () => {

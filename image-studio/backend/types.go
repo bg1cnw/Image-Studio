@@ -36,6 +36,9 @@ type GenerateOptions struct {
 	ImageModelID   string `json:"imageModelID"`   // overrides the default image model
 	APIMode        string `json:"apiMode"`        // "responses" (default) | "images"
 	RequestPolicy  string `json:"requestPolicy"`  // "openai" (default) | "compat"
+	// ImagesNewAPICompat 开启后仅影响 Images API 请求:
+	// 强制使用 b64_json,并关闭 stream/partial_images,用于兼容部分 NewAPI 中转。
+	ImagesNewAPICompat bool `json:"imagesNewAPICompat,omitempty"`
 	ProxyMode      string `json:"proxyMode"`      // "none" | "system" (default) | "custom"
 	ProxyURL       string `json:"proxyURL"`       // http(s) proxy URL when ProxyMode == "custom"
 	// NoPromptRevision is kept for backward compatibility; Responses API

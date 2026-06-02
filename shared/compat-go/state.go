@@ -40,6 +40,7 @@ type UpstreamProfile struct {
 	Name             string `json:"name"`
 	APIMode          string `json:"apiMode"`
 	RequestPolicy    string `json:"requestPolicy"`
+	ImagesNewAPICompat bool   `json:"imagesNewAPICompat,omitempty"`
 	BaseURL          string `json:"baseURL"`
 	TextModelID      string `json:"textModelID"`
 	ImageModelID     string `json:"imageModelID"`

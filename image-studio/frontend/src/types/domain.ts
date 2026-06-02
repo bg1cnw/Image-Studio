@@ -19,6 +19,7 @@ export interface UpstreamProfile {
   name: string;
   apiMode: APIMode;
   requestPolicy: RequestPolicy;
+  imagesNewAPICompat?: boolean;
   baseURL: string;
   textModelID: string;
   imageModelID: string;

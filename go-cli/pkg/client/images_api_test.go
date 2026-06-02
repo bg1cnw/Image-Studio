@@ -74,6 +74,7 @@ func TestBuildEditsMultipartSetsMaskMimeType(t *testing.T) {
 		0,
 		RequestPolicyOpenAI,
 		DefaultPartialImages,
+		false,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -125,6 +126,7 @@ func TestBuildEditsMultipartOmitsMaskWhenEmpty(t *testing.T) {
 		0,
 		RequestPolicyOpenAI,
 		DefaultPartialImages,
+		false,
 	)
 	if err != nil {
 		t.Fatal(err)

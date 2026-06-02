@@ -28,6 +28,7 @@ export function createProfileActions(store: StateAdapter) {
       apiMode: APIMode;
       baseURL?: string;
       requestPolicy?: RequestPolicy;
+      imagesNewAPICompat?: boolean;
       textModelID?: string;
       imageModelID?: string;
       concurrencyLimit?: number;
@@ -41,6 +42,7 @@ export function createProfileActions(store: StateAdapter) {
         name: input.name?.trim() || nextDefaultProfileName(list),
         apiMode: input.apiMode,
         requestPolicy: input.requestPolicy ?? "openai",
+        imagesNewAPICompat: input.imagesNewAPICompat === true,
         baseURL: cleanBaseURL(input.baseURL ?? ""),
         textModelID: (input.textModelID ?? "").trim(),
         imageModelID: (input.imageModelID ?? "").trim(),
@@ -72,6 +74,7 @@ export function createProfileActions(store: StateAdapter) {
         name: patch.name !== undefined ? patch.name.trim() : current.name,
         apiMode: patch.apiMode ?? current.apiMode,
         requestPolicy: patch.requestPolicy ?? current.requestPolicy,
+        imagesNewAPICompat: patch.imagesNewAPICompat ?? current.imagesNewAPICompat ?? false,
         baseURL: patch.baseURL !== undefined ? cleanBaseURL(patch.baseURL) : current.baseURL,
         textModelID: patch.textModelID !== undefined ? patch.textModelID.trim() : current.textModelID,
         imageModelID: patch.imageModelID !== undefined ? patch.imageModelID.trim() : current.imageModelID,
@@ -93,6 +96,7 @@ export function createProfileActions(store: StateAdapter) {
         store.setState({
           apiMode: next.apiMode,
           requestPolicy: next.requestPolicy,
+          imagesNewAPICompat: next.imagesNewAPICompat ?? false,
           baseURL: next.baseURL,
           textModelID: next.textModelID,
           imageModelID: next.imageModelID,
@@ -128,6 +132,7 @@ export function createProfileActions(store: StateAdapter) {
             imageModelID: "",
             apiMode: "responses",
             requestPolicy: "openai",
+            imagesNewAPICompat: false,
             upstreamModalOpen: false,
             settingsOpen: true,
             upstreamReturnTarget: "settings",
@@ -165,6 +170,7 @@ export function createProfileActions(store: StateAdapter) {
         activeProfileId: id,
         apiMode: profile.apiMode,
         requestPolicy: profile.requestPolicy,
+        imagesNewAPICompat: profile.imagesNewAPICompat ?? false,
         baseURL: profile.baseURL,
         textModelID: profile.textModelID,
         imageModelID: profile.imageModelID,
