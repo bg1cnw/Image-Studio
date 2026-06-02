@@ -138,7 +138,7 @@ export function FAQModal({ open, onClose }: { open: boolean; onClose: () => void
               <li>历史记录元数据:本地 IndexedDB 数据库</li>
               <li>生成的图片 PNG:<code>{platformOutputRootLabel()}/images/</code></li>
               <li>导入的源图:系统 config 目录下的 <code>image-studio/imports/</code>(内部 scratch,与输出目录解耦)</li>
-              <li>原始上游响应:输出根目录的 <code>log/</code> 下(<code>sse-response-*.txt</code> 或 <code>images-response-*.json</code>,排错时用)</li>
+              <li>原始上游响应:输出根目录的 <code>log/</code> 下(<code>sse-response-*.txt</code> 或 <code>images-response-*.json</code>)；默认退出应用会清理，在「设置 → 日志保留」开启后会保留。</li>
             </ul>
           </div>
         </details>

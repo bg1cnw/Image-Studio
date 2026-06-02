@@ -12,6 +12,7 @@ import {
   SetStoredAPIKey,
   RegisterMediaAsset,
   RegisterImportedImageAsset,
+  SetKeepLogsEnabled,
   SetOutputDir,
   probeCurrentUpstream,
   setKernelRuntimeMode,
@@ -222,6 +223,7 @@ function launchQueuedLoopJobs(controller: LoopRunController): void {
 }
 
 const SAVE_PROMPT_SUPPRESSED_KEY = "gptcodex.savePromptSuppressed";
+const KEEP_LOGS_KEY = "gptcodex.keepLogs";
 const INITIAL_HISTORY_LOAD = 18;
 const HISTORY_MEDIA_HYDRATE_CONCURRENCY = 4;
 
@@ -239,6 +241,23 @@ function writeSavePromptSuppressed(value: boolean): void {
   try {
     if (value) localStorage.setItem(SAVE_PROMPT_SUPPRESSED_KEY, "1");
     else localStorage.removeItem(SAVE_PROMPT_SUPPRESSED_KEY);
+  } catch {
+    // localStorage can be unavailable in tests/previews.
+  }
+}
+
+function readKeepLogs(): boolean {
+  try {
+    return localStorage.getItem(KEEP_LOGS_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeKeepLogs(value: boolean): void {
+  try {
+    if (value) localStorage.setItem(KEEP_LOGS_KEY, "1");
+    else localStorage.removeItem(KEEP_LOGS_KEY);
   } catch {
     // localStorage can be unavailable in tests/previews.
   }
@@ -435,6 +454,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   savePromptItem: null,
   savePromptQueue: [],
   savePromptSuppressed: readSavePromptSuppressed(),
+  keepLogs: readKeepLogs(),
   promptHistory: [],
   batchCount: 1,
   loopGeneration: defaultLoopGenerationConfig(),
@@ -540,6 +560,11 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   setSavePromptSuppressed: (value) => {
     writeSavePromptSuppressed(value);
     set(value ? { savePromptSuppressed: true, savePromptQueue: [] } : { savePromptSuppressed: false });
+  },
+  setKeepLogs: async (value) => {
+    writeKeepLogs(value);
+    set({ keepLogs: value });
+    await SetKeepLogsEnabled(value).catch(() => undefined);
   },
   workspaces: [],
   activeWorkspaceId: "",
@@ -895,6 +920,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     if (previewScenario === "mac-workspace") {
       const workspaceId = genId();
       const preview = buildMacWorkspacePreview(workspaceId);
+      await SetKeepLogsEnabled(readKeepLogs()).catch(() => undefined);
       applyTheme("dark");
       document.documentElement.style.setProperty("--font-scale", "1");
       setKernelRuntimeMode("auto");
@@ -980,6 +1006,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         savePromptItem: null,
         savePromptQueue: [],
         savePromptSuppressed: readSavePromptSuppressed(),
+        keepLogs: readKeepLogs(),
       });
       return;
     }
@@ -1018,6 +1045,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       const v = localStorage.getItem("gptcodex.kernelRuntimeMode");
       if (v === "auto" || v === "local" || v === "remote") kernelRuntimeMode = v;
     } catch {}
+    const keepLogs = readKeepLogs();
     const noPromptRevision = true;
     const proxyConfig = loadProxyConfig();
     let outputFormat: OutputFormatValue = "png";
@@ -1132,6 +1160,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     applyTheme(theme);
     document.documentElement.style.setProperty("--font-scale", String(fontScale));
     setKernelRuntimeMode(kernelRuntimeMode);
+    await SetKeepLogsEnabled(keepLogs).catch(() => undefined);
     // 用户自定义输出目录 —— 推给 backend,并记为可信输出根。
     const trustedRoots = new Set(loadTrustedOutputRoots());
     try {
@@ -1200,6 +1229,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       savePromptItem: null,
       savePromptQueue: [],
       savePromptSuppressed: readSavePromptSuppressed(),
+      keepLogs,
     });
     enableCompatibilityExport();
     void backfillHistoryPreviewRefs(items);

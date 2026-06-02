@@ -33,20 +33,21 @@ type Settings struct {
 	KernelRuntimeMode    string   `json:"kernelRuntimeMode,omitempty"`
 	TrustedOutputRoots   []string `json:"trustedOutputRoots,omitempty"`
 	SavePromptSuppressed bool     `json:"savePromptSuppressed,omitempty"`
+	KeepLogs             bool     `json:"keepLogs,omitempty"`
 }
 
 type UpstreamProfile struct {
-	ID               string `json:"id"`
-	Name             string `json:"name"`
-	APIMode          string `json:"apiMode"`
-	RequestPolicy    string `json:"requestPolicy"`
+	ID                 string `json:"id"`
+	Name               string `json:"name"`
+	APIMode            string `json:"apiMode"`
+	RequestPolicy      string `json:"requestPolicy"`
 	ImagesNewAPICompat bool   `json:"imagesNewAPICompat,omitempty"`
-	BaseURL          string `json:"baseURL"`
-	TextModelID      string `json:"textModelID"`
-	ImageModelID     string `json:"imageModelID"`
-	ConcurrencyLimit int    `json:"concurrencyLimit"`
-	CreatedAt        int64  `json:"createdAt"`
-	LastUsedAt       int64  `json:"lastUsedAt,omitempty"`
+	BaseURL            string `json:"baseURL"`
+	TextModelID        string `json:"textModelID"`
+	ImageModelID       string `json:"imageModelID"`
+	ConcurrencyLimit   int    `json:"concurrencyLimit"`
+	CreatedAt          int64  `json:"createdAt"`
+	LastUsedAt         int64  `json:"lastUsedAt,omitempty"`
 }
 
 type Preset struct {

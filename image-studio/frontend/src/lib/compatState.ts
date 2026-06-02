@@ -42,6 +42,7 @@ export type CompatibilityState = {
     kernelRuntimeMode?: KernelRuntimeMode;
     trustedOutputRoots?: string[];
     savePromptSuppressed?: boolean;
+    keepLogs?: boolean;
   };
   profiles: UpstreamProfile[];
   activeProfileId: string;
@@ -62,6 +63,7 @@ export type CompatibilityExportInput = {
   presets: Preset[];
   customAspectRatios: CustomAspectRatio[];
   kernelRuntimeMode: KernelRuntimeMode;
+  keepLogs: boolean;
 };
 
 let exportTimer: ReturnType<typeof setTimeout> | null = null;
@@ -107,6 +109,7 @@ export function compatibilityExportFingerprint(input: CompatibilityExportInput):
     presets: input.presets,
     customAspectRatios: input.customAspectRatios,
     kernelRuntimeMode: input.kernelRuntimeMode,
+    keepLogs: input.keepLogs,
     outputDir: readLocalStorageString("gptcodex.outputDir"),
     trustedOutputRoots: loadTrustedOutputRoots(),
     savePromptSuppressed: readLocalStorageString("gptcodex.savePromptSuppressed") === "1",
@@ -133,6 +136,7 @@ function buildCompatibilityState(input: CompatibilityExportInput): Compatibility
       kernelRuntimeMode: normalizeKernelRuntimeMode(input.kernelRuntimeMode),
       trustedOutputRoots: loadTrustedOutputRoots(),
       savePromptSuppressed: readLocalStorageString("gptcodex.savePromptSuppressed") === "1",
+      keepLogs: input.keepLogs === true,
     },
     profiles: normalizeProfiles(input.profiles),
     activeProfileId: input.activeProfileId || "",
@@ -163,6 +167,8 @@ function applyCompatibilityLocalStorage(state: CompatibilityState): void {
   writeLocalStorageJSON("gptcodex.trustedOutputRoots", cleanStringList(settings.trustedOutputRoots ?? [], 100));
   if (settings.savePromptSuppressed) writeLocalStorageString("gptcodex.savePromptSuppressed", "1");
   else removeLocalStorage("gptcodex.savePromptSuppressed");
+  if (settings.keepLogs) writeLocalStorageString("gptcodex.keepLogs", "1");
+  else removeLocalStorage("gptcodex.keepLogs");
 }
 
 async function persistCompatibilityHistory(state: CompatibilityState): Promise<void> {
@@ -215,6 +221,7 @@ function normalizeSettings(raw: unknown): CompatibilityState["settings"] {
     kernelRuntimeMode: normalizeKernelRuntimeMode(source.kernelRuntimeMode),
     trustedOutputRoots: cleanStringList(source.trustedOutputRoots ?? [], 100),
     savePromptSuppressed: source.savePromptSuppressed === true,
+    keepLogs: source.keepLogs === true,
   };
 }
 
@@ -296,6 +303,7 @@ function cloneExportInput(input: CompatibilityExportInput): CompatibilityExportI
     presets: input.presets.map((preset) => ({ ...preset })),
     customAspectRatios: input.customAspectRatios.map((ratio) => ({ ...ratio })),
     kernelRuntimeMode: input.kernelRuntimeMode,
+    keepLogs: input.keepLogs,
   };
 }
 

@@ -38,6 +38,7 @@ type Service struct {
 	jobs             map[string]*job
 	runningByAPIMode map[string]int
 	outputDir        string // 用户自定义输出目录;空时回退到 defaultOutputDir()
+	keepLogs         bool
 	apiKeys          apiKeyStore
 
 	trustedOutputRoots map[string]struct{}
@@ -64,6 +65,7 @@ func NewService() *Service {
 // Startup is wired into wails.Options OnStartup; persists the runtime context.
 func (s *Service) Startup(ctx context.Context) {
 	s.ctx = ctx
+	s.loadCompatibilitySettings()
 }
 
 // resolvedOutputDir 返回当前生效的输出目录:用户自定义优先,否则默认。
@@ -281,24 +283,24 @@ func (s *Service) runJob(ctx context.Context, jobID string, opts GenerateOptions
 	}
 
 	clientOpts := client.Options{
-		APIKey:           opts.APIKey,
-		Prompt:           opts.Prompt,
-		Mode:             mode,
-		Size:             opts.Size,
-		Quality:          opts.Quality,
-		OutputFormat:     opts.OutputFormat,
-		MaskB64:          opts.MaskB64,
-		Seed:             opts.Seed,
-		NegativePrompt:   opts.NegativePrompt,
-		BaseURL:          opts.BaseURL,
-		TextModelID:      opts.TextModelID,
-		ImageModelID:     opts.ImageModelID,
-		Proxy:            client.ProxyConfig{Mode: opts.ProxyMode, URL: opts.ProxyURL},
-		APIMode:          apiMode,
-		RequestPolicy:    client.RequestPolicy(strings.TrimSpace(opts.RequestPolicy)),
+		APIKey:             opts.APIKey,
+		Prompt:             opts.Prompt,
+		Mode:               mode,
+		Size:               opts.Size,
+		Quality:            opts.Quality,
+		OutputFormat:       opts.OutputFormat,
+		MaskB64:            opts.MaskB64,
+		Seed:               opts.Seed,
+		NegativePrompt:     opts.NegativePrompt,
+		BaseURL:            opts.BaseURL,
+		TextModelID:        opts.TextModelID,
+		ImageModelID:       opts.ImageModelID,
+		Proxy:              client.ProxyConfig{Mode: opts.ProxyMode, URL: opts.ProxyURL},
+		APIMode:            apiMode,
+		RequestPolicy:      client.RequestPolicy(strings.TrimSpace(opts.RequestPolicy)),
 		ImagesNewAPICompat: opts.ImagesNewAPICompat,
-		NoPromptRevision: opts.NoPromptRevision,
-		PartialImages:    client.DefaultPartialImages,
+		NoPromptRevision:   opts.NoPromptRevision,
+		PartialImages:      client.DefaultPartialImages,
 	}
 	if opts.PartialImages > 0 {
 		clientOpts.PartialImages = opts.PartialImages

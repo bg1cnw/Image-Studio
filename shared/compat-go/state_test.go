@@ -36,6 +36,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 			OutputDir:            "/tmp/images",
 			PromptHistory:        []string{"cat"},
 			SavePromptSuppressed: true,
+			KeepLogs:             true,
 		},
 		Profiles: []UpstreamProfile{{
 			ID:            "p1",
@@ -67,7 +68,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if loaded.Client != "test" || loaded.ActiveProfile != "p1" || loaded.Settings.OutputDir != "/tmp/images" || !loaded.Settings.SavePromptSuppressed {
+	if loaded.Client != "test" || loaded.ActiveProfile != "p1" || loaded.Settings.OutputDir != "/tmp/images" || !loaded.Settings.SavePromptSuppressed || !loaded.Settings.KeepLogs {
 		t.Fatalf("unexpected state: %#v", loaded)
 	}
 	if len(loaded.Profiles) != 1 || loaded.Profiles[0].BaseURL != "https://upstream.example" {

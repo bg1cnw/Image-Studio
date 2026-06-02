@@ -564,6 +564,13 @@ export function RegisterTrustedOutputDir(root: string): Promise<void> {
   return Promise.resolve();
 }
 
+export function SetKeepLogsEnabled(enabled: boolean): Promise<void> {
+  if (hasServiceMethod("SetKeepLogsEnabled")) {
+    return invokeService<void>(unsupportedMessage, "SetKeepLogsEnabled", enabled);
+  }
+  return Promise.resolve();
+}
+
 export function SetOutputDir(path: string): Promise<void> {
   if (hasServiceMethod("SetOutputDir")) {
     return invokeService<void>(unsupportedMessage, "SetOutputDir", path);

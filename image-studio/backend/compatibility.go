@@ -35,5 +35,9 @@ func (s *Service) SaveCompatibilityState(state compat.State) error {
 	if state.UpdatedAt <= 0 {
 		state.UpdatedAt = time.Now().UnixMilli()
 	}
-	return compat.Save(path, state)
+	if err := compat.Save(path, state); err != nil {
+		return err
+	}
+	s.syncCompatibilitySettings(state)
+	return nil
 }

@@ -39,6 +39,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
     profiles, activeProfileId, setActiveProfile,
     openUpstreamConfig, testAPIKey, isTestingKey,
     savePromptSuppressed, setSavePromptSuppressed,
+    keepLogs, setKeepLogs,
   } = useStudioStore();
 
   const [outputDir, setOutputDir] = useState("");
@@ -87,6 +88,11 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
     setSavePromptSuppressed(value);
     scheduleCompatibilityExport(useStudioStore.getState());
     pushToast(value ? "已关闭生成后保存提示" : "已开启生成后保存提示", "success");
+  }
+
+  async function updateKeepLogs(value: boolean) {
+    await setKeepLogs(value);
+    pushToast(value ? "已开启日志保留" : "已关闭日志保留，退出应用后会自动清理 log", "success");
   }
 
   function closeSettings() {
@@ -261,6 +267,20 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
             </div>
             <p className="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-300">
               生成完成后询问是否另存到指定位置。
+            </p>
+          </SettingsRow>
+
+          <SettingsRow label="日志保留">
+            <div className={`platform-seg flex flex-wrap gap-1 bg-black/[0.04] p-0.5 ring-1 ring-black/[0.05] dark:bg-white/[0.06] dark:ring-white/[0.06] ${usesFluentUI ? "rounded-[10px]" : "rounded-[18px]"}`}>
+              <SettingsSegButton active={!keepLogs} onClick={() => void updateKeepLogs(false)}>
+                关闭
+              </SettingsSegButton>
+              <SettingsSegButton active={keepLogs} onClick={() => void updateKeepLogs(true)}>
+                开启
+              </SettingsSegButton>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-300">
+              默认关闭。关闭时当前会话仍可查看原始响应，退出应用后会自动清理输出目录中的 log。
             </p>
           </SettingsRow>
 
