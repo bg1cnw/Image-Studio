@@ -31,6 +31,7 @@ type GenerateOptions struct {
 	MaskB64        string `json:"maskB64"`        // optional, phase 3 reservation
 	Seed           int64  `json:"seed"`           // 0 = random
 	NegativePrompt string `json:"negativePrompt"` // optional
+	Moderation     string `json:"moderation"`     // "low" | "auto"
 	BaseURL        string `json:"baseURL"`        // overrides the default upstream URL
 	TextModelID    string `json:"textModelID"`    // overrides the default text model
 	ImageModelID   string `json:"imageModelID"`   // overrides the default image model

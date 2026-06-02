@@ -3,6 +3,7 @@ import type {
   CustomAspectRatio,
   HistoryItem,
   KernelRuntimeMode,
+  ModerationValue,
   OutputFormatValue,
   Preset,
   ProxyMode,
@@ -35,6 +36,7 @@ export type CompatibilityState = {
     theme?: ThemeMode;
     fontScale?: number;
     outputFormat?: OutputFormatValue;
+    moderation?: ModerationValue;
     outputDir?: string;
     promptHistory?: string[];
     presets?: Preset[];
@@ -59,6 +61,7 @@ export type CompatibilityExportInput = {
   theme: ThemeMode;
   fontScale: number;
   outputFormat: OutputFormatValue;
+  moderation: ModerationValue;
   promptHistory: string[];
   presets: Preset[];
   customAspectRatios: CustomAspectRatio[];
@@ -105,6 +108,7 @@ export function compatibilityExportFingerprint(input: CompatibilityExportInput):
     theme: input.theme,
     fontScale: input.fontScale,
     outputFormat: input.outputFormat,
+    moderation: input.moderation,
     promptHistory: input.promptHistory,
     presets: input.presets,
     customAspectRatios: input.customAspectRatios,
@@ -129,6 +133,7 @@ function buildCompatibilityState(input: CompatibilityExportInput): Compatibility
       theme: normalizeTheme(input.theme),
       fontScale: normalizeFontScale(input.fontScale),
       outputFormat: normalizeOutputFormat(input.outputFormat),
+      moderation: normalizeModeration(input.moderation),
       outputDir: readLocalStorageString("gptcodex.outputDir"),
       promptHistory: cleanStringList(input.promptHistory, 50),
       presets: normalizePresets(input.presets),
@@ -158,6 +163,7 @@ function applyCompatibilityLocalStorage(state: CompatibilityState): void {
   if (settings.theme) writeLocalStorageString("gptcodex.theme", normalizeTheme(settings.theme));
   if (typeof settings.fontScale === "number") writeLocalStorageString("gptcodex.fontScale", String(normalizeFontScale(settings.fontScale)));
   if (settings.outputFormat) writeLocalStorageString("gptcodex.outputFormat", normalizeOutputFormat(settings.outputFormat));
+  if (settings.moderation) writeLocalStorageString("gptcodex.moderation", normalizeModeration(settings.moderation));
   if (settings.outputDir?.trim()) writeLocalStorageString("gptcodex.outputDir", settings.outputDir.trim());
   else removeLocalStorage("gptcodex.outputDir");
   if (settings.kernelRuntimeMode) writeLocalStorageString("gptcodex.kernelRuntimeMode", normalizeKernelRuntimeMode(settings.kernelRuntimeMode));
@@ -214,6 +220,7 @@ function normalizeSettings(raw: unknown): CompatibilityState["settings"] {
     theme: normalizeTheme(source.theme),
     fontScale: normalizeFontScale(source.fontScale),
     outputFormat: normalizeOutputFormat(source.outputFormat),
+    moderation: normalizeModeration(source.moderation),
     outputDir: typeof source.outputDir === "string" ? source.outputDir : "",
     promptHistory: cleanStringList(source.promptHistory ?? [], 50),
     presets: normalizePresets(source.presets ?? []),
@@ -258,6 +265,7 @@ function toSerializableHistoryItem(raw: unknown): HistoryItem | null {
     createdAt,
     seed: numberOrUndefined(item.seed),
     negativePrompt: stringOrUndefined(item.negativePrompt),
+    moderation: moderationOrUndefined(item.moderation),
     styleTag: stringOrUndefined(item.styleTag),
     batchIndex: numberOrUndefined(item.batchIndex),
     elapsedSec: numberOrUndefined(item.elapsedSec),
@@ -282,6 +290,7 @@ function historyFingerprint(item: HistoryItem) {
     createdAt: item.createdAt,
     seed: item.seed,
     negativePrompt: item.negativePrompt,
+    moderation: item.moderation,
     styleTag: item.styleTag,
     batchIndex: item.batchIndex,
     elapsedSec: item.elapsedSec,
@@ -299,6 +308,7 @@ function cloneExportInput(input: CompatibilityExportInput): CompatibilityExportI
     theme: input.theme,
     fontScale: input.fontScale,
     outputFormat: input.outputFormat,
+    moderation: input.moderation,
     promptHistory: [...input.promptHistory],
     presets: input.presets.map((preset) => ({ ...preset })),
     customAspectRatios: input.customAspectRatios.map((ratio) => ({ ...ratio })),
@@ -323,6 +333,7 @@ function normalizePresets(raw: unknown): Preset[] {
       quality: normalizeQuality(source.quality),
       outputFormat: normalizeOutputFormat(source.outputFormat),
       negativePrompt: typeof source.negativePrompt === "string" ? source.negativePrompt : "",
+      moderation: source.moderation === undefined ? undefined : normalizeModeration(source.moderation),
       kernelRuntimeMode: normalizeKernelRuntimeMode(source.kernelRuntimeMode),
       batchCount: normalizeBatchCount(source.batchCount),
     });
@@ -340,6 +351,10 @@ function normalizeKernelRuntimeMode(value: unknown): KernelRuntimeMode {
 
 function normalizeOutputFormat(value: unknown): OutputFormatValue {
   return value === "jpeg" || value === "webp" || value === "png" ? value : "png";
+}
+
+function normalizeModeration(value: unknown): ModerationValue {
+  return value === "auto" ? "auto" : "low";
 }
 
 function normalizeSize(value: unknown): HistoryItem["size"] {
@@ -373,6 +388,10 @@ function stringOrUndefined(value: unknown): string | undefined {
 
 function numberOrUndefined(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function moderationOrUndefined(value: unknown): ModerationValue | undefined {
+  return value === "auto" || value === "low" ? value : undefined;
 }
 
 function readLocalMarker(): number {

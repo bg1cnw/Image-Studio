@@ -186,6 +186,7 @@ export function saveActiveWorkspaceSnapshot(s: StudioState): Workspace[] {
       quality: s.quality,
       outputFormat: s.outputFormat,
       seed: s.seed,
+      moderation: s.moderation,
       batchCount: s.batchCount,
       loopGeneration: normalizeLoopGenerationConfig(s.loopGeneration),
       sources: s.sources,

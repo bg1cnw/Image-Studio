@@ -34,6 +34,7 @@ func BuildPayload(opts Options) ([]byte, error) {
 	if outputFormat == "" {
 		outputFormat = OutputFormat
 	}
+	moderation := normalizeModeration(opts.Moderation)
 	includeExtended := shouldSendExtendedImageParameters(opts.RequestPolicy)
 
 	content := []map[string]any{
@@ -62,8 +63,10 @@ func BuildPayload(opts Options) ([]byte, error) {
 		"size":           size,
 		"quality":        quality,
 		"output_format":  outputFormat,
-		"moderation":     "low",
 		"partial_images": 0,
+	}
+	if supportsImageModeration(imgModel) {
+		tool["moderation"] = moderation
 	}
 	if opts.MaskB64 != "" {
 		tool["input_image_mask"] = map[string]any{
@@ -117,6 +120,13 @@ func normalizePartialImages(value int) int {
 		return 3
 	}
 	return value
+}
+
+func normalizeModeration(value string) string {
+	if strings.EqualFold(strings.TrimSpace(value), "auto") {
+		return "auto"
+	}
+	return DefaultModeration
 }
 
 var slugRe = regexp.MustCompile(`-{2,}`)

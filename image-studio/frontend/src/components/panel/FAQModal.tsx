@@ -114,7 +114,7 @@ export function FAQModal({ open, onClose }: { open: boolean; onClose: () => void
         </details>
 
         <details className="faq-item">
-          <summary className="faq-summary">蒙版 / 多参考图 / seed 上游会用吗?</summary>
+          <summary className="faq-summary">蒙版 / 多参考图 / seed / moderation 上游会用吗?</summary>
           <div className="faq-content">
             <p>
               这些字段是否发送,取决于当前 profile 里的「参数策略」。默认 `OpenAI 标准` 只发官方公开字段；切到 `兼容中转扩展` 才会额外发送 relay 常见扩展字段。
@@ -123,6 +123,7 @@ export function FAQModal({ open, onClose }: { open: boolean; onClose: () => void
               <li><strong>多参考图</strong>:作为多个 <code>input_image</code> 内容块发送,上游解释方式因模型而异</li>
               <li><strong>蒙版</strong>:Responses 模式按 OpenAI 官方 <code>input_image_mask</code> 发送；Images 模式按标准 multipart <code>mask</code> 文件发送</li>
               <li><strong>seed / negative prompt</strong>:属于 relay 常见扩展字段。只有在 `兼容中转扩展` 策略下才会附带发送，OpenAI 标准模式默认不发</li>
+              <li><strong>moderation</strong>:属于 OpenAI 官方图像字段。当前支持 `low` 和 `auto`，仅在 GPT 图像模型路径上发送</li>
             </ul>
           </div>
         </details>

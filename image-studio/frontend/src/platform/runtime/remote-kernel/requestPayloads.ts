@@ -5,7 +5,9 @@ import {
 import {
   buildResponsesPayload as buildSharedResponsesPayload,
   normalizePartialImages,
+  normalizeModeration,
   shouldSendExtendedImageParameters,
+  supportsImageModeration,
   shouldUseImagesNewAPICompat,
   supportsImagesResponseFormat,
 } from "../../../../../../shared/kernel/requestModel.js";
@@ -32,6 +34,7 @@ export async function buildImagesRequestBody(
   const size = request.payload.size || "1024x1024";
   const quality = request.payload.quality || "auto";
   const outputFormat = request.payload.outputFormat || "png";
+  const moderation = normalizeModeration(request.payload.moderation);
   const includeExtended = shouldSendExtendedImageParameters(request.payload.requestPolicy);
   const partialImages = request.payload.disablePreview ? 0 : normalizePartialImages(request.payload.partialImages);
   const useNewAPICompat = shouldUseImagesNewAPICompat(request.payload);
@@ -59,6 +62,9 @@ export async function buildImagesRequestBody(
     form.append("size", size);
     form.append("quality", quality);
     form.append("output_format", outputFormat);
+    if (supportsImageModeration(imageModel)) {
+      form.append("moderation", moderation);
+    }
     if (useNewAPICompat || supportsImagesResponseFormat(imageModel, mode)) {
       form.append("response_format", "b64_json");
     }
@@ -79,6 +85,9 @@ export async function buildImagesRequestBody(
     quality,
     output_format: outputFormat,
   };
+  if (supportsImageModeration(imageModel)) {
+    payload.moderation = moderation;
+  }
   if (useNewAPICompat || supportsImagesResponseFormat(imageModel, mode)) {
     payload.response_format = "b64_json";
   }

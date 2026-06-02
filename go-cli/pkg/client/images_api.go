@@ -50,6 +50,10 @@ func supportsImagesResponseFormat(model string, mode Mode) bool {
 	return family == "dalle2" || family == "dalle3"
 }
 
+func supportsImageModeration(model string) bool {
+	return classifyImageModel(model) == "gpt-image"
+}
+
 type imagesAPIDatum struct {
 	B64JSON       string `json:"b64_json"`
 	URL           string `json:"url"`
@@ -186,6 +190,7 @@ func RequestImagesAPIWithPartial(
 	if outputFormat == "" {
 		outputFormat = OutputFormat
 	}
+	moderation := normalizeModeration(opts.Moderation)
 	includeExtended := shouldSendExtendedImageParameters(opts.RequestPolicy)
 	useNewAPICompat := opts.ImagesNewAPICompat
 
@@ -200,7 +205,7 @@ func RequestImagesAPIWithPartial(
 		if len(paths) == 0 {
 			return ImageResult{}, errors.New("图生图模式需要至少一张源图(请在面板里添加参考图)")
 		}
-		multipartBuf, mpType, err := buildEditsMultipart(paths, opts.MaskB64, opts.Prompt, model, size, quality, outputFormat, opts.NegativePrompt, opts.Seed, opts.RequestPolicy, normalizePartialImages(opts.PartialImages), useNewAPICompat)
+		multipartBuf, mpType, err := buildEditsMultipart(paths, opts.MaskB64, opts.Prompt, model, size, quality, outputFormat, moderation, opts.NegativePrompt, opts.Seed, opts.RequestPolicy, normalizePartialImages(opts.PartialImages), useNewAPICompat)
 		if err != nil {
 			return ImageResult{}, err
 		}
@@ -215,6 +220,9 @@ func RequestImagesAPIWithPartial(
 			"size":          size,
 			"quality":       quality,
 			"output_format": outputFormat,
+		}
+		if supportsImageModeration(model) {
+			payload["moderation"] = moderation
 		}
 		if useNewAPICompat || supportsImagesResponseFormat(model, opts.Mode) {
 			payload["response_format"] = "b64_json"
@@ -477,7 +485,7 @@ func writeDataURLToTemp(dataURL string) (string, error) {
 // 多张源图按 image[] / image[1] / ... 形式串联 —— 不同中转站对多图编辑支持不一,
 // 仅第一张是 OpenAI 官方接受的最小可用形态,其余作为兼容性 best-effort。
 func buildEditsMultipart(
-	paths []string, maskB64, prompt, model, size, quality, outputFormat, negativePrompt string, seed int64, requestPolicy RequestPolicy, partialImages int, useNewAPICompat bool,
+	paths []string, maskB64, prompt, model, size, quality, outputFormat, moderation, negativePrompt string, seed int64, requestPolicy RequestPolicy, partialImages int, useNewAPICompat bool,
 ) (*bytes.Buffer, string, error) {
 	buf := &bytes.Buffer{}
 	w := multipart.NewWriter(buf)
@@ -517,6 +525,9 @@ func buildEditsMultipart(
 	_ = w.WriteField("quality", quality)
 	if strings.TrimSpace(outputFormat) != "" {
 		_ = w.WriteField("output_format", outputFormat)
+	}
+	if supportsImageModeration(model) {
+		_ = w.WriteField("moderation", moderation)
 	}
 	if useNewAPICompat || supportsImagesResponseFormat(model, ModeEdit) {
 		_ = w.WriteField("response_format", "b64_json")

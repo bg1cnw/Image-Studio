@@ -32,7 +32,7 @@ export function ControlPanel({
   onAndroidSubmitStart?: () => void;
 } = {}) {
   const {
-    apiKey, mode, prompt, negativePrompt, size, quality, seed, styleTag,
+    apiKey, mode, prompt, moderation, negativePrompt, size, quality, seed, styleTag,
     outputFormat, batchCount, loopGeneration,
     sources, currentImage,
     errorMessage, errorRawPath, isRunning, lastPayload, isTestingKey, isOptimizingPrompt,
@@ -81,6 +81,7 @@ export function ControlPanel({
   const advancedSummary = [
     negativePrompt.trim() ? "已填负向提示词" : "无负向限制",
     outputFormat.toUpperCase(),
+    `审核 ${moderation}`,
     seed > 0 ? `Seed ${seed}` : "随机 Seed",
   ].join(" · ");
   const submitLabel = loopGeneration.enabled
@@ -281,6 +282,7 @@ export function ControlPanel({
         <MacAdvancedPanel
           advancedOpen={advancedOpen}
           advancedSummary={advancedSummary}
+          moderation={moderation}
           negativePrompt={negativePrompt}
           outputFormat={outputFormat}
           seed={seed}
@@ -292,6 +294,7 @@ export function ControlPanel({
       ) : (
         <DesktopAdvancedPanel
           advancedOpen={advancedOpen}
+          moderation={moderation}
           negativePrompt={negativePrompt}
           outputFormat={outputFormat}
           seed={seed}

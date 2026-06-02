@@ -38,6 +38,9 @@ func TestBuildPayloadUsesSizeAndQuality(t *testing.T) {
 	if tool["quality"] != "high" {
 		t.Errorf("quality = %v, want high", tool["quality"])
 	}
+	if tool["moderation"] != "low" {
+		t.Errorf("moderation = %v, want low", tool["moderation"])
+	}
 	if tool["model"] != "gpt-image-2" {
 		t.Errorf("model = %v, want gpt-image-2", tool["model"])
 	}
@@ -59,6 +62,36 @@ func TestBuildPayloadUsesSizeAndQuality(t *testing.T) {
 	first := content[0].(map[string]any)
 	if first["type"] != "input_text" || first["text"] != "生成海报" {
 		t.Errorf("input_text = %v", first)
+	}
+}
+
+func TestBuildPayloadAllowsModerationAuto(t *testing.T) {
+	raw, err := BuildPayload(Options{
+		Prompt:     "生成海报",
+		Moderation: "auto",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := mustDecodePayload(t, raw)
+	tool := v["tools"].([]any)[0].(map[string]any)
+	if tool["moderation"] != "auto" {
+		t.Fatalf("moderation = %v, want auto", tool["moderation"])
+	}
+}
+
+func TestBuildPayloadOmitsModerationForUnsupportedModel(t *testing.T) {
+	raw, err := BuildPayload(Options{
+		Prompt:       "生成海报",
+		ImageModelID: "dall-e-3",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := mustDecodePayload(t, raw)
+	tool := v["tools"].([]any)[0].(map[string]any)
+	if _, ok := tool["moderation"]; ok {
+		t.Fatalf("moderation should be omitted for dall-e-3, got %v", tool["moderation"])
 	}
 }
 

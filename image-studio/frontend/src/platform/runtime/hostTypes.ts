@@ -10,6 +10,7 @@ export type GenerateOptionsLike = {
   maskB64: string;
   seed: number;
   negativePrompt: string;
+  moderation: string;
   baseURL: string;
   textModelID: string;
   imageModelID: string;

@@ -239,6 +239,7 @@ export function createMediaActions(store: StateAdapter) {
         quality: state.quality,
         outputFormat: state.outputFormat,
         negativePrompt: state.negativePrompt,
+        moderation: state.moderation,
         batchCount: state.batchCount,
       };
       const next = [...state.presets, preset];
@@ -255,6 +256,7 @@ export function createMediaActions(store: StateAdapter) {
         quality: preset.quality,
         outputFormat: preset.outputFormat ?? store.getState().outputFormat,
         negativePrompt: preset.negativePrompt,
+        moderation: preset.moderation ?? store.getState().moderation,
         batchCount: preset.batchCount,
       });
       store.getState().pushToast(`已应用预设「${preset.name}」`, "success");

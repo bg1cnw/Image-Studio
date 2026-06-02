@@ -18,6 +18,7 @@ export function applyMacWorkspacePreviewToStore(workspaceId = "preview-workspace
     quality: preview.currentImage.quality,
     outputFormat: "png",
     seed: preview.currentImage.seed ?? 3200,
+    moderation: preview.currentImage.moderation ?? "low",
     kernelRuntimeMode: "auto",
     baseURL: preview.profile.baseURL,
     textModelID: preview.profile.textModelID,

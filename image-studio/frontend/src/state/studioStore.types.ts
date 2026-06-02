@@ -5,6 +5,7 @@ import type {
   HistoryItem,
   KernelRuntimeMode,
   LoopGenerationConfig,
+  ModerationValue,
   Mode,
   OutputFormatValue,
   CustomAspectRatio,
@@ -65,6 +66,7 @@ export interface StudioState {
   quality: QualityValue;
   outputFormat: OutputFormatValue;
   seed: number;
+  moderation: ModerationValue;
   kernelRuntimeMode: KernelRuntimeMode;
   baseURL: string;
   textModelID: string;

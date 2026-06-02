@@ -20,6 +20,7 @@ export type RemoteGeneratePayload = {
   maskB64: string;
   seed: number;
   negativePrompt: string;
+  moderation: string;
   baseURL: string;
   textModelID: string;
   imageModelID: string;

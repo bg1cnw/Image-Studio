@@ -1,11 +1,12 @@
 import { Dices, X } from "lucide-react";
-import type { OutputFormatValue } from "../../types/domain";
-import { OUTPUT_FORMAT_OPTIONS } from "../../types/domain";
+import type { ModerationValue, OutputFormatValue } from "../../types/domain";
+import { MODERATION_OPTIONS, OUTPUT_FORMAT_OPTIONS } from "../../types/domain";
 import { Modal } from "../../components/common/Modal";
 import { vibrateForPlatform } from "./bridge";
 
 export function AndroidAdvancedSection({
   advancedOpen,
+  moderation,
   negativePrompt,
   outputFormat,
   seed,
@@ -14,6 +15,7 @@ export function AndroidAdvancedSection({
   surface = "phone",
 }: {
   advancedOpen: boolean;
+  moderation: ModerationValue;
   negativePrompt: string;
   outputFormat: OutputFormatValue;
   seed: number;
@@ -27,7 +29,8 @@ export function AndroidAdvancedSection({
   };
   const negativeState = negativePrompt.trim() ? "已填写" : "未填写";
   const outputFormatLabel = OUTPUT_FORMAT_OPTIONS.find((item) => item.value === outputFormat)?.label ?? outputFormat;
-  const title = surface === "pad" ? "3 项高级设置" : "负向提示词、Seed 与输出格式";
+  const moderationLabel = moderation === "auto" ? "auto" : "low";
+  const title = surface === "pad" ? "4 项高级设置" : "负向提示词、审核、Seed 与输出格式";
   const negativeLabel = surface === "pad" ? "负向" : "负向提示词";
 
   return (
@@ -50,6 +53,10 @@ export function AndroidAdvancedSection({
               <strong>{outputFormatLabel}</strong>
             </span>
             <span>
+              <span>审核</span>
+              <strong>{moderationLabel}</strong>
+            </span>
+            <span>
               <span>Seed</span>
               <strong>{seed > 0 ? seed : "随机"}</strong>
             </span>
@@ -65,6 +72,7 @@ export function AndroidAdvancedSection({
         width={680}
       >
         <AndroidAdvancedEditor
+          moderation={moderation}
           negativePrompt={negativePrompt}
           outputFormat={outputFormat}
           seed={seed}
@@ -76,11 +84,13 @@ export function AndroidAdvancedSection({
 }
 
 function AndroidAdvancedEditor({
+  moderation,
   negativePrompt,
   outputFormat,
   seed,
   setField,
 }: {
+  moderation: ModerationValue;
   negativePrompt: string;
   outputFormat: OutputFormatValue;
   seed: number;
@@ -110,6 +120,25 @@ function AndroidAdvancedEditor({
                 setField("outputFormat", item.value as OutputFormatValue);
               }}
               className={`android-choice-chip ${outputFormat === item.value ? "active" : ""}`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="android-phone-advanced-section">
+        <div className="android-phone-advanced-label">内容审核</div>
+        <div className="android-phone-format-row">
+          {MODERATION_OPTIONS.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              onClick={() => {
+                vibrateForPlatform(5);
+                setField("moderation", item.value as ModerationValue);
+              }}
+              className={`android-choice-chip ${moderation === item.value ? "active" : ""}`}
             >
               {item.label}
             </button>

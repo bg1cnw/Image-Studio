@@ -1,7 +1,8 @@
-import type { OutputFormatValue } from "../../types/domain";
+import type { ModerationValue, OutputFormatValue } from "../../types/domain";
 import { usePlatform } from "../../platform/context";
 import {
   AdvancedCard,
+  AdvancedModerationField,
   AdvancedNegativePromptField,
   AdvancedOutputFormatField,
   AdvancedSeedField,
@@ -10,6 +11,7 @@ import { Seg, SegItem } from "./panelChrome";
 
 export function DesktopAdvancedPanel({
   advancedOpen,
+  moderation,
   negativePrompt,
   outputFormat,
   seed,
@@ -17,6 +19,7 @@ export function DesktopAdvancedPanel({
   setField,
 }: {
   advancedOpen: boolean;
+  moderation: ModerationValue;
   negativePrompt: string;
   outputFormat: OutputFormatValue;
   seed: number;
@@ -49,6 +52,15 @@ export function DesktopAdvancedPanel({
             <AdvancedOutputFormatField
               outputFormat={outputFormat}
               onChange={(value) => setField("outputFormat", value)}
+              Seg={Seg}
+              SegItem={SegItem}
+            />
+          </AdvancedCard>
+
+          <AdvancedCard title="内容审核">
+            <AdvancedModerationField
+              moderation={moderation}
+              onChange={(value) => setField("moderation", value)}
               Seg={Seg}
               SegItem={SegItem}
             />

@@ -23,6 +23,7 @@ import {
   HistoryItem,
   KernelRuntimeMode,
   LoopGenerationConfig,
+  ModerationValue,
   Mode,
   OutputFormatValue,
   Preset,
@@ -392,6 +393,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   quality: "medium",
   outputFormat: "png",
   seed: 0,
+  moderation: "low",
   kernelRuntimeMode: "auto",
   baseURL: "",
   textModelID: "",
@@ -627,6 +629,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       setKernelRuntimeMode(value as KernelRuntimeMode);
     } else if (key === "outputFormat") {
       try { localStorage.setItem("gptcodex.outputFormat", String(value)); } catch {}
+    } else if (key === "moderation") {
+      try { localStorage.setItem("gptcodex.moderation", String(value)); } catch {}
     }
   },
   setFullscreen: async (value) => {
@@ -814,6 +818,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       maskB64: maskB64,
       seed: s.seed,
       negativePrompt: s.negativePrompt,
+      moderation: s.moderation,
       baseURL: cleanedBaseURL,
       textModelID: s.textModelID,
       imageModelID: s.imageModelID,
@@ -934,6 +939,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         quality: preview.currentImage.quality,
         outputFormat: "png",
         seed: preview.currentImage.seed ?? 3200,
+        moderation: preview.currentImage.moderation ?? "low",
         kernelRuntimeMode: "auto",
         baseURL: preview.profile.baseURL,
         textModelID: preview.profile.textModelID,
@@ -1053,6 +1059,11 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     try {
       const v = localStorage.getItem("gptcodex.outputFormat");
       if (v === "png" || v === "jpeg" || v === "webp") outputFormat = v;
+    } catch {}
+    let moderation: ModerationValue = "low";
+    try {
+      const v = localStorage.getItem("gptcodex.moderation");
+      if (v === "auto" || v === "low") moderation = v;
     } catch {}
     // ---- v0.1.6 profile 列表加载 / 迁移 -----------------------------------
     // 1) 优先读新格式 gptcodex.profiles。
@@ -1187,6 +1198,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       quality: "medium",
       outputFormat,
       seed: 0,
+      moderation,
       batchCount: 1,
       loopGeneration: defaultLoopGenerationConfig(),
       sources: [],
@@ -1217,6 +1229,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       proxyMode: proxyConfig.mode,
       proxyURL: proxyConfig.url,
       outputFormat,
+      moderation,
       profiles,
       activeProfileId,
       workspaces: [initialWorkspace],
@@ -1660,6 +1673,7 @@ async function launchOneJob(
             createdAt: Date.now(),
             seed: payload.seed || undefined,
             negativePrompt: payload.negativePrompt || undefined,
+            moderation: payload.moderation === "auto" ? "auto" : "low",
             styleTag: snapshot.styleTag || undefined,
             batchIndex: snapshot.batchIndex,
             elapsedSec: Number(elapsedSec.toFixed(1)),

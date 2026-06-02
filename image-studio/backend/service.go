@@ -292,6 +292,7 @@ func (s *Service) runJob(ctx context.Context, jobID string, opts GenerateOptions
 		MaskB64:            opts.MaskB64,
 		Seed:               opts.Seed,
 		NegativePrompt:     opts.NegativePrompt,
+		Moderation:         opts.Moderation,
 		BaseURL:            opts.BaseURL,
 		TextModelID:        opts.TextModelID,
 		ImageModelID:       opts.ImageModelID,

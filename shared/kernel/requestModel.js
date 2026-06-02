@@ -3,6 +3,7 @@ export const DEFAULT_IMAGE_MODEL = "gpt-image-2";
 export const DEFAULT_SIZE = "1024x1024";
 export const DEFAULT_QUALITY = "auto";
 export const DEFAULT_OUTPUT_FORMAT = "png";
+export const DEFAULT_MODERATION = "low";
 export const DEFAULT_REQUEST_POLICY = "openai";
 export const DEFAULT_PARTIAL_IMAGES = 1;
 export const MAX_ATTEMPTS = 3;
@@ -39,6 +40,10 @@ export function normalizeNegativePrompt(negativePrompt) {
   return String(negativePrompt || "").trim();
 }
 
+export function normalizeModeration(value) {
+  return value === "auto" ? "auto" : DEFAULT_MODERATION;
+}
+
 export function normalizePartialImages(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return DEFAULT_PARTIAL_IMAGES;
@@ -61,6 +66,10 @@ export function supportsImagesResponseFormat(imageModelID, mode = "generate") {
   const family = classifyImageModel(imageModelID);
   if (mode === "edit") return family === "dalle2";
   return family === "dalle2" || family === "dalle3";
+}
+
+export function supportsImageModeration(imageModelID) {
+  return classifyImageModel(imageModelID) === "gpt-image";
 }
 
 export function shouldSendExtendedImageParameters(requestPolicy) {
@@ -95,6 +104,7 @@ export function buildResponsesImageTool(payload, sourceDataURLs, options = {}) {
   const quality = payload.quality || DEFAULT_QUALITY;
   const outputFormat = payload.outputFormat || DEFAULT_OUTPUT_FORMAT;
   const negativePrompt = normalizeNegativePrompt(payload.negativePrompt);
+  const moderation = normalizeModeration(payload.moderation);
   const compatExtensions = shouldSendExtendedImageParameters(payload.requestPolicy);
   const partialImages = payload.disablePreview ? 0 : normalizePartialImages(payload.partialImages);
   const tool = {
@@ -104,9 +114,9 @@ export function buildResponsesImageTool(payload, sourceDataURLs, options = {}) {
     size,
     quality,
     output_format: outputFormat,
-    moderation: "low",
     partial_images: partialImages,
   };
+  if (supportsImageModeration(payload.imageModelID)) tool.moderation = moderation;
   if (compatExtensions && payload.seed) tool.seed = payload.seed;
   if (compatExtensions && negativePrompt) tool.negative_prompt = negativePrompt;
 

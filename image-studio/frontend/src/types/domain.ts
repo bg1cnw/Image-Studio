@@ -37,11 +37,13 @@ export type KernelRuntimeMode = "auto" | "local" | "remote";
 export type ProxyMode = "none" | "system" | "custom";
 // 让上游做编码;落盘扩展名 jpeg → .jpg,其他原样。
 export type OutputFormatValue = "png" | "jpeg" | "webp";
+export type ModerationValue = "low" | "auto";
 export type ThemeMode = "system" | "light" | "dark";
 
 export interface SizeOption { value: SizeValue; label: string; }
 export interface QualityOption { value: QualityValue; label: string; }
 export interface OutputFormatOption { value: OutputFormatValue; label: string; }
+export interface ModerationOption { value: ModerationValue; label: string; }
 
 export interface CustomAspectRatio {
   id: string;
@@ -79,6 +81,11 @@ export const OUTPUT_FORMAT_OPTIONS: OutputFormatOption[] = [
   { value: "png",  label: "PNG" },
   { value: "jpeg", label: "JPEG" },
   { value: "webp", label: "WebP" },
+];
+
+export const MODERATION_OPTIONS: ModerationOption[] = [
+  { value: "low",  label: "宽松 low" },
+  { value: "auto", label: "标准 auto" },
 ];
 
 export interface SourceImage {
@@ -120,6 +127,7 @@ export interface HistoryItem {
   // reproduced via "重新生成" or "应用参数" from the right-click menu.
   seed?: number;
   negativePrompt?: string;
+  moderation?: ModerationValue;
   styleTag?: string;
   batchIndex?: number;
   elapsedSec?: number;     // generation duration in seconds
@@ -169,6 +177,7 @@ export interface Workspace {
   quality: QualityValue;
   outputFormat: OutputFormatValue;
   seed: number;
+  moderation: ModerationValue;
   batchCount: number;
   loopGeneration: LoopGenerationConfig;
   sources: SourceImage[];
@@ -201,6 +210,7 @@ export interface Preset {
   quality: QualityValue;
   outputFormat?: OutputFormatValue;
   negativePrompt: string;
+  moderation?: ModerationValue;
   kernelRuntimeMode?: KernelRuntimeMode;
   batchCount: number;
 }

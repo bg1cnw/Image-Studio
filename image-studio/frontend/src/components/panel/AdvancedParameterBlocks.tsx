@@ -1,6 +1,6 @@
 import { Dices, X } from "lucide-react";
-import type { OutputFormatValue } from "../../types/domain";
-import { OUTPUT_FORMAT_OPTIONS } from "../../types/domain";
+import type { ModerationValue, OutputFormatValue } from "../../types/domain";
+import { MODERATION_OPTIONS, OUTPUT_FORMAT_OPTIONS } from "../../types/domain";
 
 type SegRenderer = (props: { children: React.ReactNode }) => React.ReactNode;
 type SegItemRenderer = (props: {
@@ -97,6 +97,37 @@ export function AdvancedOutputFormatField({
         ))}
       </Seg>
       <p className={`mt-1 ${noteClassName}`}>JPEG/WebP 体积更小；落盘扩展名 jpeg → .jpg</p>
+    </>
+  );
+}
+
+export function AdvancedModerationField({
+  moderation,
+  onChange,
+  Seg,
+  SegItem,
+  noteClassName = "text-[10px] text-zinc-500",
+}: {
+  moderation: ModerationValue;
+  onChange: (value: ModerationValue) => void;
+  Seg: SegRenderer;
+  SegItem: SegItemRenderer;
+  noteClassName?: string;
+}) {
+  return (
+    <>
+      <Seg>
+        {MODERATION_OPTIONS.map((item) => (
+          <SegItem
+            key={item.value}
+            active={moderation === item.value}
+            onClick={() => onChange(item.value as ModerationValue)}
+          >
+            {item.label}
+          </SegItem>
+        ))}
+      </Seg>
+      <p className={`mt-1 ${noteClassName}`}>`low` 更宽松；`auto` 使用官方默认审核强度。仅 GPT 图像模型支持。</p>
     </>
   );
 }

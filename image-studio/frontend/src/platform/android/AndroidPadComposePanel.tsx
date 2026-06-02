@@ -31,7 +31,7 @@ export function AndroidPadComposePanel({
   onSubmitStart?: () => void;
 } = {}) {
   const {
-    apiKey, mode, prompt, negativePrompt, size, quality, seed, styleTag, outputFormat,
+    apiKey, mode, prompt, moderation, negativePrompt, size, quality, seed, styleTag, outputFormat,
     batchCount, loopGeneration, sources, currentImage, isRunning, isOptimizingPrompt, apiMode, requestPolicy, baseURL, imageModelID,
     profiles, customAspectRatios, setField, selectSourceImage, removeSource, clearSources,
     openCustomAspectRatioModal,
@@ -256,6 +256,7 @@ export function AndroidPadComposePanel({
 
             <AndroidAdvancedSection
               advancedOpen={advancedOpen}
+              moderation={moderation}
               negativePrompt={negativePrompt}
               outputFormat={outputFormat}
               seed={seed}

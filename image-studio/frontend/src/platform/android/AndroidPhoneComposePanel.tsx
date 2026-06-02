@@ -31,7 +31,7 @@ export function AndroidPhoneComposePanel({
   onSubmitStart?: () => void;
 } = {}) {
   const {
-    apiKey, mode, prompt, negativePrompt, size, quality, seed, styleTag,
+    apiKey, mode, prompt, moderation, negativePrompt, size, quality, seed, styleTag,
     outputFormat, batchCount, loopGeneration, sources, currentImage, errorMessage, errorRawPath,
     isRunning, lastPayload, isOptimizingPrompt, apiMode, requestPolicy, baseURL, profiles, imageModelID,
     customAspectRatios,
@@ -282,6 +282,7 @@ export function AndroidPhoneComposePanel({
       {!needsUpstreamSetup ? (
         <AndroidPhoneAdvancedSection
           advancedOpen={advancedOpen}
+          moderation={moderation}
           negativePrompt={negativePrompt}
           outputFormat={outputFormat}
           seed={seed}

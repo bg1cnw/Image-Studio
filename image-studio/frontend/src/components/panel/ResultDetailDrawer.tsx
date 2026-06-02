@@ -73,6 +73,7 @@ export function ResultDetailDrawer() {
             <Kv label="模式" value={detail.mode === "edit" ? "图生图" : "文生图"} />
             <Kv label="尺寸" value={sizeLabel(detail.size)} />
             <Kv label="质量" value={qualityLabel(detail.quality)} />
+            {detail.moderation ? <Kv label="审核" value={detail.moderation} mono /> : null}
             {detail.seed ? <Kv label="种子" value={String(detail.seed)} mono /> : null}
             {detail.styleTag ? <Kv label="风格" value={`#${detail.styleTag}`} /> : null}
             {typeof detail.elapsedSec === "number" ? <Kv label="耗时" value={`${detail.elapsedSec.toFixed(1)}s`} /> : null}

@@ -1,6 +1,7 @@
-import type { OutputFormatValue } from "../../types/domain";
+import type { ModerationValue, OutputFormatValue } from "../../types/domain";
 import {
   AdvancedCard,
+  AdvancedModerationField,
   AdvancedNegativePromptField,
   AdvancedOutputFormatField,
   AdvancedSeedField,
@@ -9,6 +10,7 @@ import {
 export function MacAdvancedPanel({
   advancedOpen,
   advancedSummary,
+  moderation,
   negativePrompt,
   outputFormat,
   seed,
@@ -19,6 +21,7 @@ export function MacAdvancedPanel({
 }: {
   advancedOpen: boolean;
   advancedSummary: string;
+  moderation: ModerationValue;
   negativePrompt: string;
   outputFormat: OutputFormatValue;
   seed: number;
@@ -72,6 +75,20 @@ export function MacAdvancedPanel({
             </AdvancedCard>
 
             <AdvancedCard
+              title="内容审核"
+              hint="`low` 更宽松；`auto` 使用官方默认审核强度。仅 GPT 图像模型支持。"
+              variant="mac"
+            >
+              <AdvancedModerationField
+                moderation={moderation}
+                onChange={(value) => setField("moderation", value)}
+                Seg={Seg}
+                SegItem={SegItem}
+                noteClassName="text-[11px] leading-6 text-zinc-500 dark:text-zinc-400"
+              />
+            </AdvancedCard>
+
+            <AdvancedCard
               title="随机种子"
               hint={seed > 0 ? `当前固定为 ${seed}` : "留空即随机，每次生成都会变化。"}
               variant="mac"
@@ -87,7 +104,7 @@ export function MacAdvancedPanel({
           </div>
 
           <div className="rounded-[18px] border border-black/[0.05] bg-black/[0.025] px-3.5 py-3 text-[11px] leading-[1.65] text-zinc-500 dark:border-white/[0.06] dark:bg-white/[0.025] dark:text-zinc-400">
-            高级参数只在上游兼容时生效；标准 OpenAI 请求策略会自动避开不支持的扩展字段。
+            `moderation` 是官方图像字段；`seed` / `negative prompt` 仍只在兼容中转扩展策略下发送。
           </div>
         </div>
       )}

@@ -27,6 +27,7 @@ type Settings struct {
 	Theme                string   `json:"theme,omitempty"`
 	FontScale            float64  `json:"fontScale,omitempty"`
 	OutputFormat         string   `json:"outputFormat,omitempty"`
+	Moderation           string   `json:"moderation,omitempty"`
 	OutputDir            string   `json:"outputDir,omitempty"`
 	PromptHistory        []string `json:"promptHistory,omitempty"`
 	Presets              []Preset `json:"presets,omitempty"`
@@ -57,6 +58,7 @@ type Preset struct {
 	Quality           string `json:"quality"`
 	OutputFormat      string `json:"outputFormat,omitempty"`
 	NegativePrompt    string `json:"negativePrompt"`
+	Moderation        string `json:"moderation,omitempty"`
 	KernelRuntimeMode string `json:"kernelRuntimeMode,omitempty"`
 	BatchCount        int    `json:"batchCount"`
 }
@@ -81,6 +83,7 @@ type HistoryItem struct {
 	CreatedAt      int64   `json:"createdAt"`
 	Seed           int64   `json:"seed,omitempty"`
 	NegativePrompt string  `json:"negativePrompt,omitempty"`
+	Moderation     string  `json:"moderation,omitempty"`
 	StyleTag       string  `json:"styleTag,omitempty"`
 	BatchIndex     int     `json:"batchIndex,omitempty"`
 	ElapsedSec     float64 `json:"elapsedSec,omitempty"`

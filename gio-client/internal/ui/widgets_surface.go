@@ -96,6 +96,28 @@ func (a *App) surfaceButton(
 	})
 }
 
+func (a *App) elevatedSurfaceButton(
+	gtx layout.Context,
+	btn *widget.Clickable,
+	bg color.NRGBA,
+	hoverBg color.NRGBA,
+	border color.NRGBA,
+	radius unit.Dp,
+	shadowOffset image.Point,
+	inset layout.Inset,
+	w layout.Widget,
+) layout.Dimensions {
+	fill := bg
+	if btn.Hovered() {
+		fill = hoverBg
+	}
+	return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return a.elevatedBorderedSurface(gtx, fill, radius, border, shadowOffset, func(gtx layout.Context) layout.Dimensions {
+			return inset.Layout(gtx, w)
+		})
+	})
+}
+
 func (a *App) pillButton(gtx layout.Context, btn *widget.Clickable, text string, active bool) layout.Dimensions {
 	bg := fluent.surface
 	hoverBg := fluent.surface2

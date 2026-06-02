@@ -44,6 +44,9 @@ func TestRequestImagesAPIWithPartialStreamsPreviews(t *testing.T) {
 	if !strings.Contains(string(requestBody), `"stream":true`) {
 		t.Fatalf("request body missing stream=true: %s", requestBody)
 	}
+	if !strings.Contains(string(requestBody), `"moderation":"low"`) {
+		t.Fatalf("request body missing moderation=low: %s", requestBody)
+	}
 	if !strings.Contains(string(requestBody), `"partial_images":2`) {
 		t.Fatalf("request body missing partial_images=2: %s", requestBody)
 	}
@@ -70,6 +73,7 @@ func TestBuildEditsMultipartSetsMaskMimeType(t *testing.T) {
 		"1024x1024",
 		"auto",
 		"png",
+		"auto",
 		"",
 		0,
 		RequestPolicyOpenAI,
@@ -86,6 +90,7 @@ func TestBuildEditsMultipartSetsMaskMimeType(t *testing.T) {
 	}
 	reader := multipart.NewReader(buf, params["boundary"])
 	foundMask := false
+	foundModeration := false
 	for {
 		part, err := reader.NextPart()
 		if err == io.EOF {
@@ -100,10 +105,16 @@ func TestBuildEditsMultipartSetsMaskMimeType(t *testing.T) {
 				t.Fatalf("mask content-type = %q, want image/png", got)
 			}
 		}
+		if part.FormName() == "moderation" {
+			foundModeration = true
+		}
 		_, _ = io.Copy(io.Discard, part)
 	}
 	if !foundMask {
 		t.Fatal("expected mask part in multipart body")
+	}
+	if !foundModeration {
+		t.Fatal("expected moderation field in multipart body")
 	}
 }
 
@@ -122,6 +133,7 @@ func TestBuildEditsMultipartOmitsMaskWhenEmpty(t *testing.T) {
 		"1024x1024",
 		"auto",
 		"png",
+		"low",
 		"",
 		0,
 		RequestPolicyOpenAI,

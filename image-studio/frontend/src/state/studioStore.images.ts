@@ -159,6 +159,7 @@ export function createImageActions(store: StateAdapter) {
       };
       if (item.seed !== undefined) patch.seed = item.seed;
       if (item.negativePrompt !== undefined) patch.negativePrompt = item.negativePrompt;
+      if (item.moderation !== undefined) patch.moderation = item.moderation;
       if (item.styleTag !== undefined) patch.styleTag = item.styleTag;
       if (item.outputFormat) patch.outputFormat = item.outputFormat;
       store.setState(patch);

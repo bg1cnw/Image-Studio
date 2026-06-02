@@ -9,6 +9,7 @@ const (
 	DefaultSize          = "1024x1024"
 	DefaultQuality       = "auto"
 	OutputFormat         = "png"
+	DefaultModeration    = "low"
 	DefaultPartialImages = 1
 	MaxInputImageBytes   = 50 * 1024 * 1024
 	MaxAttempts          = 3
@@ -166,6 +167,10 @@ type Options struct {
 	// Negative prompt — only included when non-empty. Whether the upstream
 	// gptcodex-image tool reads it varies; sent for forward compatibility.
 	NegativePrompt string
+
+	// Moderation controls the upstream image safety filter. Empty / invalid
+	// values fall back to DefaultModeration ("low").
+	Moderation string
 
 	// Optional overrides for the URL and model IDs. Empty values fall back
 	// to BaseURL / TextModel / ImageModel constants.
