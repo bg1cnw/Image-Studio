@@ -81,6 +81,7 @@ export function AndroidCanvasWorkspace() {
     closeResultGrid,
     openResultDetail,
     selectSourceImage,
+    viewSourceOnCanvas,
     removeSource,
     reorderSources,
     clearSources,
@@ -222,8 +223,10 @@ export function AndroidCanvasWorkspace() {
 
       {shouldShowSourceStrip ? (
         <AndroidSourceStrip
+          currentImage={currentImage}
           sources={sources}
           onAdd={() => runAction(selectSourceImage, 8)}
+          onPreview={(index) => runAction(() => viewSourceOnCanvas(index), 8)}
           onRemove={(index) => runAction(() => removeSource(index), 5)}
           onMove={(from, to) => runAction(() => reorderSources(from, to), 5)}
           onClear={() => runAction(clearSources, 5)}
@@ -546,14 +549,18 @@ function AndroidAnnotationControls({
 }
 
 function AndroidSourceStrip({
+  currentImage,
   sources,
   onAdd,
+  onPreview,
   onRemove,
   onMove,
   onClear,
 }: {
+  currentImage: HistoryItem | null;
   sources: SourceImage[];
   onAdd: () => void;
+  onPreview: (index: number) => void;
   onRemove: (index: number) => void;
   onMove: (from: number, to: number) => void;
   onClear: () => void;
@@ -573,6 +580,8 @@ function AndroidSourceStrip({
             source={source}
             index={index}
             total={sources.length}
+            active={currentImage?.savedPath === source.path}
+            onPreview={onPreview}
             onRemove={onRemove}
             onMove={onMove}
           />
@@ -589,32 +598,41 @@ function AndroidSourceTile({
   source,
   index,
   total,
+  active,
+  onPreview,
   onRemove,
   onMove,
 }: {
   source: SourceImage;
   index: number;
   total: number;
+  active: boolean;
+  onPreview: (index: number) => void;
   onRemove: (index: number) => void;
   onMove: (from: number, to: number) => void;
 }) {
   const objectURL = useBlobURL(source.imageBlob ?? null, source.imageB64 ?? null);
   const previewURL = source.previewUrl || objectURL;
   return (
-    <div className="android-canvas-source-tile" title={source.name}>
+    <div
+      className="android-canvas-source-tile"
+      data-active={active ? "true" : "false"}
+      title={`${source.name}\n点击在画布查看`}
+      onClick={() => onPreview(index)}
+    >
       <div className="android-canvas-source-preview">
         {previewURL ? <img src={previewURL} alt={source.name} loading="lazy" decoding="async" /> : <span>{source.name.split(".").pop()?.toUpperCase() ?? "IMG"}</span>}
       </div>
       <div className="android-canvas-source-index">{index + 1}</div>
-      <button type="button" className="android-canvas-source-remove" onClick={() => onRemove(index)} title="移除">
+      <button type="button" className="android-canvas-source-remove" onClick={(event) => { event.stopPropagation(); onRemove(index); }} title="移除">
         <X />
       </button>
       {total > 1 ? (
         <div className="android-canvas-source-move">
-          <button type="button" disabled={index === 0} onClick={() => onMove(index, index - 1)}>
+          <button type="button" disabled={index === 0} onClick={(event) => { event.stopPropagation(); onMove(index, index - 1); }}>
             <RotateCcw />
           </button>
-          <button type="button" disabled={index === total - 1} onClick={() => onMove(index, index + 1)}>
+          <button type="button" disabled={index === total - 1} onClick={(event) => { event.stopPropagation(); onMove(index, index + 1); }}>
             <RotateCw />
           </button>
         </div>

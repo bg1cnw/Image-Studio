@@ -911,6 +911,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
 
   applyHistoryParams: (item) => imageActions.applyHistoryParams(item),
   regenerateFromHistory: async (item) => imageActions.regenerateFromHistory(item),
+  viewSourceOnCanvas: async (index) => imageActions.viewSourceOnCanvas(index),
   reuseAsSource: async (item) => imageActions.reuseAsSource(item),
   deleteHistoryItem: async (id) => imageActions.deleteHistoryItem(id),
   saveCurrentImageAs: async () => imageActions.saveCurrentImageAs(),

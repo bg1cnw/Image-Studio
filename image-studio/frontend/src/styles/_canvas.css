@@ -250,6 +250,10 @@ html[data-target-platform="macos"] .source-strip {
   display: flex; align-items: center; justify-content: center;
 }
 .source-thumb:hover .source-thumb-del { opacity: 1; }
+.source-thumb[data-active="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 10px 22px rgb(0 0 0 / 0.14);
+}
 .source-thumb-placeholder {
   color: var(--text-muted);
   font-size: 11px;

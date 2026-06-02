@@ -149,6 +149,7 @@ export interface StudioState {
   duplicateProfile: (id: string) => Promise<string | null>;
   setActiveProfile: (id: string) => Promise<void>;
   selectSourceImage: () => Promise<void>;
+  viewSourceOnCanvas: (index: number) => Promise<void>;
   removeSource: (index: number) => void;
   clearSources: () => void;
   reorderSources: (from: number, to: number) => void;

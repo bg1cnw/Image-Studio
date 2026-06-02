@@ -8,7 +8,7 @@ import {
 import { saveImageForPlatform } from "../platform/android/bridge";
 import { base64ToBlob } from "../lib/images";
 import { removeHistoryItem } from "../lib/storage";
-import type { HistoryItem } from "../types/domain";
+import type { HistoryItem, SourceImage } from "../types/domain";
 import type { StudioState } from "./studioStore.types";
 import {
   ensureFullHistoryItem,
@@ -24,6 +24,42 @@ type StateAdapter = {
   getState: () => StudioState;
   setState: (patch: Partial<StudioState> | ((state: StudioState) => Partial<StudioState>)) => void;
 };
+
+function buildSourceCanvasItem(
+  source: SourceImage,
+  ref?: {
+    imageId?: string;
+    savedPath?: string;
+    thumbPath?: string;
+    previewUrl?: string;
+    fullUrl?: string;
+    previewWidth?: number;
+    previewHeight?: number;
+  } | null,
+): HistoryItem {
+  const baseItem: HistoryItem = {
+    id: `source-preview:${source.path}`,
+    prompt: `(参考图)${source.name}`,
+    mode: "edit",
+    size: "auto",
+    quality: "medium",
+    createdAt: Date.now(),
+    savedPath: source.path,
+    previewUrl: source.previewUrl,
+    imageB64: source.previewUrl ? undefined : source.imageB64,
+    imageBlob: source.previewUrl ? null : (source.imageBlob ?? null),
+    previewBlob: source.previewUrl ? null : (source.imageBlob ?? null),
+    previewOnly: true,
+  };
+  if (!ref) return baseItem;
+  return {
+    ...withMediaAssetRef(baseItem, ref),
+    imageB64: ref.fullUrl || ref.imageId ? undefined : baseItem.imageB64,
+    imageBlob: ref.fullUrl || ref.imageId ? null : baseItem.imageBlob,
+    previewBlob: ref.fullUrl || ref.imageId ? null : baseItem.previewBlob,
+    previewOnly: !(ref.fullUrl || ref.imageId),
+  };
+}
 
 export function createImageActions(store: StateAdapter) {
   return {
@@ -70,6 +106,15 @@ export function createImageActions(store: StateAdapter) {
       const [moved] = list.splice(from, 1);
       list.splice(to, 0, moved);
       store.setState({ sources: list });
+    },
+
+    async viewSourceOnCanvas(index: number) {
+      const source = store.getState().sources[index];
+      if (!source) return;
+      const ref = await RegisterImportedImageAsset(source.path).catch(() => null);
+      const item = buildSourceCanvasItem(source, ref);
+      store.setState({ mode: "edit", errorMessage: null, errorRawPath: null });
+      store.getState().setField("currentImage", item);
     },
 
     async reuseAsSource(item: HistoryItem) {
