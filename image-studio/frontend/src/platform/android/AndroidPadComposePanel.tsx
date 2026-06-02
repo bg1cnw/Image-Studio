@@ -13,9 +13,11 @@ import { AndroidPadParameterSection } from "./AndroidPadParameterSection";
 import { AndroidPadSourceSection } from "./AndroidPadSourceSection";
 import { AndroidPromptTemplateModal } from "./AndroidPromptTemplateModal";
 import {
+  aspectPresetLabel,
   availableResolutionPresets,
   deriveAspectPreset,
   deriveResolutionPreset,
+  listAspectPresetOptions,
 } from "../../components/panel/sizeCapabilities";
 import {
   buildAndroidAspectSizeSelection,
@@ -30,7 +32,8 @@ export function AndroidPadComposePanel({
   const {
     apiKey, mode, prompt, negativePrompt, size, quality, seed, styleTag, outputFormat,
     batchCount, sources, currentImage, isRunning, isOptimizingPrompt, apiMode, requestPolicy, baseURL, imageModelID,
-    profiles, setField, selectSourceImage, removeSource, clearSources,
+    profiles, customAspectRatios, setField, selectSourceImage, removeSource, clearSources,
+    openCustomAspectRatioModal,
     openUpstreamConfig, submit, cancel, optimizePrompt,
   } = useStudioStore();
   const [templateOpen, setTemplateOpen] = useState(false);
@@ -47,10 +50,11 @@ export function AndroidPadComposePanel({
     prompt.trim() && (hasUsableResponsesProfile || (apiKey.trim() && baseURL.trim()))
   );
   const activeStyleLabel = STYLE_CHIPS.find((item) => item.id === styleTag)?.label ?? "默认风格";
-  const activeAspect = deriveAspectPreset(size);
+  const aspectOptions = listAspectPresetOptions(customAspectRatios);
+  const activeAspect = deriveAspectPreset(size, customAspectRatios);
   const activeResolution = deriveResolutionPreset(size);
   const availableResolutions = availableResolutionPresets({ apiMode, requestPolicy, imageModelID });
-  const activeAspectLabel = activeAspect === "auto" ? "Auto" : activeAspect;
+  const activeAspectLabel = aspectPresetLabel(activeAspect, customAspectRatios);
   const activeResolutionLabel = activeResolution === "auto" ? "自动" : activeResolution.toUpperCase();
   const activeQualityLabel = QUALITY_TIERS.find((item) => item.value === quality)?.label ?? quality;
   const editSourceLabel = sources.length > 0 ? `${sources.length} 张已添加` : currentImage?.savedPath ? "使用当前画板" : "未添加";
@@ -60,6 +64,7 @@ export function AndroidPadComposePanel({
       aspect,
       activeResolution,
       { apiMode, requestPolicy, imageModelID },
+      customAspectRatios,
     ));
   };
 
@@ -68,6 +73,7 @@ export function AndroidPadComposePanel({
       activeAspect,
       resolution,
       { apiMode, requestPolicy, imageModelID },
+      customAspectRatios,
     ));
   };
 
@@ -205,6 +211,7 @@ export function AndroidPadComposePanel({
           <AndroidPadParameterSection
             activeAspect={activeAspect}
             activeAspectLabel={activeAspectLabel}
+            aspectOptions={aspectOptions}
             activeResolution={activeResolution}
             activeResolutionLabel={activeResolutionLabel}
             activeQualityLabel={activeQualityLabel}
@@ -217,6 +224,7 @@ export function AndroidPadComposePanel({
             imageModelID={imageModelID}
             isMediumPad={isMediumPad}
             needsUpstreamSetup={needsUpstreamSetup}
+            onOpenCustomAspectRatioModal={openCustomAspectRatioModal}
             onOpenUpstream={() => { vibrateForPlatform(8); openUpstreamConfig("app"); }}
             quality={quality}
             requestPolicy={requestPolicy}

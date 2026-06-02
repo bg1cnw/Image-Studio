@@ -49,6 +49,12 @@ import {
   scheduleCompatibilityExport,
 } from "../lib/compatState";
 import {
+  loadCustomAspectRatios,
+  makeCustomAspectRatio,
+  MAX_CUSTOM_ASPECT_RATIOS,
+  persistCustomAspectRatios,
+} from "../lib/customAspectRatios.ts";
+import {
   cleanBaseURL,
 } from "../lib/security";
 import { loadProxyConfig, normalizeProxyMode, persistProxyConfig } from "../lib/proxy";
@@ -72,7 +78,14 @@ import {
   type RunningJobMeta,
   type WorkspacePatch,
 } from "./workspaceRuntime";
-import { normalizeSizeSelection } from "../components/panel/sizeCapabilities";
+import {
+  buildAspectSizeSelection,
+  buildCustomAspectValue,
+  deriveAspectPreset,
+  deriveResolutionPreset,
+  isBuiltInAspectRatio,
+  normalizeSizeSelection,
+} from "../components/panel/sizeCapabilities";
 import { buildMacWorkspacePreview, readPreviewScenario } from "../app/dev/previewData";
 import {
   applyTheme,
@@ -261,8 +274,60 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   promptHistory: [],
   batchCount: 1,
   presets: [],
+  customAspectRatios: [],
   theme: "system",
   fontScale: 1,
+  customAspectRatioModalOpen: false,
+  openCustomAspectRatioModal: () => set({ customAspectRatioModalOpen: true }),
+  closeCustomAspectRatioModal: () => set({ customAspectRatioModalOpen: false }),
+  addCustomAspectRatio: (width, height) => {
+    const nextRatio = makeCustomAspectRatio(width, height);
+    if (!nextRatio) {
+      get().pushToast("请输入有效的宽高比例", "warn");
+      return false;
+    }
+    if (isBuiltInAspectRatio(nextRatio.width, nextRatio.height)) {
+      get().pushToast("这个比例已经内置了", "warn");
+      return false;
+    }
+    const existing = get().customAspectRatios;
+    if (existing.some((item) => item.id === nextRatio.id)) {
+      get().pushToast(`比例 ${nextRatio.label} 已存在`, "warn");
+      return false;
+    }
+    if (existing.length >= MAX_CUSTOM_ASPECT_RATIOS) {
+      get().pushToast(`最多保存 ${MAX_CUSTOM_ASPECT_RATIOS} 个自定义比例`, "warn");
+      return false;
+    }
+    const next = [...existing, nextRatio];
+    persistCustomAspectRatios(next);
+    set({ customAspectRatios: next });
+    get().pushToast(`已添加比例 ${nextRatio.label}`, "success");
+    return true;
+  },
+  deleteCustomAspectRatio: (id) => {
+    const state = get();
+    const removed = state.customAspectRatios.find((item) => item.id === id);
+    if (!removed) return;
+    const next = state.customAspectRatios.filter((item) => item.id !== id);
+    persistCustomAspectRatios(next);
+    const patch: Partial<StudioState> = { customAspectRatios: next };
+    if (deriveAspectPreset(state.size, state.customAspectRatios) === buildCustomAspectValue(id)) {
+      const resolution = deriveResolutionPreset(state.size);
+      patch.size = buildAspectSizeSelection(
+        "1:1",
+        resolution === "auto" ? "1k" : resolution,
+        {
+          apiMode: state.apiMode,
+          requestPolicy: state.requestPolicy,
+          imageModelID: state.imageModelID,
+        },
+        next,
+      );
+    }
+    set(patch);
+    get().pushToast(`已删除比例 ${removed.label}`, "success");
+  },
   settingsOpen: false,
   openSettings: () => set({ settingsOpen: true, upstreamModalOpen: false }),
   closeSettings: () => set({ settingsOpen: false }),
@@ -677,6 +742,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         promptHistory: [],
         batchCount: 1,
         presets: [],
+        customAspectRatios: [],
         theme: "dark",
         fontScale: 1,
         workspaces: [preview.workspace],
@@ -688,6 +754,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         settingsOpen: false,
         isTestingKey: false,
         isOptimizingPrompt: false,
+        customAspectRatioModalOpen: false,
         upstreamModalOpen: false,
         upstreamReturnTarget: "app",
         starPromptOpen: false,
@@ -707,6 +774,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     let items = trimHistory(loadedItems);
     let promptHistory: string[] = [];
     let presets: Preset[] = [];
+    const customAspectRatios = loadCustomAspectRatios();
     let theme: ThemeMode = "system";
     let fontScale = 1;
     try {
@@ -899,7 +967,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       ? false
       : !activeProfile || !activeKey.trim() || !baseURL.trim();
     set({
-      apiKey: activeKey, history: items, promptHistory, presets, theme, fontScale,
+      apiKey: activeKey, history: items, promptHistory, presets, customAspectRatios, theme, fontScale,
       apiMode, requestPolicy, baseURL, textModelID, imageModelID, kernelRuntimeMode, noPromptRevision,
       proxyMode: proxyConfig.mode,
       proxyURL: proxyConfig.url,
@@ -910,6 +978,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       activeWorkspaceId: wsId,
       // Android 走首页 hero 引导，不用启动即弹设置；桌面仍保留首次引导。
       settingsOpen: shouldAutoOpenSettings,
+      customAspectRatioModalOpen: false,
       upstreamModalOpen: false,
       upstreamReturnTarget: shouldAutoOpenSettings ? "settings" : "app",
       savePromptItem: null,

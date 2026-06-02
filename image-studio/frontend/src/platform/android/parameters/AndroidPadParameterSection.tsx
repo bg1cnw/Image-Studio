@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Settings } from "lucide-react";
 import {
   type AspectPreset,
+  type AspectPresetOption,
   type ResolutionPreset,
 } from "../../../components/panel/sizeCapabilities";
 import { Modal } from "../../../components/common/Modal";
@@ -15,6 +16,7 @@ import { AndroidParameterEditor } from "./AndroidParameterEditor";
 export function AndroidPadParameterSection({
   activeAspect,
   activeAspectLabel,
+  aspectOptions,
   activeResolution,
   activeResolutionLabel,
   activeQualityLabel,
@@ -27,6 +29,7 @@ export function AndroidPadParameterSection({
   imageModelID,
   isMediumPad,
   needsUpstreamSetup,
+  onOpenCustomAspectRatioModal,
   onOpenUpstream,
   quality,
   requestPolicy,
@@ -35,6 +38,7 @@ export function AndroidPadParameterSection({
 }: {
   activeAspect: AspectPreset;
   activeAspectLabel: string;
+  aspectOptions: AspectPresetOption[];
   activeResolution: ResolutionPreset;
   activeResolutionLabel: string;
   activeQualityLabel: string;
@@ -47,6 +51,7 @@ export function AndroidPadParameterSection({
   imageModelID: string;
   isMediumPad: boolean;
   needsUpstreamSetup: boolean;
+  onOpenCustomAspectRatioModal: () => void;
   onOpenUpstream: () => void;
   quality: string;
   requestPolicy: "openai" | "compat";
@@ -104,6 +109,7 @@ export function AndroidPadParameterSection({
         <AndroidParameterEditor
           activeAspect={activeAspect}
           activeAspectLabel={activeAspectLabel}
+          aspectOptions={aspectOptions}
           activeResolution={activeResolution}
           activeResolutionLabel={activeResolutionLabel}
           activeQualityLabel={activeQualityLabel}
@@ -114,6 +120,7 @@ export function AndroidPadParameterSection({
           handleAspectSelect={handleAspectSelect}
           handleResolutionSelect={handleResolutionSelect}
           imageModelID={imageModelID}
+          onOpenCustomAspectRatioModal={onOpenCustomAspectRatioModal}
           quality={quality}
           requestPolicy={requestPolicy}
           setField={setField}

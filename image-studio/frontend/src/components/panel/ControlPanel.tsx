@@ -15,13 +15,14 @@ import { Section, Seg, SegItem } from "./panelChrome";
 import { SubmitBar } from "./SubmitBar";
 import { WindowsComposePanel } from "./WindowsComposePanel";
 import {
-  ASPECT_PRESETS,
   RESOLUTION_PRESETS,
+  aspectPresetLabel,
   availableResolutionPresets,
   buildAspectSizeSelection,
   buildResolutionSizeSelection,
   deriveAspectPreset,
   deriveResolutionPreset,
+  listAspectPresetOptions,
 } from "./sizeCapabilities";
 
 export function ControlPanel({
@@ -35,8 +36,10 @@ export function ControlPanel({
     sources, currentImage,
     errorMessage, errorRawPath, isRunning, lastPayload, isTestingKey, isOptimizingPrompt,
     apiMode, requestPolicy, baseURL, profiles, imageModelID,
+    customAspectRatios,
     setField, clearError, pushToast,
     selectSourceImage, removeSource, clearSources,
+    openCustomAspectRatioModal,
     openUpstreamConfig,
     submit, cancel, retryLast, optimizePrompt,
   } = useStudioStore();
@@ -62,9 +65,10 @@ export function ControlPanel({
     (p) => p.apiMode === "responses" && p.baseURL.trim(),
   );
   const activeStyleLabel = STYLE_CHIPS.find((item) => item.id === styleTag)?.label ?? styleTag;
-  const activeAspect = deriveAspectPreset(size);
+  const aspectOptions = listAspectPresetOptions(customAspectRatios);
+  const activeAspect = deriveAspectPreset(size, customAspectRatios);
   const activeResolution = deriveResolutionPreset(size);
-  const activeAspectLabel = ASPECT_PRESETS.find((item) => item.value === activeAspect)?.label ?? activeAspect;
+  const activeAspectLabel = aspectPresetLabel(activeAspect, customAspectRatios);
   const activeResolutionLabel = RESOLUTION_PRESETS.find((item) => item.value === activeResolution)?.label ?? activeResolution;
   const activeQualityLabel = QUALITY_TIERS.find((item) => item.value === quality)?.label ?? quality;
   const availableResolutions = availableResolutionPresets({ apiMode, requestPolicy, imageModelID });
@@ -84,6 +88,7 @@ export function ControlPanel({
       aspect,
       activeResolution,
       { apiMode, requestPolicy, imageModelID },
+      customAspectRatios,
     ));
   }
 
@@ -92,6 +97,7 @@ export function ControlPanel({
       activeAspect,
       resolution,
       { apiMode, requestPolicy, imageModelID },
+      customAspectRatios,
     ));
   }
 
@@ -178,6 +184,7 @@ export function ControlPanel({
       {!compactMacCompose && !compactWindowsCompose ? (
         <DesktopComposeSections
           activeAspect={activeAspect}
+          aspectOptions={aspectOptions}
           activeResolution={activeResolution}
           apiMode={apiMode}
           availableResolutions={availableResolutions}
@@ -187,6 +194,7 @@ export function ControlPanel({
           handleAspectSelect={handleAspectSelect}
           handleResolutionSelect={handleResolutionSelect}
           imageModelID={imageModelID}
+          onOpenCustomAspectRatioModal={openCustomAspectRatioModal}
           usesFluentUI={usesFluentUI}
           mode={mode}
           onRemoveSource={removeSource}
@@ -208,6 +216,7 @@ export function ControlPanel({
           activeStyleLabel={activeStyleLabel}
           activeAspect={activeAspect}
           activeAspectLabel={activeAspectLabel}
+          aspectOptions={aspectOptions}
           activeResolution={activeResolution}
           activeResolutionLabel={activeResolutionLabel}
           activeQualityLabel={activeQualityLabel}
@@ -218,6 +227,7 @@ export function ControlPanel({
           handleAspectSelect={handleAspectSelect}
           handleResolutionSelect={handleResolutionSelect}
           imageModelID={imageModelID}
+          onOpenCustomAspectRatioModal={openCustomAspectRatioModal}
           mode={mode}
           onRemoveSource={removeSource}
           quality={quality}
@@ -238,6 +248,7 @@ export function ControlPanel({
           activeStyleLabel={activeStyleLabel}
           activeAspect={activeAspect}
           activeAspectLabel={activeAspectLabel}
+          aspectOptions={aspectOptions}
           activeResolution={activeResolution}
           activeResolutionLabel={activeResolutionLabel}
           activeQualityLabel={activeQualityLabel}
@@ -252,6 +263,7 @@ export function ControlPanel({
           setField={setField as any}
           handleAspectSelect={handleAspectSelect}
           handleResolutionSelect={handleResolutionSelect}
+          onOpenCustomAspectRatioModal={openCustomAspectRatioModal}
           selectSourceImage={selectSourceImage}
           clearSources={clearSources}
           quality={quality}

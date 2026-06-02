@@ -30,23 +30,7 @@ export interface UpstreamProfile {
   lastUsedAt?: number;
 }
 
-export type SizeValue =
-  | "auto"
-  | "1024x1024"
-  | "1536x1024"
-  | "1024x1536"
-  | "1536x864"
-  | "864x1536"
-  | "2048x2048"
-  | "2048x1360"
-  | "1360x2048"
-  | "2048x1152"
-  | "1152x2048"
-  | "2880x2880"
-  | "3456x2304"
-  | "2304x3456"
-  | "3840x2160"
-  | "2160x3840";
+export type SizeValue = "auto" | `${number}x${number}`;
 export type QualityValue = "auto" | "high" | "medium" | "low";
 export type KernelRuntimeMode = "auto" | "local" | "remote";
 export type ProxyMode = "none" | "system" | "custom";
@@ -57,6 +41,14 @@ export type ThemeMode = "system" | "light" | "dark";
 export interface SizeOption { value: SizeValue; label: string; }
 export interface QualityOption { value: QualityValue; label: string; }
 export interface OutputFormatOption { value: OutputFormatValue; label: string; }
+
+export interface CustomAspectRatio {
+  id: string;
+  label: string;
+  width: number;
+  height: number;
+  createdAt: number;
+}
 
 export const SIZE_OPTIONS: SizeOption[] = [
   { value: "auto",      label: "自适应 auto" },

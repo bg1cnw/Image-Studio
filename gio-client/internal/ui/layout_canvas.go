@@ -255,7 +255,7 @@ func (a *App) canvasToolbar(gtx layout.Context, snap snapshot) layout.Dimensions
 						}))
 					}
 					return a.toolbarCluster(gtx, func(gtx layout.Context) layout.Dimensions {
-						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx, rightChildren...)
+						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx, rightChildren...)
 					})
 				}),
 			)
@@ -265,8 +265,8 @@ func (a *App) canvasToolbar(gtx layout.Context, snap snapshot) layout.Dimensions
 
 func (a *App) toolbarSeparator(gtx layout.Context) layout.Dimensions {
 	return fixedWidth(gtx, unit.Dp(1), func(gtx layout.Context) layout.Dimensions {
-		return fixedHeight(gtx, unit.Dp(18), func(gtx layout.Context) layout.Dimensions {
-			return a.surface(gtx, rgba(0x000000, 0x18), unit.Dp(0), layout.Spacer{}.Layout)
+		return fixedHeight(gtx, unit.Dp(16), func(gtx layout.Context) layout.Dimensions {
+			return a.surface(gtx, withAlpha(fluent.border, 0xd0), unit.Dp(0), layout.Spacer{}.Layout)
 		})
 	})
 }
@@ -532,7 +532,15 @@ func (a *App) layoutCompareViewport(gtx layout.Context, currentOp paint.ImageOp,
 			centerX := clampInt(splitPx, 12, max.X-12)
 			handleRect := image.Rect(centerX-12, max.Y/2-12, centerX+12, max.Y/2+12)
 			paint.FillShape(gtx.Ops, compareAccent, clip.Ellipse(handleRect).Op(gtx.Ops))
-			paint.FillShape(gtx.Ops, fluent.white, clip.Rect(image.Rect(centerX-6, max.Y/2-1, centerX+6, max.Y/2+1)).Op())
+			labelOffset := op.Offset(image.Pt(centerX-12, max.Y/2-12)).Push(gtx.Ops)
+			fixedPixelWidth(gtx, 24, func(gtx layout.Context) layout.Dimensions {
+				return fixedPixelHeight(gtx, 24, func(gtx layout.Context) layout.Dimensions {
+					return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return a.label(gtx, "⇆", unit.Sp(11), fluent.white, font.Medium)
+					})
+				})
+			})
+			labelOffset.Pop()
 			return layout.Dimensions{Size: max}
 		}),
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
@@ -552,8 +560,8 @@ func (a *App) layoutCompareViewport(gtx layout.Context, currentOp paint.ImageOp,
 
 func (a *App) layoutCompareBadge(gtx layout.Context, text string, bg color.NRGBA, fg color.NRGBA) layout.Dimensions {
 	return a.surface(gtx, bg, unit.Dp(4), func(gtx layout.Context) layout.Dimensions {
-		return layout.Inset{Top: 3, Bottom: 3, Left: 8, Right: 8}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return a.label(gtx, text, unit.Sp(10), fg, font.Medium)
+		return layout.Inset{Top: 2, Bottom: 2, Left: 8, Right: 8}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return a.label(gtx, text, unit.Sp(11), fg, font.Medium)
 		})
 	})
 }

@@ -6,6 +6,7 @@ import type {
   KernelRuntimeMode,
   Mode,
   OutputFormatValue,
+  CustomAspectRatio,
   Preset,
   ProgressInfo,
   ProxyMode,
@@ -112,6 +113,7 @@ export interface StudioState {
   promptHistory: string[];
   batchCount: number;
   presets: Preset[];
+  customAspectRatios: CustomAspectRatio[];
   theme: ThemeMode;
   fontScale: number;
   workspaces: Workspace[];
@@ -191,6 +193,11 @@ export interface StudioState {
   setTheme: (t: ThemeMode) => void;
   setFontScale: (v: number) => void;
   setProxyConfig: (mode: ProxyMode, url?: string) => void;
+  customAspectRatioModalOpen: boolean;
+  openCustomAspectRatioModal: () => void;
+  closeCustomAspectRatioModal: () => void;
+  addCustomAspectRatio: (width: number, height: number) => boolean;
+  deleteCustomAspectRatio: (id: string) => void;
   settingsOpen: boolean;
   openSettings: () => void;
   closeSettings: () => void;

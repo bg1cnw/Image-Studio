@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import {
   type AspectPreset,
+  type AspectPresetOption,
   type ResolutionPreset,
 } from "../../../components/panel/sizeCapabilities";
 import { Modal } from "../../../components/common/Modal";
@@ -14,6 +15,7 @@ import { AndroidParameterEditor } from "./AndroidParameterEditor";
 export function AndroidPhoneParameterSection({
   activeAspect,
   activeAspectLabel,
+  aspectOptions,
   activeResolution,
   activeResolutionLabel,
   activeQualityLabel,
@@ -24,6 +26,7 @@ export function AndroidPhoneParameterSection({
   handleAspectSelect,
   handleResolutionSelect,
   imageModelID,
+  onOpenCustomAspectRatioModal,
   parametersOpen,
   quality,
   requestPolicy,
@@ -33,6 +36,7 @@ export function AndroidPhoneParameterSection({
 }: {
   activeAspect: AspectPreset;
   activeAspectLabel: string;
+  aspectOptions: AspectPresetOption[];
   activeResolution: ResolutionPreset;
   activeResolutionLabel: string;
   activeQualityLabel: string;
@@ -43,6 +47,7 @@ export function AndroidPhoneParameterSection({
   handleAspectSelect: (aspect: AspectPreset) => void;
   handleResolutionSelect: (resolution: ResolutionPreset) => void;
   imageModelID: string;
+  onOpenCustomAspectRatioModal: () => void;
   parametersOpen: boolean;
   quality: string;
   requestPolicy: "openai" | "compat";
@@ -80,6 +85,7 @@ export function AndroidPhoneParameterSection({
         <AndroidParameterEditor
           activeAspect={activeAspect}
           activeAspectLabel={activeAspectLabel}
+          aspectOptions={aspectOptions}
           activeResolution={activeResolution}
           activeResolutionLabel={activeResolutionLabel}
           activeQualityLabel={activeQualityLabel}
@@ -90,6 +96,7 @@ export function AndroidPhoneParameterSection({
           handleAspectSelect={handleAspectSelect}
           handleResolutionSelect={handleResolutionSelect}
           imageModelID={imageModelID}
+          onOpenCustomAspectRatioModal={onOpenCustomAspectRatioModal}
           quality={quality}
           requestPolicy={requestPolicy}
           setField={setField}

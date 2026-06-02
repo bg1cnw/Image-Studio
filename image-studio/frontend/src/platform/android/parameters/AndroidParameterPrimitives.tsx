@@ -1,5 +1,8 @@
 import type { CSSProperties, ReactNode } from "react";
-import { ASPECT_PRESETS, type AspectPreset } from "../../../components/panel/sizeCapabilities";
+import {
+  type AspectPreset,
+  type AspectPresetOption,
+} from "../../../components/panel/sizeCapabilities";
 import { STYLE_CHIPS } from "../../../components/panel/panelOptions";
 import { vibrateForPlatform } from "../bridge";
 
@@ -199,22 +202,27 @@ export function AndroidStyleChips({
 }
 
 export function AndroidAspectGrid({
+  items,
+  onManageCustom,
   value,
   onChange,
 }: {
+  items: AspectPresetOption[];
+  onManageCustom: () => void;
   value: AspectPreset;
   onChange: (value: AspectPreset) => void;
 }) {
   return (
-    <div className="android-parameter-aspect-grid">
-      {ASPECT_PRESETS.map((item) => {
-        const active = value === item.value;
-        return (
-          <button
+    <div>
+      <div className="android-parameter-aspect-grid">
+        {items.map((item) => {
+          const active = value === item.value;
+          return (
+            <button
             key={item.value}
             type="button"
             aria-pressed={active}
-            title={item.auto ? "让上游决定尺寸与比例" : item.value}
+            title={item.auto ? "让上游决定尺寸与比例" : item.label}
             onClick={() => {
               if (active) return;
               vibrateForPlatform(5);
@@ -226,10 +234,23 @@ export function AndroidAspectGrid({
               className={`android-parameter-aspect-shape ${item.auto ? "auto" : ""}`}
               style={{ width: item.w, height: item.h }}
             />
-            <strong>{item.label}</strong>
-          </button>
-        );
-      })}
+              <strong>{item.label}</strong>
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-3 flex justify-end">
+        <button
+          type="button"
+          onClick={() => {
+            vibrateForPlatform(6);
+            onManageCustom();
+          }}
+          className="text-[12px] font-medium text-[var(--accent)] transition-opacity hover:opacity-80"
+        >
+          自定义比例
+        </button>
+      </div>
     </div>
   );
 }

@@ -18,10 +18,10 @@ import (
 )
 
 const (
-	fluentControlRadius = unit.Dp(4)
-	fluentCardRadius    = unit.Dp(8)
+	fluentControlRadius = unit.Dp(8)
+	fluentCardRadius    = unit.Dp(12)
 	fluentBadgeRadius   = unit.Dp(4)
-	fluentModalRadius   = unit.Dp(8)
+	fluentModalRadius   = unit.Dp(12)
 )
 
 func (a *App) sectionTitle(gtx layout.Context, text string) layout.Dimensions {
@@ -377,22 +377,28 @@ func (a *App) toolbarIconButton(
 		fg = fluent.accent
 		border = accentAlpha(0x24)
 	}
-	return a.surfaceButton(
-		gtx,
-		btn,
-		bg,
-		hoverBg,
-		border,
-		unit.Dp(4),
-		layout.Inset{Top: 7, Bottom: 7, Left: 7, Right: 7},
-		func(gtx layout.Context) layout.Dimensions {
-			return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
-				return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
-					return icon.Layout(gtx, fg)
-				})
-			})
-		},
-	)
+	return fixedWidth(gtx, unit.Dp(32), func(gtx layout.Context) layout.Dimensions {
+		return fixedHeight(gtx, unit.Dp(32), func(gtx layout.Context) layout.Dimensions {
+			return a.surfaceButton(
+				gtx,
+				btn,
+				bg,
+				hoverBg,
+				border,
+				unit.Dp(4),
+				layout.Inset{},
+				func(gtx layout.Context) layout.Dimensions {
+					return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+							return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+								return icon.Layout(gtx, fg)
+							})
+						})
+					})
+				},
+			)
+		})
+	})
 }
 
 func (a *App) toolbarStaticIcon(
@@ -412,11 +418,15 @@ func (a *App) toolbarStaticIcon(
 		border = accentAlpha(0x24)
 		fg = fluent.accent
 	}
-	return a.borderedSurface(gtx, bg, fluentControlRadius, border, func(gtx layout.Context) layout.Dimensions {
-		return layout.Inset{Top: 7, Bottom: 7, Left: 7, Right: 7}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
-				return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
-					return icon.Layout(gtx, fg)
+	return fixedWidth(gtx, unit.Dp(32), func(gtx layout.Context) layout.Dimensions {
+		return fixedHeight(gtx, unit.Dp(32), func(gtx layout.Context) layout.Dimensions {
+			return a.borderedSurface(gtx, bg, fluentControlRadius, border, func(gtx layout.Context) layout.Dimensions {
+				return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+						return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+							return icon.Layout(gtx, fg)
+						})
+					})
 				})
 			})
 		})
@@ -432,7 +442,7 @@ func (a *App) historyMiniIconButton(
 	bg := fluent.surface
 	hoverBg := fluent.surface2
 	fg := fluent.textMuted
-	border := fluent.border
+	border := rgba(0xffffff, 0x00)
 	if active {
 		bg = fluent.accentSoft
 		hoverBg = accentAlpha(0x28)
@@ -515,29 +525,33 @@ func (a *App) toolbarTextButton(
 		border = accentAlpha(0x24)
 		fg = fluent.accent
 	}
-	return a.surfaceButton(
-		gtx,
-		btn,
-		bg,
-		hoverBg,
-		border,
-		fluentControlRadius,
-		layout.Inset{Top: 6, Bottom: 6, Left: 8, Right: 8},
-		func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(5))}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
-						return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
-							return icon.Layout(gtx, fg)
-						})
-					})
-				}),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.label(gtx, text, unit.Sp(11), fg, font.Medium)
-				}),
-			)
-		},
-	)
+	return fixedHeight(gtx, unit.Dp(30), func(gtx layout.Context) layout.Dimensions {
+		return a.surfaceButton(
+			gtx,
+			btn,
+			bg,
+			hoverBg,
+			border,
+			fluentControlRadius,
+			layout.Inset{Left: 8, Right: 8},
+			func(gtx layout.Context) layout.Dimensions {
+				return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(5))}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+								return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+									return icon.Layout(gtx, fg)
+								})
+							})
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return a.label(gtx, text, unit.Sp(11), fg, font.Medium)
+						}),
+					)
+				})
+			},
+		)
+	})
 }
 
 func (a *App) compactIconButton(
@@ -612,29 +626,33 @@ func (a *App) toolbarPrimaryTextButton(
 	icon *widget.Icon,
 	text string,
 ) layout.Dimensions {
-	return a.surfaceButton(
-		gtx,
-		btn,
-		fluent.accent,
-		fluent.accent2,
-		accentAlpha(0x58),
-		fluentControlRadius,
-		layout.Inset{Top: 6, Bottom: 6, Left: 10, Right: 10},
-		func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
-						return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
-							return icon.Layout(gtx, fluent.white)
-						})
-					})
-				}),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.label(gtx, text, unit.Sp(11), fluent.white, font.Medium)
-				}),
-			)
-		},
-	)
+	return fixedHeight(gtx, unit.Dp(30), func(gtx layout.Context) layout.Dimensions {
+		return a.surfaceButton(
+			gtx,
+			btn,
+			fluent.accent,
+			fluent.accent2,
+			accentAlpha(0x58),
+			fluentControlRadius,
+			layout.Inset{Left: 10, Right: 10},
+			func(gtx layout.Context) layout.Dimensions {
+				return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+								return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+									return icon.Layout(gtx, fluent.white)
+								})
+							})
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return a.label(gtx, text, unit.Sp(11), fluent.white, font.Medium)
+						}),
+					)
+				})
+			},
+		)
+	})
 }
 
 func (a *App) primaryButton(
@@ -811,7 +829,7 @@ func (a *App) monoLabel(gtx layout.Context, text string, size unit.Sp, color col
 }
 
 func (a *App) card(gtx layout.Context, w layout.Widget) layout.Dimensions {
-	return a.elevatedBorderedSurface(gtx, fluent.surface, fluentCardRadius, fluent.border, image.Pt(0, 1), func(gtx layout.Context) layout.Dimensions {
+	return a.elevatedBorderedSurface(gtx, fluent.surfaceElevated, fluentCardRadius, fluent.border, image.Pt(0, 1), func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(12)).Layout(gtx, w)
 	})
 }
@@ -831,7 +849,7 @@ func (a *App) layoutStandardModal(
 		gtx.Constraints.Min = image.Point{}
 		return fixedWidth(gtx, width, func(gtx layout.Context) layout.Dimensions {
 			frame := func(gtx layout.Context) layout.Dimensions {
-				return a.borderedSurface(gtx, fluent.surface, fluentModalRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {
+				return a.elevatedBorderedSurface(gtx, fluent.surfaceElevated, fluentModalRadius, fluent.border, image.Pt(0, 1), func(gtx layout.Context) layout.Dimensions {
 					return layout.UniformInset(unit.Dp(0)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						children := []layout.FlexChild{
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {

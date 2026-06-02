@@ -196,7 +196,7 @@ func (a *App) layoutUpstreamCard(gtx layout.Context, snap snapshot) layout.Dimen
 		dotColor = fluent.accent
 	}
 
-	return a.elevatedBorderedSurface(gtx, fluent.surface, fluentCardRadius, fluent.border, image.Pt(0, 1), func(gtx layout.Context) layout.Dimensions {
+	return a.elevatedBorderedSurface(gtx, fluent.surfaceElevated, fluentCardRadius, fluent.border, image.Pt(0, 1), func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			base := func(gtx layout.Context) layout.Dimensions {
 				children := []layout.FlexChild{
@@ -384,7 +384,7 @@ func (a *App) layoutHistorySummaryCard(
 	if len(filtered) != len(snap.History) {
 		countText += " / " + strconv.Itoa(len(snap.History))
 	}
-	return a.elevatedBorderedSurface(gtx, fluent.surface, fluentCardRadius, fluent.border, image.Pt(0, 1), func(gtx layout.Context) layout.Dimensions {
+	return a.elevatedBorderedSurface(gtx, fluent.surfaceElevated, fluentCardRadius, fluent.border, image.Pt(0, 1), func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -492,7 +492,7 @@ func (a *App) layoutLatestHistoryCard(gtx layout.Context, item sharedCompat.Hist
 	btn := a.historyButton("feature:" + item.ID)
 	detailBtn := a.historyActionButton("feature-detail:" + item.ID)
 	compareActive := a.isCompareItem(item)
-	return a.elevatedBorderedSurface(gtx, fluent.surface, fluentCardRadius, fluent.border, image.Pt(0, 1), func(gtx layout.Context) layout.Dimensions {
+	return a.elevatedBorderedSurface(gtx, fluent.surfaceElevated, fluentCardRadius, fluent.border, image.Pt(0, 1), func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			img, _ := a.imageForHistoryItem(item)
 			return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
@@ -550,7 +550,7 @@ func (a *App) layoutLatestHistoryCard(gtx layout.Context, item sharedCompat.Hist
 											)
 										}),
 										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-											return a.textActionButton(gtx, detailBtn, "更多", false)
+											return a.compactIconTextButton(gtx, detailBtn, uiIconMoreHoriz, "更多", false)
 										}),
 									)
 								}),
@@ -802,7 +802,7 @@ func (a *App) layoutHistoryResultsCard(
 	entries []historyPromptEntry,
 	visible []historyPromptEntry,
 ) layout.Dimensions {
-	return a.elevatedBorderedSurface(gtx, fluent.surface, fluentCardRadius, fluent.border, image.Pt(0, 1), func(gtx layout.Context) layout.Dimensions {
+	return a.elevatedBorderedSurface(gtx, fluent.surfaceElevated, fluentCardRadius, fluent.border, image.Pt(0, 1), func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -852,7 +852,8 @@ func (a *App) layoutHistoryResultsCard(
 					if len(entries) <= len(visible) {
 						return layout.Dimensions{}
 					}
-					return a.textActionButton(gtx, &a.openHistoryTimelineMoreButton, "查看更多历史", true)
+					gtx.Constraints.Min.X = gtx.Constraints.Max.X
+					return a.compactButton(gtx, &a.openHistoryTimelineMoreButton, "查看更多历史", false)
 				}),
 			)
 		})
@@ -940,6 +941,16 @@ func (a *App) layoutHistoryGroupPileSized(
 						})
 					}
 					return layout.Dimensions{Size: image.Pt(gtx.Constraints.Min.X, gtx.Constraints.Min.Y)}
+				}),
+				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+					if len(group.Items) == 0 {
+						return layout.Dimensions{}
+					}
+					return layout.NW.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return layout.Inset{Left: unit.Dp(4), Top: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return a.historyModeBadge(gtx, group.Representative.Mode)
+						})
+					})
 				}),
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 					return layout.SE.Layout(gtx, func(gtx layout.Context) layout.Dimensions {

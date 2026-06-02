@@ -105,7 +105,7 @@ func (a *App) segmentedGridWithTitle(gtx layout.Context, title string, options [
 }
 
 func (a *App) segmented(gtx layout.Context, options []choice, selected string, buttons []widget.Clickable, set func(string)) layout.Dimensions {
-	return a.borderedSurface(gtx, fluent.surface2, unit.Dp(10), fluent.border, func(gtx layout.Context) layout.Dimensions {
+	return a.borderedSurface(gtx, fluent.surface2, unit.Dp(6), fluent.border, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(2)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			children := make([]layout.FlexChild, 0, len(options))
 			for i := range options {
@@ -153,7 +153,7 @@ func (a *App) segmentedGrid(gtx layout.Context, options []choice, selected strin
 		columns = 2
 	}
 	rows := (len(options) + columns - 1) / columns
-	return a.borderedSurface(gtx, fluent.surface2, unit.Dp(10), fluent.border, func(gtx layout.Context) layout.Dimensions {
+	return a.borderedSurface(gtx, fluent.surface2, unit.Dp(6), fluent.border, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(2)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			children := make([]layout.FlexChild, 0, rows)
 			for row := 0; row < rows; row++ {

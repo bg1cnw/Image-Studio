@@ -1,5 +1,6 @@
 import { LoadCompatibilityState, SaveCompatibilityState } from "../platform/runtime/host";
 import type {
+  CustomAspectRatio,
   HistoryItem,
   KernelRuntimeMode,
   OutputFormatValue,
@@ -10,6 +11,10 @@ import type {
 } from "../types/domain";
 import { ACTIVE_PROFILE_LS_KEY, PROFILES_LS_KEY, tryParseProfile } from "./profiles";
 import { normalizeProxyMode, persistProxyConfig } from "./proxy";
+import {
+  normalizeCustomAspectRatios,
+  persistCustomAspectRatios,
+} from "./customAspectRatios.ts";
 import {
   loadTrustedOutputRoots,
   persistHistoryFullImage,
@@ -33,6 +38,7 @@ export type CompatibilityState = {
     outputDir?: string;
     promptHistory?: string[];
     presets?: Preset[];
+    customAspectRatios?: CustomAspectRatio[];
     kernelRuntimeMode?: KernelRuntimeMode;
     trustedOutputRoots?: string[];
     savePromptSuppressed?: boolean;
@@ -54,6 +60,7 @@ export type CompatibilityExportInput = {
   outputFormat: OutputFormatValue;
   promptHistory: string[];
   presets: Preset[];
+  customAspectRatios: CustomAspectRatio[];
   kernelRuntimeMode: KernelRuntimeMode;
 };
 
@@ -98,6 +105,7 @@ export function compatibilityExportFingerprint(input: CompatibilityExportInput):
     outputFormat: input.outputFormat,
     promptHistory: input.promptHistory,
     presets: input.presets,
+    customAspectRatios: input.customAspectRatios,
     kernelRuntimeMode: input.kernelRuntimeMode,
     outputDir: readLocalStorageString("gptcodex.outputDir"),
     trustedOutputRoots: loadTrustedOutputRoots(),
@@ -121,6 +129,7 @@ function buildCompatibilityState(input: CompatibilityExportInput): Compatibility
       outputDir: readLocalStorageString("gptcodex.outputDir"),
       promptHistory: cleanStringList(input.promptHistory, 50),
       presets: normalizePresets(input.presets),
+      customAspectRatios: normalizeCustomAspectRatios(input.customAspectRatios),
       kernelRuntimeMode: normalizeKernelRuntimeMode(input.kernelRuntimeMode),
       trustedOutputRoots: loadTrustedOutputRoots(),
       savePromptSuppressed: readLocalStorageString("gptcodex.savePromptSuppressed") === "1",
@@ -150,6 +159,7 @@ function applyCompatibilityLocalStorage(state: CompatibilityState): void {
   if (settings.kernelRuntimeMode) writeLocalStorageString("gptcodex.kernelRuntimeMode", normalizeKernelRuntimeMode(settings.kernelRuntimeMode));
   writeLocalStorageJSON("gptcodex.promptHistory", cleanStringList(settings.promptHistory ?? [], 50));
   writeLocalStorageJSON("gptcodex.presets", normalizePresets(settings.presets ?? []));
+  persistCustomAspectRatios(normalizeCustomAspectRatios(settings.customAspectRatios ?? []));
   writeLocalStorageJSON("gptcodex.trustedOutputRoots", cleanStringList(settings.trustedOutputRoots ?? [], 100));
   if (settings.savePromptSuppressed) writeLocalStorageString("gptcodex.savePromptSuppressed", "1");
   else removeLocalStorage("gptcodex.savePromptSuppressed");
@@ -203,6 +213,7 @@ function normalizeSettings(raw: unknown): CompatibilityState["settings"] {
     outputDir: typeof source.outputDir === "string" ? source.outputDir : "",
     promptHistory: cleanStringList(source.promptHistory ?? [], 50),
     presets: normalizePresets(source.presets ?? []),
+    customAspectRatios: normalizeCustomAspectRatios(source.customAspectRatios ?? []),
     kernelRuntimeMode: normalizeKernelRuntimeMode(source.kernelRuntimeMode),
     trustedOutputRoots: cleanStringList(source.trustedOutputRoots ?? [], 100),
     savePromptSuppressed: source.savePromptSuppressed === true,
@@ -285,6 +296,7 @@ function cloneExportInput(input: CompatibilityExportInput): CompatibilityExportI
     outputFormat: input.outputFormat,
     promptHistory: [...input.promptHistory],
     presets: input.presets.map((preset) => ({ ...preset })),
+    customAspectRatios: input.customAspectRatios.map((ratio) => ({ ...ratio })),
     kernelRuntimeMode: input.kernelRuntimeMode,
   };
 }
