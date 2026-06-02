@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"image"
 	"image/draw"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -252,8 +253,15 @@ func parseMediaPath(path string) (kind string, id string, ok bool) {
 func setMediaHeaders(w http.ResponseWriter, path, kind string) {
 	w.Header().Set("Cache-Control", "private, max-age=86400")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if disposition := mime.FormatMediaType("inline", map[string]string{"filename": filepath.Base(path)}); disposition != "" {
+		w.Header().Set("Content-Disposition", disposition)
+	}
 	if kind == "thumb" || kind == "preview" || strings.EqualFold(filepath.Ext(path), ".avif") {
 		w.Header().Set("Content-Type", "image/avif")
+		return
+	}
+	if contentType := mime.TypeByExtension(strings.ToLower(filepath.Ext(path))); contentType != "" {
+		w.Header().Set("Content-Type", contentType)
 	}
 }
 

@@ -1,0 +1,88 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+const realWindow = globalThis.window;
+
+function installWindow(href = "http://wails.localhost/") {
+  globalThis.window = {
+    location: { href },
+  };
+}
+
+function restoreWindow() {
+  globalThis.window = realWindow;
+}
+
+test("buildHistoryItemDragExport prefers the persisted full image path", async () => {
+  installWindow();
+  try {
+    const dragExport = await import(`../src/lib/dragExport.ts?drag-export-test=${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const spec = dragExport.buildHistoryItemDragExport({
+      id: "result-12345678",
+      mode: "generate",
+      outputFormat: "png",
+      savedPath: "/tmp/image-generate-cat.png",
+      fullUrl: "/media/full/abc123",
+      imageId: "abc123",
+      imageB64: "",
+      previewOnly: false,
+    });
+    assert.deepEqual(spec, {
+      href: "http://wails.localhost/media/full/abc123",
+      fileName: "image-generate-cat.png",
+      mimeType: "image/png",
+      downloadURL: "image/png:image-generate-cat.png:http://wails.localhost/media/full/abc123",
+    });
+  } finally {
+    restoreWindow();
+  }
+});
+
+test("buildHistoryItemDragExport falls back to the generated media route and suggested name", async () => {
+  installWindow("http://wails.localhost/app/");
+  try {
+    const dragExport = await import(`../src/lib/dragExport.ts?drag-export-test=${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const spec = dragExport.buildHistoryItemDragExport({
+      id: "abcdef123456",
+      mode: "edit",
+      outputFormat: "jpeg",
+      savedPath: "",
+      fullUrl: "",
+      imageId: "feedbeef",
+      imageB64: "",
+      previewOnly: false,
+    });
+    assert.deepEqual(spec, {
+      href: "http://wails.localhost/media/full/feedbeef",
+      fileName: "image-edit-abcdef12.jpg",
+      mimeType: "image/jpeg",
+      downloadURL: "image/jpeg:image-edit-abcdef12.jpg:http://wails.localhost/media/full/feedbeef",
+    });
+  } finally {
+    restoreWindow();
+  }
+});
+
+test("writeImageFileDragData writes the expected drag payload formats", async () => {
+  const dragExport = await import(`../src/lib/dragExport.ts?drag-export-test=${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const writes = [];
+  dragExport.writeImageFileDragData({
+    clearData() {
+      writes.push(["clearData"]);
+    },
+    setData(format, value) {
+      writes.push([format, value]);
+    },
+  }, {
+    href: "http://wails.localhost/media/full/abc123",
+    fileName: "image.png",
+    mimeType: "image/png",
+    downloadURL: "image/png:image.png:http://wails.localhost/media/full/abc123",
+  });
+  assert.deepEqual(writes, [
+    ["clearData"],
+    ["DownloadURL", "image/png:image.png:http://wails.localhost/media/full/abc123"],
+    ["text/uri-list", "http://wails.localhost/media/full/abc123"],
+    ["text/plain", "http://wails.localhost/media/full/abc123"],
+  ]);
+});

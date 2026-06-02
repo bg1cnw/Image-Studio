@@ -6,10 +6,12 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"mime"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -77,6 +79,9 @@ func TestMediaHandlerServesRegisteredFullAndAVIFThumb(t *testing.T) {
 	if got := rec.Header().Get("Content-Type"); got != "image/avif" {
 		t.Fatalf("thumb content-type = %q", got)
 	}
+	if got, params, err := mime.ParseMediaType(rec.Header().Get("Content-Disposition")); err != nil || got != "inline" || params["filename"] != "sample.avif" {
+		t.Fatalf("thumb content-disposition = %q (parsed=%q %+v err=%v)", rec.Header().Get("Content-Disposition"), got, params, err)
+	}
 	if rec.Body.Len() == 0 {
 		t.Fatal("empty thumb body")
 	}
@@ -86,6 +91,9 @@ func TestMediaHandlerServesRegisteredFullAndAVIFThumb(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("full status = %d", rec.Code)
+	}
+	if got, params, err := mime.ParseMediaType(rec.Header().Get("Content-Disposition")); err != nil || got != "inline" || params["filename"] != "sample.png" {
+		t.Fatalf("full content-disposition = %q (parsed=%q %+v err=%v)", rec.Header().Get("Content-Disposition"), got, params, err)
 	}
 	if rec.Body.Len() == 0 {
 		t.Fatal("empty full body")
@@ -115,6 +123,9 @@ func TestMediaHandlerServesRegisteredFullAndAVIFThumb(t *testing.T) {
 	}
 	if got := rec.Header().Get("Content-Type"); got != "image/avif" {
 		t.Fatalf("preview content-type = %q", got)
+	}
+	if got, params, err := mime.ParseMediaType(rec.Header().Get("Content-Disposition")); err != nil || got != "inline" || params["filename"] != "partial.avif" {
+		t.Fatalf("preview content-disposition = %q (parsed=%q %+v err=%v)", rec.Header().Get("Content-Disposition"), got, params, err)
 	}
 	if rec.Body.Len() == 0 {
 		t.Fatal("empty preview body")
@@ -177,6 +188,9 @@ func TestRegisterImportedImageAssetCreatesManagedAVIFPreview(t *testing.T) {
 	}
 	if got := rec.Header().Get("Content-Type"); got != "image/avif" {
 		t.Fatalf("preview content-type = %q", got)
+	}
+	if got, params, err := mime.ParseMediaType(rec.Header().Get("Content-Disposition")); err != nil || got != "inline" || !strings.HasSuffix(params["filename"], "-source.avif") {
+		t.Fatalf("imported preview content-disposition = %q (parsed=%q %+v err=%v)", rec.Header().Get("Content-Disposition"), got, params, err)
 	}
 	if rec.Body.Len() == 0 {
 		t.Fatal("empty imported preview body")
