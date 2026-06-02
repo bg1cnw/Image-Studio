@@ -91,6 +91,8 @@ export interface StudioState {
   runningJobMeta: Record<string, RunningJobMeta>;
   currentImage: HistoryItem | null;
   history: HistoryItem[];
+  historyHasMore: boolean;
+  historyLoading: boolean;
   batchResults: HistoryItem[];
   resultGridOpen: boolean;
   historyRailCollapsed: boolean;
@@ -184,6 +186,7 @@ export interface StudioState {
   materializeCurrentImage: (item: HistoryItem) => Promise<HistoryItem>;
   retryLast: () => Promise<void>;
   setHistoryRailCollapsed: (collapsed: boolean) => void;
+  loadMoreHistory: () => Promise<void>;
   openHistoryTimeline: () => void;
   closeHistoryTimeline: () => void;
   pruneHistoryOlderThanDays: (days: number) => Promise<number>;

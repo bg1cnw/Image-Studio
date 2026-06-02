@@ -1,4 +1,4 @@
-import { Suspense, lazy, useDeferredValue, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown, ChevronRight, Clock3, CopyPlus, Filter, GalleryVerticalEnd,
   Image as ImageIcon, ListFilter, RotateCcw, Search, Settings2, Split, Trash2,
@@ -36,7 +36,7 @@ export function HistoryRail() {
     openResultDetail, apiKey, baseURL, apiMode,
     profiles, activeProfileId, setActiveProfile,
     openUpstreamConfig, openHistoryTimeline, testAPIKey, isTestingKey,
-    historyRailCollapsed, setHistoryRailCollapsed,
+    historyRailCollapsed, historyHasMore, historyLoading, loadMoreHistory, setHistoryRailCollapsed,
   } = useStudioStore();
 
   const [q, setQ] = useState("");
@@ -70,6 +70,14 @@ export function HistoryRail() {
   const historyFiltersActive = q.trim().length > 0 || modeF !== "all" || dateF !== "all";
   const showPhoneFilterToggle = isAndroidPhone && (history.length > 4 || historyFiltersActive);
   const showFilterControls = !isAndroidPhone ? showHistoryFilters : (filtersOpen || historyFiltersActive);
+  const historyCountLabel = historyHasMore ? `${history.length}+` : `${history.length}`;
+
+  useEffect(() => {
+    if (!historyHasMore || historyLoading) return;
+    if (historyFiltersActive) {
+      void loadMoreHistory();
+    }
+  }, [historyFiltersActive, historyHasMore, historyLoading, loadMoreHistory]);
 
   async function selectCurrent(h: HistoryItem) {
     const myEpoch = ++selectEpochRef.current;
@@ -137,6 +145,7 @@ export function HistoryRail() {
           filtered={filtered}
           generateCount={generateCount}
           history={history}
+          historyHasMore={historyHasMore}
           historyFiltersActive={historyFiltersActive}
           historyRailCollapsed={historyRailCollapsed}
           isTestingKey={isTestingKey}
@@ -186,7 +195,7 @@ export function HistoryRail() {
             <p>按时间回看生成结果，直接复用参数、设为源图或继续变体。</p>
           </div>
           <div className="android-history-total">
-            <span>{history.length}</span>
+            <span>{historyCountLabel}</span>
             <small>张</small>
           </div>
         </section>
@@ -199,7 +208,7 @@ export function HistoryRail() {
           >
             <ImageIcon className="h-4 w-4" />
             <span>全部</span>
-            <strong>{history.length}</strong>
+            <strong>{historyCountLabel}</strong>
           </button>
           <button
             type="button"
@@ -296,7 +305,7 @@ export function HistoryRail() {
         <section className="android-history-results-card">
           <div className="android-history-section-head">
             <span><ListFilter className="h-4 w-4" /> 结果</span>
-            <small>{filtered.length}{filtered.length !== history.length ? ` / ${history.length}` : ""}</small>
+            <small>{filtered.length}{filtered.length !== history.length ? ` / ${historyCountLabel}` : historyHasMore ? "+" : ""}</small>
           </div>
 
           {androidHistoryEntries.length === 0 ? (
@@ -338,7 +347,7 @@ export function HistoryRail() {
             </div>
           )}
 
-          {promptEntries.length > androidHistoryEntries.length ? (
+          {historyHasMore || promptEntries.length > androidHistoryEntries.length ? (
             <button type="button" className="android-history-more" onClick={openHistoryTimeline}>
               查看更多历史
             </button>
@@ -455,7 +464,7 @@ export function HistoryRail() {
       <div className={`platform-card history-rail-summary-card border border-black/[0.05] bg-white/70 shadow-[var(--shadow-card)] dark:border-white/[0.06] dark:bg-white/[0.03] ${isAndroidPhone ? "p-2.5" : "p-3.5"} ${usesFluentUI ? "rounded-[12px]" : "rounded-[20px]"}`}>
         <div className={`flex items-center justify-between ${isMac ? "gap-2.5" : "gap-2"}`}>
           <h3 className={`${isMac ? "text-[12px]" : "text-[11px]"} font-semibold uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-200`}>
-            历史 <span className="font-mono-token text-zinc-500 dark:text-zinc-400">({filtered.length}{filtered.length !== history.length && `/${history.length}`})</span>
+            历史 <span className="font-mono-token text-zinc-500 dark:text-zinc-400">({filtered.length}{filtered.length !== history.length ? `/${historyCountLabel}` : historyHasMore ? "+" : ""})</span>
           </h3>
           <div className={`history-rail-header-actions flex items-center ${isMac ? "gap-1.5 flex-wrap justify-end" : "gap-2"} shrink-0`}>
             {showPhoneFilterToggle ? (
@@ -471,7 +480,7 @@ export function HistoryRail() {
                 <Filter className="h-3 w-3" /> 筛选
               </button>
             ) : null}
-            {!isAndroidPhone && !isWindows && filtered.length > 6 ? (
+            {!isAndroidPhone && !isWindows && (historyHasMore || filtered.length > 6) ? (
               <button
                 type="button"
                 onClick={openHistoryTimeline}

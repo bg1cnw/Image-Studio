@@ -41,6 +41,7 @@ import {
   loadLegacySharedAPIKey,
   loadTrustedOutputRoots,
   persistHistoryItem,
+  persistHistoryItems,
   rememberTrustedOutputRoot,
   loadAllHistory,
 } from "../lib/storage";
@@ -102,6 +103,7 @@ import {
   loadModeConfig,
   loadStoredActiveProfileId,
   loadStoredProfiles,
+  MAX_HISTORY_ITEMS,
   persistActiveProfileId,
   persistProfiles,
   persistTrimmedHistory,
@@ -219,6 +221,10 @@ function launchQueuedLoopJobs(controller: LoopRunController): void {
 }
 
 const SAVE_PROMPT_SUPPRESSED_KEY = "gptcodex.savePromptSuppressed";
+const INITIAL_HISTORY_LOAD = 6;
+const HISTORY_MEDIA_HYDRATE_CONCURRENCY = 4;
+
+let deferredHistoryLoadPromise: Promise<void> | null = null;
 
 function readSavePromptSuppressed(): boolean {
   try {
@@ -246,6 +252,68 @@ async function writeBase64ToTempFile(b64: string, _name: string): Promise<string
   // use item.savedPath; this helper exists for parity and is currently unused.
   void b64;
   return "";
+}
+
+function needsHistoryPreviewHydration(item: HistoryItem): boolean {
+  return !!item.savedPath && !item.previewUrl && !item.previewBlob && !item.imageB64;
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  task: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await task(items[index], index);
+    }
+  };
+  const workerCount = Math.min(Math.max(1, concurrency), items.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+}
+
+function mergeHistoryMediaRef(current: HistoryItem | null, nextById: Map<string, HistoryItem>): HistoryItem | null {
+  if (!current) return current;
+  const next = nextById.get(current.id);
+  return next ? withMediaAssetRef(current, next) : current;
+}
+
+async function hydrateHistoryPreviewRefs(items: HistoryItem[]): Promise<HistoryItem[]> {
+  return mapWithConcurrency(items, HISTORY_MEDIA_HYDRATE_CONCURRENCY, async (item) => {
+    if (!needsHistoryPreviewHydration(item)) return item;
+    try {
+      const ref = item.thumbPath
+        ? await RegisterMediaAsset(item.savedPath!, item.thumbPath)
+        : await RegisterImportedImageAsset(item.savedPath!);
+      return withMediaAssetRef(item, ref);
+    } catch {
+      return item;
+    }
+  });
+}
+
+async function backfillHistoryPreviewRefs(items: HistoryItem[]): Promise<void> {
+  const hydrated = await hydrateHistoryPreviewRefs(items);
+  const changed = hydrated.filter((item, index) => item !== items[index]);
+  if (changed.length === 0) return;
+  const changedById = new Map(changed.map((item) => [item.id, item]));
+  useStudioStore.setState((state) => ({
+    history: state.history.map((item) => changedById.get(item.id) ?? item),
+    batchResults: state.batchResults.map((item) => {
+      const next = changedById.get(item.id);
+      return next ? withMediaAssetRef(item, next) : item;
+    }),
+    currentImage: mergeHistoryMediaRef(state.currentImage, changedById),
+    compareB: mergeHistoryMediaRef(state.compareB, changedById),
+    resultDetail: mergeHistoryMediaRef(state.resultDetail, changedById),
+  }));
+  await persistHistoryItems(changed).catch(() => undefined);
 }
 
 const mediaActions = createMediaActions({
@@ -329,6 +397,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
 
   currentImage: null,
   history: [],
+  historyHasMore: false,
+  historyLoading: false,
   batchResults: [],
   resultGridOpen: false,
   historyRailCollapsed: false,
@@ -856,6 +926,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         runningJobMeta: {},
         currentImage: preview.currentImage,
         history: preview.history,
+        historyHasMore: false,
+        historyLoading: false,
         batchResults: [],
         resultGridOpen: false,
         historyRailCollapsed: false,
@@ -908,8 +980,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       if (typeof console !== "undefined") console.warn("compat import failed", error);
       return false;
     });
-    const loadedItems = await loadAllHistory();
-    let items = trimHistory(loadedItems);
+    const loadedItems = await loadAllHistory(INITIAL_HISTORY_LOAD + 1);
+    const historyHasMore = loadedItems.length > INITIAL_HISTORY_LOAD;
+    const items = trimHistory(loadedItems.slice(0, INITIAL_HISTORY_LOAD));
     let promptHistory: string[] = [];
     let presets: Preset[] = [];
     const customAspectRatios = loadCustomAspectRatios();
@@ -1061,17 +1134,6 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     if (effectiveOutput) trustedRoots.add(effectiveOutput);
     for (const root of trustedRoots) rememberTrustedOutputRoot(root);
     await registerTrustedOutputRoots(Array.from(trustedRoots));
-    items = await Promise.all(items.map(async (item) => {
-      if (!item.savedPath) return item;
-      try {
-        const ref = item.thumbPath
-          ? await RegisterMediaAsset(item.savedPath, item.thumbPath)
-          : await RegisterImportedImageAsset(item.savedPath);
-        return withMediaAssetRef(item, ref);
-      } catch {
-        return item;
-      }
-    }));
     // Make sure there's always at least one workspace.
     const wsId = genId();
     const initialWorkspace: Workspace = {
@@ -1107,6 +1169,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       : !activeProfile || !activeKey.trim() || !baseURL.trim();
     set({
       apiKey: activeKey, history: items, promptHistory, presets, customAspectRatios, theme, fontScale,
+      historyHasMore,
+      historyLoading: false,
       apiMode, requestPolicy, baseURL, textModelID, imageModelID, kernelRuntimeMode, noPromptRevision,
       proxyMode: proxyConfig.mode,
       proxyURL: proxyConfig.url,
@@ -1126,6 +1190,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       savePromptSuppressed: readSavePromptSuppressed(),
     });
     enableCompatibilityExport();
+    void backfillHistoryPreviewRefs(items);
   },
 
   setMaskDataURL: (v) => set({ maskDataURL: v }),
@@ -1246,8 +1311,35 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   openResultDetail: async (item) => mediaActions.openResultDetail(item),
   closeResultDetail: () => mediaActions.closeResultDetail(),
   materializeCurrentImage: async (item) => mediaActions.materializeCurrentImage(item),
-  setHistoryRailCollapsed: (collapsed) => mediaActions.setHistoryRailCollapsed(collapsed),
-  openHistoryTimeline: () => mediaActions.openHistoryTimeline(),
+  loadMoreHistory: async () => {
+    if (deferredHistoryLoadPromise) return deferredHistoryLoadPromise;
+    if (!get().historyHasMore || get().historyLoading) return;
+    set({ historyLoading: true });
+    deferredHistoryLoadPromise = (async () => {
+      try {
+        const fullHistory = trimHistory(await loadAllHistory(MAX_HISTORY_ITEMS));
+        set({
+          history: fullHistory,
+          historyHasMore: false,
+        });
+        void backfillHistoryPreviewRefs(fullHistory);
+      } catch (error) {
+        if (typeof console !== "undefined") console.warn("load more history failed", error);
+      } finally {
+        deferredHistoryLoadPromise = null;
+        set({ historyLoading: false });
+      }
+    })();
+    return deferredHistoryLoadPromise;
+  },
+  setHistoryRailCollapsed: (collapsed) => {
+    mediaActions.setHistoryRailCollapsed(collapsed);
+    if (!collapsed) void get().loadMoreHistory();
+  },
+  openHistoryTimeline: () => {
+    mediaActions.openHistoryTimeline();
+    void get().loadMoreHistory();
+  },
   closeHistoryTimeline: () => mediaActions.closeHistoryTimeline(),
   pruneHistoryOlderThanDays: async (days) => mediaActions.pruneHistoryOlderThanDays(days),
   rotateCurrent: async (degrees) => mediaActions.rotateCurrent(degrees),

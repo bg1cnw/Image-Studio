@@ -17,8 +17,8 @@ import {
 } from "./customAspectRatios.ts";
 import {
   loadTrustedOutputRoots,
-  persistHistoryFullImage,
-  persistHistoryItem,
+  persistHistoryFullImages,
+  persistHistoryItems,
   pruneHistoryStorage,
 } from "./storage";
 
@@ -167,16 +167,14 @@ function applyCompatibilityLocalStorage(state: CompatibilityState): void {
 
 async function persistCompatibilityHistory(state: CompatibilityState): Promise<void> {
   const items = state.history.map(toSerializableHistoryItem).filter((item): item is HistoryItem => item !== null);
-  for (const item of items) {
-    await persistHistoryItem(item).catch(() => undefined);
-    if (typeof item.imageB64 === "string" && item.imageB64.trim()) {
-      await persistHistoryFullImage(item.id, item.imageB64).catch(() => undefined);
-    }
-  }
-  for (const full of state.historyFull ?? []) {
-    if (!full?.id || !full.imageB64?.trim()) continue;
-    await persistHistoryFullImage(full.id, full.imageB64).catch(() => undefined);
-  }
+  await persistHistoryItems(items).catch(() => undefined);
+  const fullImages = [
+    ...items
+      .filter((item) => typeof item.imageB64 === "string" && item.imageB64.trim())
+      .map((item) => ({ id: item.id, imageB64: item.imageB64 as string })),
+    ...(state.historyFull ?? []).filter((item) => item?.id && item.imageB64?.trim()),
+  ];
+  await persistHistoryFullImages(fullImages).catch(() => undefined);
   await pruneHistoryStorage(items.map((item) => item.id)).catch(() => undefined);
 }
 

@@ -28,6 +28,7 @@ export function WindowsHistoryRail({
   editCount,
   entries,
   history,
+  historyHasMore,
   historyFiltersActive,
   historyRailCollapsed,
   isTestingKey,
@@ -66,6 +67,7 @@ export function WindowsHistoryRail({
   editCount: number;
   entries: HistoryPromptEntry[];
   history: HistoryItem[];
+  historyHasMore: boolean;
   historyFiltersActive: boolean;
   historyRailCollapsed: boolean;
   isTestingKey: boolean;
@@ -90,6 +92,7 @@ export function WindowsHistoryRail({
 }) {
   const latest = filtered[0] ?? null;
   const list = historyRailCollapsed ? [] : entries.slice(0, 18);
+  const historyCountLabel = historyHasMore ? `${history.length}+` : `${history.length}`;
 
   return (
     <aside className="history-rail windows-history-rail box-border flex shrink-0 flex-col overflow-y-auto border-l border-[var(--border)] bg-[var(--inspector)]">
@@ -153,7 +156,7 @@ export function WindowsHistoryRail({
           <div className="windows-history-card-head">
             <div>
               <div className="windows-history-title">历史</div>
-              <div className="windows-history-count">{filtered.length}{filtered.length !== history.length ? ` / ${history.length}` : ""} 项</div>
+              <div className="windows-history-count">{filtered.length}{filtered.length !== history.length ? ` / ${historyCountLabel}` : historyHasMore ? "+" : ""} 项</div>
             </div>
             <button
               type="button"
@@ -167,7 +170,7 @@ export function WindowsHistoryRail({
 
           <div className="windows-history-stats">
             <button type="button" className={modeF === "all" ? "active" : ""} onClick={() => setModeF("all")}>
-              <ImageIcon className="h-3.5 w-3.5" /> 全部 <strong>{history.length}</strong>
+              <ImageIcon className="h-3.5 w-3.5" /> 全部 <strong>{historyCountLabel}</strong>
             </button>
             <button type="button" className={modeF === "generate" ? "active" : ""} onClick={() => setModeF("generate")}>
               <CopyPlus className="h-3.5 w-3.5" /> 文生图 <strong>{generateCount}</strong>

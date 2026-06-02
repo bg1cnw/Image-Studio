@@ -30,6 +30,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
     theme, fontScale,
     setField, setAPIKey, setProxyConfig,
     history,
+    loadMoreHistory,
     exportHistory, importHistory,
     pruneHistoryOlderThanDays,
     setTheme, setFontScale,
@@ -60,8 +61,10 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
   }
 
   async function clearHistory() {
-    if (!confirm(`确定清除 ${history.length} 条历史记录吗?(本地数据库也会删除)`)) return;
-    for (const h of history) {
+    await loadMoreHistory();
+    const loadedHistory = useStudioStore.getState().history;
+    if (!confirm(`确定清除 ${loadedHistory.length} 条历史记录吗?(本地数据库也会删除)`)) return;
+    for (const h of loadedHistory) {
       await useStudioStore.getState().deleteHistoryItem(h.id);
     }
   }

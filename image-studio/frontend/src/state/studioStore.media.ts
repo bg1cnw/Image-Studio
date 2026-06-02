@@ -14,7 +14,7 @@ import {
   sanitizeImportedHistoryItem,
 } from "../lib/security";
 import { base64ToBlob } from "../lib/images";
-import { persistHistoryItem } from "../lib/storage";
+import { persistHistoryItems } from "../lib/storage";
 import type { HistoryItem, Preset, Toast } from "../types/domain";
 import type { StudioState } from "./studioStore.types";
 import {
@@ -135,6 +135,7 @@ export function createMediaActions(store: StateAdapter) {
     },
 
     async pruneHistoryOlderThanDays(days: number) {
+      await store.getState().loadMoreHistory();
       const cutoff = Date.now() - days * 24 * 3600 * 1000;
       const state = store.getState();
       const kept = state.history.filter((item) => item.createdAt >= cutoff);
@@ -266,6 +267,7 @@ export function createMediaActions(store: StateAdapter) {
     },
 
     async exportHistory() {
+      await store.getState().loadMoreHistory();
       const state = store.getState();
       if (state.history.length === 0) {
         state.pushToast("没有可导出的历史记录", "warn");
@@ -286,6 +288,7 @@ export function createMediaActions(store: StateAdapter) {
     },
 
     async importHistory() {
+      await store.getState().loadMoreHistory();
       const state = store.getState();
       try {
         const json = await ImportHistoryFromFile();
@@ -298,6 +301,7 @@ export function createMediaActions(store: StateAdapter) {
         }
         const existing = new Set(state.history.map((h) => h.id));
         const merged = [...state.history];
+        const toPersist: HistoryItem[] = [];
         let added = 0;
         for (const item of incoming) {
           if (!item.id || existing.has(item.id)) continue;
@@ -314,9 +318,10 @@ export function createMediaActions(store: StateAdapter) {
             }
           }
           merged.push(safeItem);
-          await persistHistoryItem(safeItem).catch(() => undefined);
+          toPersist.push(safeItem);
           added++;
         }
+        await persistHistoryItems(toPersist).catch(() => undefined);
         merged.sort((a, b) => b.createdAt - a.createdAt);
         const trimmed = trimHistory(merged);
         store.setState({ history: trimmed });

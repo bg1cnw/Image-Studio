@@ -180,16 +180,38 @@ export function rememberTrustedOutputRoot(root: string): string[] {
   return next;
 }
 
-export async function persistHistoryItem(item: HistoryItem): Promise<void> {
+function stripHistoryRecord(record: HistoryRecord): HistoryItem {
+  const { searchText, searchTokens, ...item } = record;
+  void searchText;
+  void searchTokens;
+  return item;
+}
+
+export async function persistHistoryItems(items: HistoryItem[]): Promise<void> {
+  if (items.length === 0) return;
   const { store, tx } = await openHistoryTx("readwrite");
-  store.put(normalizeHistoryRecord(item));
+  for (const item of items) {
+    store.put(normalizeHistoryRecord(item));
+  }
+  await txDone(tx);
+}
+
+export async function persistHistoryItem(item: HistoryItem): Promise<void> {
+  await persistHistoryItems([item]);
+}
+
+export async function persistHistoryFullImages(items: Array<{ id: string; imageB64: string }>): Promise<void> {
+  if (items.length === 0) return;
+  const { store, tx } = await openFullTx("readwrite");
+  for (const item of items) {
+    if (!item.id || !item.imageB64.trim()) continue;
+    store.put({ id: item.id, image: base64ToBlob(item.imageB64) });
+  }
   await txDone(tx);
 }
 
 export async function persistHistoryFullImage(id: string, imageB64: string): Promise<void> {
-  const { store, tx } = await openFullTx("readwrite");
-  store.put({ id, image: base64ToBlob(imageB64) });
-  await txDone(tx);
+  await persistHistoryFullImages([{ id, imageB64 }]);
 }
 
 export async function loadHistoryFullImage(id: string): Promise<string> {
@@ -281,22 +303,21 @@ async function withFullCount(): Promise<number> {
   return count;
 }
 
-export async function loadAllHistory(): Promise<HistoryItem[]> {
+export async function loadAllHistory(limit?: number): Promise<HistoryItem[]> {
   await migrateLegacyHistoryIfNeeded();
   const { store, tx } = await openHistoryTx("readonly");
-  // ★ 必须走 createdAt index,不是默认 primary key —— primary key 是 uuid
-  // 字符串,逆序排列等于随机,会让历史侧栏顺序看起来抽象。createdAt index
-  // direction="prev" 才是真正的「由近及远(新→旧)」。
+  const cappedLimit = typeof limit === "number" && Number.isFinite(limit) && limit > 0
+    ? Math.floor(limit)
+    : undefined;
   const items = await cursorAsPromise<HistoryRecord>(
     store.index("createdAt").openCursor(null, "prev"),
-    { accept: () => true },
+    {
+      limit: cappedLimit,
+      accept: () => true,
+    },
   );
   await txDone(tx);
-  // 双保险:即便老数据 createdAt 字段缺失被丢到末尾,这里再用 JS sort 一道
-  // 兜底,保证 UI 拿到的永远是新→旧顺序。
-  const out = items.map(({ searchText, searchTokens, ...item }) => item);
-  out.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
-  return out;
+  return items.map(stripHistoryRecord);
 }
 
 export async function loadHistoryByFilters(opts: {
@@ -343,7 +364,7 @@ export async function loadHistoryByFilters(opts: {
   }
 
   await txDone(tx);
-  return items.map(({ searchText, searchTokens, ...item }) => item);
+  return items.map(stripHistoryRecord);
 }
 
 async function collectCandidateIDs(store: IDBObjectStore, terms: string[]): Promise<string[]> {
