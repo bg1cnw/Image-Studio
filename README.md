@@ -50,6 +50,7 @@ Image Studio 面向 OpenAI 兼容图像上游，解决长时间图像推理在 C
 | 标准 Images API | 支持 `/v1/images/generations` 文生图与 `/v1/images/edits` 图生图，兼容只开放 image 分组的中转站。 |
 | 双端内核 | 桌面端优先走 Go/Wails 本地内核；Android / 浏览器预览可走前端远程内核，Android 壳层提供 native HTTP、文件与保存桥接。 |
 | 图像编辑器 | 多参考图、蒙版、标注、旋转、翻转、裁剪、历史对比、复制粘贴、撤销重做。 |
+| 自定义比例 | 支持在比例面板打开弹窗，添加多个自定义宽高比并持久化保存；新增比例会立即出现在参数按钮区，并按当前 1K / 2K / 4K 档位自动换算尺寸。 |
 | 多 workspace | 每个标签独立保存 prompt、参数、源图与当前画板状态。 |
 | 平台化 UI | macOS Apple 风格、Windows Fluent 风格、Linux 通用桌面风格、Android Material 3 phone/pad 自适应壳层。 |
 | Gio 测试客户端 | Windows / Linux 可单独构建 Gio 原生 GUI 测试版，不影响当前 Wails / WebView2 实现。 |
@@ -80,7 +81,7 @@ Image Studio 面向 OpenAI 兼容图像上游，解决长时间图像推理在 C
    - Responses API:抗 524/504，默认文本模型 `gpt-5.5`，图像模型 `gpt-image-2`。
    - Images API:标准图像接口，适合只支持 image 分组的上游。
 3. 填入 BASE_URL、API Key、模型 ID，保存后点「测试连接」。
-4. 选择文生图或图生图，输入 prompt，设置比例、质量、输出格式和风格。
+4. 选择文生图或图生图，输入 prompt，设置比例、质量、输出格式和风格；如果内置比例不够，可以打开「自定义比例」弹窗保存常用宽高比。
 5. 点击「生成」，或使用 `Cmd/Ctrl + Enter`。
 
 更完整的配置说明见 [使用文档](./docs/usage.md)。
