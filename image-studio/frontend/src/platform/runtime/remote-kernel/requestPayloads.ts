@@ -32,7 +32,7 @@ export async function buildImagesRequestBody(
   const quality = request.payload.quality || "auto";
   const outputFormat = request.payload.outputFormat || "png";
   const includeExtended = shouldSendExtendedImageParameters(request.payload.requestPolicy);
-  const partialImages = normalizePartialImages(request.payload.partialImages);
+  const partialImages = request.payload.disablePreview ? 0 : normalizePartialImages(request.payload.partialImages);
 
   if (mode === "edit") {
     if (sourceDataURLs.length === 0) {

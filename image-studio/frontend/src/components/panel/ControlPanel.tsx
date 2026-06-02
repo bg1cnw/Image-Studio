@@ -7,6 +7,7 @@ import { AndroidPadComposePanel } from "../../platform/android/AndroidPadCompose
 import { DesktopAdvancedPanel } from "./DesktopAdvancedPanel";
 import { ErrorNotice } from "./ErrorNotice";
 import { DesktopComposeSections } from "./DesktopComposeSections";
+import { LoopGenerationSection } from "./LoopGenerationSection";
 import { MacAdvancedPanel } from "./MacAdvancedPanel";
 import { MacComposePanel } from "./MacComposePanel";
 import { QUALITY_TIERS, STYLE_CHIPS } from "./panelOptions";
@@ -32,7 +33,7 @@ export function ControlPanel({
 } = {}) {
   const {
     apiKey, mode, prompt, negativePrompt, size, quality, seed, styleTag,
-    outputFormat, batchCount,
+    outputFormat, batchCount, loopGeneration,
     sources, currentImage,
     errorMessage, errorRawPath, isRunning, lastPayload, isTestingKey, isOptimizingPrompt,
     apiMode, requestPolicy, baseURL, profiles, imageModelID,
@@ -82,6 +83,9 @@ export function ControlPanel({
     outputFormat.toUpperCase(),
     seed > 0 ? `Seed ${seed}` : "随机 Seed",
   ].join(" · ");
+  const submitLabel = loopGeneration.enabled
+    ? (mode === "edit" ? "循环编辑" : "循环生成")
+    : (mode === "edit" ? "编辑" : "生成");
 
   function handleAspectSelect(aspect: typeof activeAspect) {
     setField("size", buildAspectSizeSelection(
@@ -296,12 +300,17 @@ export function ControlPanel({
         />
       )}
 
+      <LoopGenerationSection
+        value={loopGeneration}
+        onChange={(next) => setField("loopGeneration", next)}
+      />
+
       <SubmitBar
         apiKey={apiKey}
         baseURL={baseURL}
         prompt={prompt}
-        mode={mode}
         isRunning={isRunning}
+        submitLabel={submitLabel}
         onOpenUpstreamConfig={() => openUpstreamConfig("app")}
         onCancel={cancel}
         onSubmit={submit}

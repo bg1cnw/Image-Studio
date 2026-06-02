@@ -148,6 +148,15 @@ export interface StreamPreview {
 
 export type StreamPreviewMap = Record<string, StreamPreview>;
 
+export interface LoopGenerationConfig {
+  enabled: boolean;
+  totalCount: number;
+  concurrency: number;
+  autoSave: boolean;
+  autoSaveDir: string;
+  livePreview: boolean;
+}
+
 export interface Workspace {
   id: string;
   name: string;
@@ -160,6 +169,7 @@ export interface Workspace {
   outputFormat: OutputFormatValue;
   seed: number;
   batchCount: number;
+  loopGeneration: LoopGenerationConfig;
   sources: SourceImage[];
   // We store currentImageId rather than the full HistoryItem so we don't
   // duplicate large base64 blobs. The history list is shared across tabs.

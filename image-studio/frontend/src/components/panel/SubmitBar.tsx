@@ -5,8 +5,8 @@ export function SubmitBar({
   apiKey,
   baseURL,
   prompt,
-  mode,
   isRunning,
+  submitLabel,
   onOpenUpstreamConfig,
   onCancel,
   onSubmit,
@@ -14,8 +14,8 @@ export function SubmitBar({
   apiKey: string;
   baseURL: string;
   prompt: string;
-  mode: "generate" | "edit";
   isRunning: boolean;
+  submitLabel: string;
   onOpenUpstreamConfig: () => void;
   onCancel: () => void;
   onSubmit: () => void;
@@ -59,7 +59,7 @@ export function SubmitBar({
           disabled={!apiKey || !prompt}
           className={`liquid-primary-button w-full bg-[var(--accent)] py-3 font-semibold text-white transition-colors hover:bg-[var(--accent-2)] disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 dark:disabled:bg-zinc-800 ${usesFluentUI ? "rounded-[10px]" : "rounded-full"}`}
         >
-          {mode === "edit" ? "编辑" : "生成"}
+          {submitLabel}
         </button>
       )}
     </div>

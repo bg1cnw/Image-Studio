@@ -21,6 +21,7 @@ import {
   APIMode,
   HistoryItem,
   KernelRuntimeMode,
+  LoopGenerationConfig,
   Mode,
   OutputFormatValue,
   Preset,
@@ -69,8 +70,12 @@ import { dispatchFullscreenResize, setNativeFullscreen } from "../platform/nativ
 import {
   activeRuntimePatch,
   apiModeLabel,
+  defaultLoopGenerationConfig,
   normalizeBatchCount,
   normalizeConcurrencyLimit,
+  normalizeLoopGenerationConcurrency,
+  normalizeLoopGenerationConfig,
+  normalizeLoopGenerationCount,
   patchWorkspaceRuntime,
   workspaceRuntimeFromState,
   workspaceRunningCount,
@@ -118,6 +123,7 @@ import { createMediaActions } from "./studioStore.media";
 import { createProfileActions } from "./studioStore.profiles";
 import { createWorkspaceActions } from "./studioStore.workspaces";
 import { createImageActions } from "./studioStore.images";
+import { saveHistoryItemToDirectory } from "../lib/saveResultImage";
 import {
   currentImageIdForWorkspaceSnapshot,
   removeStreamPreview,
@@ -129,6 +135,88 @@ import {
 type RuntimeGenerateOptions = backend.GenerateOptions & {
   sourceImages?: SourceImage[];
 };
+
+type JobSnapshot = {
+  workspaceId: string;
+  apiMode: APIModeValue;
+  batchIndex: number;
+  size: SizeValue;
+  quality: QualityValue;
+  outputFormat: OutputFormatValue;
+  sources: SourceImage[];
+  currentImage: HistoryItem | null;
+  styleTag: string;
+  loopGeneration: LoopGenerationConfig;
+};
+
+type LaunchOneJobHooks = {
+  onSettled?: (status: "success" | "error") => void;
+};
+
+type LoopRunController = {
+  workspaceId: string;
+  totalJobs: number;
+  maxConcurrent: number;
+  launchedJobs: number;
+  mode: Mode;
+  payload: RuntimeGenerateOptions;
+  snapshotBase: Omit<JobSnapshot, "batchIndex">;
+  stopped: boolean;
+};
+
+const loopRunControllers = new Map<string, LoopRunController>();
+
+function stopLoopRun(workspaceId: string): void {
+  const controller = loopRunControllers.get(workspaceId);
+  if (controller) controller.stopped = true;
+  loopRunControllers.delete(workspaceId);
+}
+
+function launchQueuedLoopJobs(controller: LoopRunController): void {
+  if (controller.stopped) return;
+  const state = useStudioStore.getState();
+  const workspaceExists = state.activeWorkspaceId === controller.workspaceId
+    || state.workspaces.some((workspace) => workspace.id === controller.workspaceId);
+  if (!workspaceExists) {
+    stopLoopRun(controller.workspaceId);
+    return;
+  }
+  const runtime = workspaceRuntimeFromState(state, controller.workspaceId);
+  if (runtime.jobsTotal === 0) {
+    stopLoopRun(controller.workspaceId);
+    return;
+  }
+
+  while (!controller.stopped && controller.launchedJobs < controller.totalJobs) {
+    const latestState = useStudioStore.getState();
+    const latestRuntime = workspaceRuntimeFromState(latestState, controller.workspaceId);
+    if (latestRuntime.jobsTotal === 0 || latestRuntime.runningJobs.length >= controller.maxConcurrent) break;
+    const batchIndex = controller.launchedJobs;
+    controller.launchedJobs += 1;
+    const payloadSeed = controller.payload.seed ? controller.payload.seed + batchIndex : 0;
+    const nextPayload: RuntimeGenerateOptions = { ...controller.payload, seed: payloadSeed };
+    void launchOneJob(controller.mode, nextPayload, {
+      ...controller.snapshotBase,
+      batchIndex,
+    }, {
+      onSettled: (status) => {
+        const current = loopRunControllers.get(controller.workspaceId);
+        if (!current || current !== controller) return;
+        if (status === "error") {
+          stopLoopRun(controller.workspaceId);
+          return;
+        }
+        const currentState = useStudioStore.getState();
+        const currentRuntime = workspaceRuntimeFromState(currentState, controller.workspaceId);
+        if (currentRuntime.jobsTotal === 0) {
+          stopLoopRun(controller.workspaceId);
+          return;
+        }
+        launchQueuedLoopJobs(controller);
+      },
+    });
+  }
+}
 
 const SAVE_PROMPT_SUPPRESSED_KEY = "gptcodex.savePromptSuppressed";
 
@@ -273,6 +361,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   savePromptSuppressed: readSavePromptSuppressed(),
   promptHistory: [],
   batchCount: 1,
+  loopGeneration: defaultLoopGenerationConfig(),
   presets: [],
   customAspectRatios: [],
   theme: "system",
@@ -394,7 +483,11 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       return;
     }
     // 其他全局偏好字段
-    const normalizedValue = key === "batchCount" ? normalizeBatchCount(value) : value;
+    const normalizedValue = key === "batchCount"
+      ? normalizeBatchCount(value)
+      : key === "loopGeneration"
+        ? normalizeLoopGenerationConfig(value)
+        : value;
     set({ [key]: normalizedValue } as any);
     if (key === "currentImage") {
       const item = normalizedValue as HistoryItem | null;
@@ -412,6 +505,13 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       set({
         workspaces: get().workspaces.map((w) => (
           w.id === get().activeWorkspaceId ? { ...w, batchCount: value } : w
+        )),
+      });
+    } else if (key === "loopGeneration") {
+      const value = normalizedValue as LoopGenerationConfig;
+      set({
+        workspaces: get().workspaces.map((w) => (
+          w.id === get().activeWorkspaceId ? { ...w, loopGeneration: value } : w
         )),
       });
     } else if (key === "errorMessage") {
@@ -502,15 +602,28 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     }
     const cleanedBaseURL = cleanBaseURL(s.baseURL);
     const batchCount = normalizeBatchCount(s.batchCount);
+    const loopGeneration = normalizeLoopGenerationConfig(s.loopGeneration);
+    const loopEnabled = loopGeneration.enabled;
+    const requestedJobCount = loopEnabled ? normalizeLoopGenerationCount(loopGeneration.totalCount) : batchCount;
+    const requestedConcurrency = loopEnabled
+      ? Math.min(requestedJobCount, normalizeLoopGenerationConcurrency(loopGeneration.concurrency))
+      : batchCount;
+    if (loopEnabled && loopGeneration.autoSave && !loopGeneration.autoSaveDir.trim()) {
+      set({ errorMessage: "请先为循环出图配置自动另存为路径", errorRawPath: null });
+      return;
+    }
     const activeProfile = s.profiles.find((p) => p.id === s.activeProfileId);
     const concurrencyLimit = normalizeConcurrencyLimit(activeProfile?.concurrencyLimit ?? 0);
     if (concurrencyLimit > 0) {
       const activeCount = workspaceRunningCount(s, s.apiMode);
       const available = concurrencyLimit - activeCount;
-      if (available < batchCount) {
+      const requiredConcurrency = loopEnabled ? requestedConcurrency : batchCount;
+      if (available < requiredConcurrency) {
         const apiLabel = s.apiMode === "responses" ? "Responses API" : "Images API";
         set({
-          errorMessage: `${apiLabel} 并发限制 ${concurrencyLimit},当前还可提交 ${Math.max(0, available)} 个,本次需要 ${batchCount} 个。`,
+          errorMessage: loopEnabled
+            ? `${apiLabel} 并发限制 ${concurrencyLimit},当前还可提交 ${Math.max(0, available)} 个,循环模式并发需要 ${requiredConcurrency} 个。`
+            : `${apiLabel} 并发限制 ${concurrencyLimit},当前还可提交 ${Math.max(0, available)} 个,本次需要 ${batchCount} 个。`,
           errorRawPath: null,
         });
         return;
@@ -539,6 +652,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
 
     const workspaceId = s.activeWorkspaceId;
     const clearCurrentForNewRun = s.mode === "generate";
+    stopLoopRun(workspaceId);
     const runPatch = {
       errorMessage: null,
       errorRawPath: null,
@@ -547,7 +661,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       streamPreviews: {},
       lastLogLine: "",
       isRunning: true,
-      jobsTotal: batchCount,
+      jobsTotal: requestedJobCount,
       jobsCompleted: 0,
       runningJobs: [],
     };
@@ -555,7 +669,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       ...runPatch,
       batchCount,
       batchResults: [],
-      resultGridOpen: batchCount > 1,
+      resultGridOpen: requestedJobCount > 1,
       compareB: null,
       currentImage: clearCurrentForNewRun ? null : s.currentImage,
       maskDataURL: null,
@@ -565,7 +679,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         ...runPatch,
         currentImageId: clearCurrentForNewRun ? null : s.currentImage?.id ?? null,
         batchResultIds: [],
-        resultGridOpen: batchCount > 1,
+        resultGridOpen: requestedJobCount > 1,
       }),
     });
 
@@ -609,6 +723,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       noPromptRevision: true,
       concurrencyLimit,
       partialImages: 1,
+      disablePreview: loopEnabled && !loopGeneration.livePreview,
     };
     const remotePayload: RuntimeGenerateOptions = {
       ...basePayload,
@@ -626,19 +741,40 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       workspaces: patchWorkspaceRuntime(get().workspaces, workspaceId, { lastPayload: persistedPayload }),
     });
 
+    const snapshotBase = {
+      workspaceId,
+      apiMode: s.apiMode,
+      size: s.size,
+      quality: s.quality,
+      outputFormat: s.outputFormat,
+      sources: s.sources,
+      currentImage: s.currentImage,
+      styleTag: s.styleTag,
+      loopGeneration,
+    } as const;
+
+    if (loopEnabled) {
+      const controller: LoopRunController = {
+        workspaceId,
+        totalJobs: requestedJobCount,
+        maxConcurrent: requestedConcurrency,
+        launchedJobs: 0,
+        mode: s.mode,
+        payload: remotePayload,
+        snapshotBase,
+        stopped: false,
+      };
+      loopRunControllers.set(workspaceId, controller);
+      launchQueuedLoopJobs(controller);
+      return;
+    }
+
     for (let i = 0; i < batchCount; i++) {
       const jobSeed = s.seed ? s.seed + i : 0;
       const p: RuntimeGenerateOptions = { ...remotePayload, seed: jobSeed };
       void launchOneJob(s.mode, p, {
-        workspaceId,
-        apiMode: s.apiMode,
+        ...snapshotBase,
         batchIndex: i,
-        size: s.size,
-        quality: s.quality,
-        outputFormat: s.outputFormat,
-        sources: s.sources,
-        currentImage: s.currentImage,
-        styleTag: s.styleTag,
       });
     }
   },
@@ -646,6 +782,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   cancel: async () => {
     const s = get();
     const workspaceId = s.activeWorkspaceId;
+    stopLoopRun(workspaceId);
     const ids = [...s.runningJobs];
     // Cancel every concurrent job in the batch.
     for (const id of ids) {
@@ -741,6 +878,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         fullscreen: false,
         promptHistory: [],
         batchCount: 1,
+        loopGeneration: normalizeLoopGenerationConfig(preview.workspace.loopGeneration),
         presets: [],
         customAspectRatios: [],
         theme: "dark",
@@ -947,6 +1085,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       outputFormat,
       seed: 0,
       batchCount: 1,
+      loopGeneration: defaultLoopGenerationConfig(),
       sources: [],
       currentImageId: null,
       batchResultIds: [],
@@ -976,6 +1115,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       activeProfileId,
       workspaces: [initialWorkspace],
       activeWorkspaceId: wsId,
+      loopGeneration: normalizeLoopGenerationConfig(initialWorkspace.loopGeneration),
       // Android 走首页 hero 引导，不用启动即弹设置；桌面仍保留首次引导。
       settingsOpen: shouldAutoOpenSettings,
       customAspectRatioModalOpen: false,
@@ -1254,17 +1394,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
 async function launchOneJob(
   mode: string,
   payload: RuntimeGenerateOptions,
-  snapshot: {
-    workspaceId: string;
-    apiMode: APIModeValue;
-    batchIndex: number;
-    size: SizeValue;
-    quality: QualityValue;
-    outputFormat: OutputFormatValue;
-    sources: SourceImage[];
-    currentImage: HistoryItem | null;
-    styleTag: string;
-  },
+  snapshot: JobSnapshot,
+  hooks: LaunchOneJobHooks = {},
 ): Promise<void> {
   const store = useStudioStore;
   const jobId = cryptoIDFallback();
@@ -1274,6 +1405,12 @@ async function launchOneJob(
   let offResult = () => {};
   let offError = () => {};
   const cleanup = () => { offProgress(); offLog(); offPreview(); offResult(); offError(); };
+  let settled = false;
+  const settle = (status: "success" | "error") => {
+    if (settled) return;
+    settled = true;
+    hooks.onSettled?.(status);
+  };
   try {
     store.setState((state) => {
       const runtime = workspaceRuntimeFromState(state, snapshot.workspaceId);
@@ -1334,20 +1471,22 @@ async function launchOneJob(
         ...(state.activeWorkspaceId === snapshot.workspaceId ? activeRuntimePatch(patch) : {}),
       } as Partial<StudioState>));
     });
-    offPreview = EventsOn(`preview:${jobId}`, (preview: StreamPreviewPayload) => {
-      store.setState((state) => (
-        streamPreviewStatePatch(state, jobId, preview, {
-          workspaceId: snapshot.workspaceId,
-          mode: mode === "edit" ? "edit" : "generate",
-          prompt: payload.prompt,
-          size: snapshot.size,
-          quality: snapshot.quality,
-          outputFormat: snapshot.outputFormat,
-          currentImage: snapshot.currentImage,
-          batchIndex: snapshot.batchIndex,
-        }) ?? {}
-      ));
-    });
+    if (!payload.disablePreview) {
+      offPreview = EventsOn(`preview:${jobId}`, (preview: StreamPreviewPayload) => {
+        store.setState((state) => (
+          streamPreviewStatePatch(state, jobId, preview, {
+            workspaceId: snapshot.workspaceId,
+            mode: mode === "edit" ? "edit" : "generate",
+            prompt: payload.prompt,
+            size: snapshot.size,
+            quality: snapshot.quality,
+            outputFormat: snapshot.outputFormat,
+            currentImage: snapshot.currentImage,
+            batchIndex: snapshot.batchIndex,
+          }) ?? {}
+        ));
+      });
+    }
 
     const startedAt = Date.now();
     offResult = EventsOn(`result:${jobId}`, (r: any) => {
@@ -1436,21 +1575,38 @@ async function launchOneJob(
           });
           persistTrimmedHistory(trimmed);
           persistHistoryItem(historyItem).catch(() => undefined);
+          const loopMode = snapshot.loopGeneration.enabled;
+          const isFinalLoopResult = loopMode && completedNow === totalNow;
           // 桌面通知 —— 点击拉前台 + 直达详情抽屉
-          if (willNotify) {
+          if (willNotify && (!loopMode || isFinalLoopResult)) {
             tryNotify("Image Studio · 已完成", r.prompt ?? "", () => {
               store.getState().openResultDetail(historyItem);
             });
           }
-          store.getState().pushToast(
-            totalNow > 1
-              ? `已完成 (${completedNow}/${totalNow}) · ${elapsedSec.toFixed(0)}s`
-              : `已${historyItem.mode === "edit" ? "编辑" : "生成"} · ${elapsedSec.toFixed(0)}s`,
-            "success",
-            6000,
-            { label: "查看详情", onClick: () => store.getState().openResultDetail(historyItem) },
-          );
-          store.getState().enqueueSavePrompt(historyItem);
+          if (!loopMode) {
+            store.getState().pushToast(
+              totalNow > 1
+                ? `已完成 (${completedNow}/${totalNow}) · ${elapsedSec.toFixed(0)}s`
+                : `已${historyItem.mode === "edit" ? "编辑" : "生成"} · ${elapsedSec.toFixed(0)}s`,
+              "success",
+              6000,
+              { label: "查看详情", onClick: () => store.getState().openResultDetail(historyItem) },
+            );
+            store.getState().enqueueSavePrompt(historyItem);
+          } else if (isFinalLoopResult) {
+            store.getState().pushToast(
+              `循环出图完成 · ${completedNow} 张`,
+              "success",
+              6000,
+              { label: "查看详情", onClick: () => store.getState().openResultDetail(historyItem) },
+            );
+          }
+          settle("success");
+          if (loopMode && snapshot.loopGeneration.autoSave && snapshot.loopGeneration.autoSaveDir.trim()) {
+            void saveHistoryItemToDirectory(historyItem, snapshot.loopGeneration.autoSaveDir).catch((error: any) => {
+              store.getState().pushToast(`自动另存为失败:${error?.message ?? error}`, "warn", 6000);
+            });
+          }
           // 首次成功生图 → 延迟 2s 弹 GitHub Star 引导。localStorage 标志一旦
           // 写入就再也不弹(无论用户点 star 还是关闭)。延迟是为了让用户先看
           // 到图,然后再被礼貌打扰。
@@ -1480,6 +1636,7 @@ async function launchOneJob(
             ...(state.activeWorkspaceId === snapshot.workspaceId ? activeRuntimePatch(patch) : {}),
           } as Partial<StudioState>));
           removeFromRunning();
+          settle("error");
         }
       })();
     });
@@ -1513,6 +1670,7 @@ async function launchOneJob(
         } as Partial<StudioState>;
       });
       removeFromRunning();
+      settle("error");
     });
     const started = mode === "edit"
       ? await wailsEdit({ ...payload, requestedJobId: jobId } as backend.GenerateOptions)
@@ -1549,6 +1707,7 @@ async function launchOneJob(
         ...(state.activeWorkspaceId === snapshot.workspaceId ? activeRuntimePatch(nextPatch) : {}),
       } as Partial<StudioState>;
     });
+    settle("error");
   }
 }
 

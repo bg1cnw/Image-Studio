@@ -64,6 +64,7 @@ export function applyMacWorkspacePreviewToStore(workspaceId = "preview-workspace
     fullscreen: false,
     promptHistory: [],
     batchCount: 1,
+    loopGeneration: preview.workspace.loopGeneration,
     presets: [],
     customAspectRatios: [],
     theme: "dark",

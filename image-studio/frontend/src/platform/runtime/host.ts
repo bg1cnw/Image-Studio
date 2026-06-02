@@ -422,6 +422,30 @@ export function SaveImagePathAs(path: string, suggestedName: string): Promise<st
   return ReadImageAsBase64(path).then((b64) => SaveImageAs(b64, suggestedName));
 }
 
+export function SaveImageToDir(imageB64: string, directory: string, suggestedName: string): Promise<string> {
+  if (hasServiceMethod("SaveImageToDir")) {
+    return invokeService<string>(unsupportedMessage, "SaveImageToDir", imageB64, directory, suggestedName);
+  }
+  if (canInvokeAndroidMethod("SaveImageToDir")) {
+    return invokeAndroid<string>(unsupportedMessage, "SaveImageToDir", imageB64, directory, suggestedName);
+  }
+  return Promise.reject(new Error(unsupportedMessage("SaveImageToDir")));
+}
+
+export function SaveImagePathToDir(path: string, directory: string, suggestedName: string): Promise<string> {
+  if (hasServiceMethod("SaveImagePathToDir")) {
+    return invokeService<string>(unsupportedMessage, "SaveImagePathToDir", path, directory, suggestedName);
+  }
+  if (isVirtualPath(path)) {
+    return ReadImageAsBase64(path).then((b64) => SaveImageToDir(b64, directory, suggestedName));
+  }
+  if (canInvokeAndroidMethod("SaveImagePathToDir")) {
+    return invokeAndroid<string>(unsupportedMessage, "SaveImagePathToDir", path, directory, suggestedName)
+      .catch(() => ReadImageAsBase64(path).then((b64) => SaveImageToDir(b64, directory, suggestedName)));
+  }
+  return ReadImageAsBase64(path).then((b64) => SaveImageToDir(b64, directory, suggestedName));
+}
+
 export function RegisterMediaAsset(savedPath: string, thumbPath: string): Promise<MediaAssetRefLike> {
   if (hasServiceMethod("RegisterMediaAsset")) {
     return invokeService<MediaAssetRefLike>(unsupportedMessage, "RegisterMediaAsset", savedPath, thumbPath);

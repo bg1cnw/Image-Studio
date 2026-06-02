@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./docs/picture/image-edit-1137ff20.png" alt="Image Studio" width="720" />
+</p>
+
 # Image Studio
 
 > 开源图像生成 / 编辑客户端 · Wails(Go + React/TS) 桌面端 + Android WebView 壳层 ·

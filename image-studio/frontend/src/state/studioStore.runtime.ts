@@ -19,6 +19,7 @@ import type {
 } from "../types/domain";
 import type { StudioState } from "./studioStore.types";
 import { currentImageIdForWorkspaceSnapshot } from "./studioStore.streamPreview";
+import { normalizeLoopGenerationConfig } from "./workspaceRuntime";
 
 export function historyItemsByIds(history: HistoryItem[], ids: string[]): HistoryItem[] {
   if (ids.length === 0) return [];
@@ -186,6 +187,7 @@ export function saveActiveWorkspaceSnapshot(s: StudioState): Workspace[] {
       outputFormat: s.outputFormat,
       seed: s.seed,
       batchCount: s.batchCount,
+      loopGeneration: normalizeLoopGenerationConfig(s.loopGeneration),
       sources: s.sources,
       currentImageId: currentImageIdForWorkspaceSnapshot(s.currentImage, s.streamPreview, s.streamPreviews, w.currentImageId),
       batchResultIds: s.batchResults.map((item) => item.id),

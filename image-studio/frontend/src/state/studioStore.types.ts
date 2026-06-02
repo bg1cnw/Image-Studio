@@ -4,6 +4,7 @@ import type {
   APIMode,
   HistoryItem,
   KernelRuntimeMode,
+  LoopGenerationConfig,
   Mode,
   OutputFormatValue,
   CustomAspectRatio,
@@ -112,6 +113,7 @@ export interface StudioState {
   fullscreen: boolean;
   promptHistory: string[];
   batchCount: number;
+  loopGeneration: LoopGenerationConfig;
   presets: Preset[];
   customAspectRatios: CustomAspectRatio[];
   theme: ThemeMode;

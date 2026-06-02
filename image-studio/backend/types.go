@@ -45,6 +45,9 @@ type GenerateOptions struct {
 	ConcurrencyLimit int `json:"concurrencyLimit"`
 	// PartialImages controls Responses API stream preview count. 0 keeps the app default.
 	PartialImages int `json:"partialImages"`
+	// DisablePreview forces partial_images = 0 for this request, regardless of
+	// the default partial-image setting.
+	DisablePreview bool `json:"disablePreview,omitempty"`
 }
 
 // PromptOptimizeOptions is the request shape for one-click prompt revision.

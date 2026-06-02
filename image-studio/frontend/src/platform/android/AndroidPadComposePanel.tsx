@@ -23,6 +23,7 @@ import {
   buildAndroidAspectSizeSelection,
   buildAndroidResolutionSizeSelection,
 } from "./parameters/androidSizeSelection";
+import { LoopGenerationSection } from "../../components/panel/LoopGenerationSection";
 
 export function AndroidPadComposePanel({
   onSubmitStart,
@@ -31,7 +32,7 @@ export function AndroidPadComposePanel({
 } = {}) {
   const {
     apiKey, mode, prompt, negativePrompt, size, quality, seed, styleTag, outputFormat,
-    batchCount, sources, currentImage, isRunning, isOptimizingPrompt, apiMode, requestPolicy, baseURL, imageModelID,
+    batchCount, loopGeneration, sources, currentImage, isRunning, isOptimizingPrompt, apiMode, requestPolicy, baseURL, imageModelID,
     profiles, customAspectRatios, setField, selectSourceImage, removeSource, clearSources,
     openCustomAspectRatioModal,
     openUpstreamConfig, submit, cancel, optimizePrompt,
@@ -122,7 +123,7 @@ export function AndroidPadComposePanel({
       disabled={!apiKey || !prompt.trim()}
       className="liquid-primary-button h-[52px] w-full text-[15px] font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 dark:disabled:bg-zinc-800"
     >
-      {mode === "edit" ? "开始编辑" : "开始生成"}
+      {loopGeneration.enabled ? "开始循环" : mode === "edit" ? "开始编辑" : "开始生成"}
     </button>
   );
 
@@ -261,6 +262,11 @@ export function AndroidPadComposePanel({
               setAdvancedOpen={setAdvancedOpen}
               setField={setField as any}
               surface="pad"
+            />
+
+            <LoopGenerationSection
+              value={loopGeneration}
+              onChange={(next) => setField("loopGeneration", next)}
             />
 
             <div className="android-pad-side-cta">

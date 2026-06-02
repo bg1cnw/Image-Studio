@@ -30,6 +30,7 @@ export type RemoteGeneratePayload = {
   noPromptRevision: boolean;
   concurrencyLimit?: number;
   partialImages?: number;
+  disablePreview?: boolean;
 };
 
 export type ProgressCallback = (stage: string, elapsedSeconds: number, bytesReceived: number) => void;

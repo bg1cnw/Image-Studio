@@ -23,6 +23,7 @@ import {
   buildAndroidResolutionSizeSelection,
 } from "./parameters/androidSizeSelection";
 import { vibrateForPlatform } from "./bridge";
+import { LoopGenerationSection } from "../../components/panel/LoopGenerationSection";
 
 export function AndroidPhoneComposePanel({
   onSubmitStart,
@@ -31,7 +32,7 @@ export function AndroidPhoneComposePanel({
 } = {}) {
   const {
     apiKey, mode, prompt, negativePrompt, size, quality, seed, styleTag,
-    outputFormat, batchCount, sources, currentImage, errorMessage, errorRawPath,
+    outputFormat, batchCount, loopGeneration, sources, currentImage, errorMessage, errorRawPath,
     isRunning, lastPayload, isOptimizingPrompt, apiMode, requestPolicy, baseURL, profiles, imageModelID,
     customAspectRatios,
     setField, clearError, pushToast, selectSourceImage,
@@ -289,6 +290,13 @@ export function AndroidPhoneComposePanel({
         />
       ) : null}
 
+      {!needsUpstreamSetup ? (
+        <LoopGenerationSection
+          value={loopGeneration}
+          onChange={(next) => setField("loopGeneration", next)}
+        />
+      ) : null}
+
       <div className="android-phone-sticky-cta" style={{ paddingLeft: "calc(env(safe-area-inset-left, 0px) + 12px)", paddingRight: "calc(env(safe-area-inset-right, 0px) + 12px)" }}>
         {needsUpstreamSetup ? (
           <button
@@ -313,7 +321,7 @@ export function AndroidPhoneComposePanel({
             disabled={!apiKey || !prompt.trim()}
             className="liquid-primary-button h-[54px] w-full text-[15px] font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 dark:disabled:bg-zinc-800"
           >
-            {mode === "edit" ? "开始编辑" : "开始生成"}
+            {loopGeneration.enabled ? "开始循环" : mode === "edit" ? "开始编辑" : "开始生成"}
           </button>
         )}
       </div>

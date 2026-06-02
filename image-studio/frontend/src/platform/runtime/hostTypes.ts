@@ -20,6 +20,7 @@ export type GenerateOptionsLike = {
   noPromptRevision: boolean;
   concurrencyLimit?: number;
   partialImages?: number;
+  disablePreview?: boolean;
   requestedJobId?: string;
   sourceImages?: Array<{
     path?: string;

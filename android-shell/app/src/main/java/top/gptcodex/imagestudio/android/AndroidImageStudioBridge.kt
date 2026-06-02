@@ -116,6 +116,8 @@ class AndroidImageStudioBridge(
                 "ExportHistoryToFile" -> exportHistory(args.optString(0))
                 "SaveImageAs" -> saveImage(args.optString(0), args.optString(1))
                 "SaveImagePathAs" -> saveImagePathAs(args.optString(0), args.optString(1))
+                "SaveImageToDir" -> saveImageToDir(args.optString(0), args.optString(1), args.optString(2))
+                "SaveImagePathToDir" -> saveImagePathToDir(args.optString(0), args.optString(1), args.optString(2))
                 "HttpRequestText" -> {
                     val payload = args.optJSONObject(0) ?: throw IllegalArgumentException("缺少 HTTP 请求参数")
                     runHttpRequestText(requestId, payload)
@@ -288,6 +290,31 @@ class AndroidImageStudioBridge(
         }
     }
 
+    @JavascriptInterface
+    fun saveImageToDir(imageB64: String, directory: String, suggestedName: String): String {
+        if (imageB64.isBlank()) throw IllegalArgumentException("图片数据为空")
+        val targetDir = ensureWritableDirectory(directory)
+        val name = ensureImageFileName(suggestedName, "image-${timestamp()}.png")
+        val bytes = Base64.decode(imageB64, Base64.DEFAULT)
+        val file = uniqueTargetFile(targetDir, name)
+        FileOutputStream(file).use { output -> output.write(bytes) }
+        return file.absolutePath
+    }
+
+    @JavascriptInterface
+    fun saveImagePathToDir(path: String, directory: String, suggestedName: String): String {
+        val trimmed = path.trim()
+        if (trimmed.isBlank()) throw IllegalArgumentException("图片路径为空")
+        val targetDir = ensureWritableDirectory(directory)
+        val fallback = trimmed.substringAfterLast('/').substringAfterLast('\\').ifBlank { "image-${timestamp()}.png" }
+        val name = ensureImageFileName(suggestedName.ifBlank { fallback }, fallback)
+        val file = uniqueTargetFile(targetDir, name)
+        openInputStreamForPath(trimmed).use { input ->
+            FileOutputStream(file).use { output -> input.copyTo(output) }
+        }
+        return file.absolutePath
+    }
+
     private fun saveImageStream(name: String, mimeType: String, write: (OutputStream) -> Unit): String {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val contentValues = ContentValues().apply {
@@ -321,6 +348,29 @@ class AndroidImageStudioBridge(
             write(output)
         }
         return file.absolutePath
+    }
+
+    private fun ensureWritableDirectory(path: String): File {
+        val trimmed = path.trim()
+        if (trimmed.isBlank()) throw IllegalArgumentException("目标目录为空")
+        val dir = File(trimmed)
+        dir.mkdirs()
+        return dir
+    }
+
+    private fun uniqueTargetFile(directory: File, suggestedName: String): File {
+        val baseName = ensureImageFileName(suggestedName, "image-${timestamp()}.png")
+        var candidate = File(directory, baseName)
+        if (!candidate.exists()) return candidate
+        val dot = baseName.lastIndexOf('.')
+        val stem = if (dot >= 0) baseName.substring(0, dot) else baseName
+        val ext = if (dot >= 0) baseName.substring(dot) else ""
+        var index = 2
+        while (candidate.exists()) {
+            candidate = File(directory, "$stem-$index$ext")
+            index += 1
+        }
+        return candidate
     }
 
     @JavascriptInterface

@@ -297,7 +297,13 @@ func (s *Service) runJob(ctx context.Context, jobID string, opts GenerateOptions
 		APIMode:          apiMode,
 		RequestPolicy:    client.RequestPolicy(strings.TrimSpace(opts.RequestPolicy)),
 		NoPromptRevision: opts.NoPromptRevision,
-		PartialImages:    opts.PartialImages,
+		PartialImages:    client.DefaultPartialImages,
+	}
+	if opts.PartialImages > 0 {
+		clientOpts.PartialImages = opts.PartialImages
+	}
+	if opts.DisablePreview {
+		clientOpts.PartialImages = 0
 	}
 	if mode == client.ModeEdit {
 		paths, cleanup, prepErr := prepareUploadSourcePaths(opts.collectPaths())
