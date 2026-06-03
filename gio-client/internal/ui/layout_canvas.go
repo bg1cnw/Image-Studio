@@ -215,19 +215,6 @@ func (a *App) canvasToolbar(gtx layout.Context, snap snapshot) layout.Dimensions
 							return a.toolbarTextButton(gtx, &a.closeCompareButton, uiIconCompare, "退出对比", true)
 						}))
 					}
-					if batchGridCount > 1 {
-						label := fmt.Sprintf("网格 %d", batchGridCount)
-						if snap.ResultGridOpen {
-							label = "单图"
-						}
-						rightChildren = append(rightChildren, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.toolbarTextButton(gtx, &a.currentGroupButton, uiIconGrid, label, snap.ResultGridOpen)
-						}))
-					} else if hasCurrentGroup && len(currentGroup.Items) > 1 {
-						rightChildren = append(rightChildren, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.toolbarTextButton(gtx, &a.currentGroupButton, uiIconGrid, "同提示词 "+strconv.Itoa(len(currentGroup.Items)), snap.ActivePromptGroup.Key == currentGroup.Key)
-						}))
-					}
 					if snap.Result.HasItem {
 						rightChildren = append(rightChildren, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return a.metaBadgeRow(gtx, compactNonEmpty([]string{

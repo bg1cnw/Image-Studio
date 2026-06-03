@@ -77,6 +77,13 @@ func (a *App) buildWorkspaceSnapshot() workspaceState {
 		Size:                a.size,
 		Quality:             a.quality,
 		OutputFormat:        a.format,
+		Background:          a.background,
+		OutputCompression:   a.outputCompressionInput.Text(),
+		InputFidelity:       a.inputFidelity,
+		ImageStyle:          a.imageStyle,
+		Moderation:          a.moderation,
+		UserIdentifier:      a.userIdentifierInput.Text(),
+		PartialImages:       a.partialImagesInput.Text(),
 		StyleTag:            a.styleTag,
 		SeedText:            a.seedInput.Text(),
 		BatchCount:          a.batchCount,
@@ -123,6 +130,13 @@ func (a *App) applyWorkspace(ws workspaceState) {
 	a.size = ws.Size
 	a.quality = ws.Quality
 	a.format = ws.OutputFormat
+	a.background = ws.Background
+	a.outputCompressionInput.SetText(ws.OutputCompression)
+	a.inputFidelity = ws.InputFidelity
+	a.imageStyle = ws.ImageStyle
+	a.moderation = ws.Moderation
+	a.userIdentifierInput.SetText(ws.UserIdentifier)
+	a.partialImagesInput.SetText(ws.PartialImages)
 	a.styleTag = ws.StyleTag
 	a.seedInput.SetText(ws.SeedText)
 	a.batchCount = normalizeBatchCount(ws.BatchCount)
@@ -181,14 +195,20 @@ func (a *App) createWorkspace() {
 	a.saveActiveWorkspaceSnapshot()
 	name := fmt.Sprintf("图片 %d", len(a.workspaces)+1)
 	ws := workspaceState{
-		ID:             fmt.Sprintf("ws-%d", time.Now().UnixNano()),
-		Name:           name,
-		Mode:           string(kernel.DefaultConfig().Mode),
-		Size:           kernel.DefaultConfig().Size,
-		Quality:        kernel.DefaultConfig().Quality,
-		OutputFormat:   kernel.DefaultConfig().OutputFormat,
-		BatchCount:     1,
-		ResultGridOpen: false,
+		ID:                fmt.Sprintf("ws-%d", time.Now().UnixNano()),
+		Name:              name,
+		Mode:              string(kernel.DefaultConfig().Mode),
+		Size:              kernel.DefaultConfig().Size,
+		Quality:           kernel.DefaultConfig().Quality,
+		OutputFormat:      kernel.DefaultConfig().OutputFormat,
+		Background:        kernel.DefaultConfig().Background,
+		OutputCompression: strconv.Itoa(kernel.DefaultConfig().OutputCompression),
+		InputFidelity:     kernel.DefaultConfig().InputFidelity,
+		ImageStyle:        kernel.DefaultConfig().ImageStyle,
+		Moderation:        kernel.DefaultConfig().Moderation,
+		PartialImages:     strconv.Itoa(kernel.DefaultConfig().PartialImages),
+		BatchCount:        1,
+		ResultGridOpen:    false,
 	}
 	a.workspaces = append(a.workspaces, ws)
 	a.activeWorkspaceID = ws.ID

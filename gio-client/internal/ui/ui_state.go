@@ -1110,6 +1110,54 @@ func (a *App) useResultPrompt(text string) {
 	a.invalidateNow()
 }
 
+func (a *App) prefillControlsFromHistoryItem(item sharedCompat.HistoryItem) {
+	if prompt := strings.TrimSpace(item.Prompt); prompt != "" {
+		a.promptInput.SetText(prompt)
+	}
+	if negative := strings.TrimSpace(item.NegativePrompt); negative != "" {
+		a.negativePromptInput.SetText(negative)
+	}
+	if mode := strings.TrimSpace(item.Mode); mode == string(client.ModeEdit) || mode == string(client.ModeGenerate) {
+		a.mode = mode
+	}
+	if size := strings.TrimSpace(item.Size); size != "" {
+		a.size = size
+	}
+	if quality := strings.TrimSpace(item.Quality); quality != "" {
+		a.quality = quality
+	}
+	if outputFormat := strings.TrimSpace(item.OutputFormat); outputFormat != "" {
+		a.format = outputFormat
+	}
+	if background := strings.TrimSpace(item.Background); background != "" {
+		a.background = background
+	}
+	if item.OutputCompression != nil && *item.OutputCompression > 0 {
+		a.outputCompressionInput.SetText(strconv.Itoa(*item.OutputCompression))
+	}
+	if fidelity := strings.TrimSpace(item.InputFidelity); fidelity != "" {
+		a.inputFidelity = fidelity
+	}
+	if imageStyle := strings.TrimSpace(item.ImageStyle); imageStyle != "" {
+		a.imageStyle = imageStyle
+	}
+	if moderation := strings.TrimSpace(item.Moderation); moderation != "" {
+		a.moderation = moderation
+	}
+	if item.Seed != 0 {
+		a.seedInput.SetText(strconv.FormatInt(item.Seed, 10))
+	}
+	if styleTag := strings.TrimSpace(item.StyleTag); styleTag != "" {
+		a.styleTag = styleTag
+	}
+	if item.BatchIndex > 0 {
+		a.batchCount = normalizeBatchCount(item.BatchIndex + 1)
+	}
+	if strings.TrimSpace(item.Mode) == string(client.ModeEdit) && strings.TrimSpace(item.SavedPath) != "" {
+		a.sourcePathsInput.SetText(strings.TrimSpace(item.SavedPath))
+	}
+}
+
 func (a *App) applyPreset(preset sharedCompat.Preset) {
 	if strings.TrimSpace(preset.Size) != "" {
 		a.size = preset.Size

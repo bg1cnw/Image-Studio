@@ -212,6 +212,7 @@ func TestWorkspaceRenameUpdatesState(t *testing.T) {
 func TestDisplayedWorkspaceNameUsesPromptForDefaultActiveWorkspace(t *testing.T) {
 	app := New()
 	app.promptInput.SetText("夜色城市概念海报")
+	app.workspaces[0].Name = "图片 1"
 	name := app.displayedWorkspaceName(app.workspaces[0])
 	if name != "夜色城市概念海报" {
 		t.Fatalf("displayedWorkspaceName=%q want 夜色城市概念海报", name)

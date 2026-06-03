@@ -81,6 +81,13 @@ type workspaceState struct {
 	Size                string
 	Quality             string
 	OutputFormat        string
+	Background          string
+	OutputCompression   string
+	InputFidelity       string
+	ImageStyle          string
+	Moderation          string
+	UserIdentifier      string
+	PartialImages       string
 	StyleTag            string
 	SeedText            string
 	BatchCount          int
@@ -490,6 +497,7 @@ func New() *App {
 	a.historyQueryInput.SingleLine = true
 	a.historyTimelineQueryInput.SingleLine = true
 	if latest, ok := newestHistoryItem(a.history); ok {
+		a.prefillControlsFromHistoryItem(latest)
 		if err := a.loadHistoryPreview(latest, false); err != nil && !isMissingPreview(err) {
 			a.logs = appendBounded(a.logs, "载入最近历史失败: "+err.Error())
 		}
