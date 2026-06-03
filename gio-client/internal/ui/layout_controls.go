@@ -229,6 +229,10 @@ func (a *App) layoutModeCard(gtx layout.Context) layout.Dimensions {
 							}
 							children = append(children, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 								active := a.mode == modeChoices[idx].Value
+								icon := uiIconPlay
+								if modeChoices[idx].Value == string(client.ModeEdit) {
+									icon = uiIconEdit
+								}
 								return a.surfaceButton(
 									gtx,
 									&a.modeButtons[idx],
@@ -240,7 +244,18 @@ func (a *App) layoutModeCard(gtx layout.Context) layout.Dimensions {
 									func(gtx layout.Context) layout.Dimensions {
 										fg := chooseColor(active, fluent.text, fluent.textMuted)
 										return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-											return a.label(gtx, modeChoices[idx].Label, unit.Sp(11), fg, chooseFontWeight(active))
+											return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+												layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+													return fixedWidth(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+														return fixedHeight(gtx, unit.Dp(14), func(gtx layout.Context) layout.Dimensions {
+															return icon.Layout(gtx, fg)
+														})
+													})
+												}),
+												layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+													return a.label(gtx, modeChoices[idx].Label, unit.Sp(11), fg, chooseFontWeight(active))
+												}),
+											)
 										})
 									},
 								)
@@ -302,7 +317,7 @@ func (a *App) layoutPromptCard(gtx layout.Context) layout.Dimensions {
 							return a.label(gtx, title, unit.Sp(10), fluent.textMuted, font.SemiBold)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.monoLabel(gtx, fmt.Sprintf("%d", promptLen), unit.Sp(10), fluent.textDim, font.Normal)
+							return a.staticPill(gtx, fmt.Sprintf("%d", promptLen), false, true)
 						}),
 					)
 				}),
@@ -338,7 +353,7 @@ func (a *App) layoutPromptCard(gtx layout.Context) layout.Dimensions {
 						}),
 						layout.Flexed(1, layout.Spacer{}.Layout),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.singleLineLabel(gtx, "Ctrl+Enter", unit.Sp(10), fluent.textDim, font.Normal)
+							return a.staticPill(gtx, "Ctrl+Enter", false, true)
 						}),
 					)
 				}),
@@ -1929,7 +1944,7 @@ func (a *App) layoutComposeCard(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			children := []layout.FlexChild{
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.layoutComposeAccordionHeader(gtx, summary, a.composeOpen)
+					return a.layoutDisclosureHeader(gtx, &a.composeToggleButton, "创作参数", summary, a.composeOpen)
 				}),
 			}
 			if a.composeOpen {
@@ -2269,7 +2284,7 @@ func (a *App) layoutAdvancedCard(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			children := []layout.FlexChild{
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.layoutAdvancedAccordionHeader(gtx, summary, a.advancedOpen)
+					return a.layoutDisclosureHeader(gtx, &a.advancedToggleButton, "高级参数", summary, a.advancedOpen)
 				}),
 			}
 			if a.advancedOpen {
