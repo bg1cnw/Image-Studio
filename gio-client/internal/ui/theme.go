@@ -82,8 +82,8 @@ var fluentDark = fluentColors{
 	panel:           rgb(0x2b2b2b),
 	panel2:          rgb(0x282828),
 	surface:         rgb(0x333333),
-	surface2:        rgb(0x353535),
-	surfaceElevated: rgb(0x2f2f2f),
+	surface2:        rgb(0x3b3b3b),
+	surfaceElevated: rgb(0x333333),
 	sidebar:         rgb(0x2b2b2b),
 	inspector:       rgb(0x292929),
 	toolbar:         rgb(0x2d2d2d),
@@ -92,7 +92,7 @@ var fluentDark = fluentColors{
 	text:            rgb(0xf5f5f5),
 	textMuted:       rgba(0xf3f3f3, 0xb8),
 	textDim:         rgba(0xf3f3f3, 0x80),
-	cardShadow:      rgba(0x000000, 0x34),
+	cardShadow:      rgba(0x000000, 0x00),
 	cardGlow:        rgba(0xffffff, 0x00),
 	bgGlow:          rgba(0xffffff, 0x04),
 	canvasBg:        rgb(0x242424),
@@ -102,7 +102,7 @@ var fluentDark = fluentColors{
 	dangerSoft:      rgba(0xff99a4, 0x1f),
 	toolHoverBg:     rgba(0xffffff, 0x0f),
 	toolHoverText:   rgb(0xf3f3f3),
-	windowOutline:   rgba(0xffffff, 0x08),
+	windowOutline:   rgba(0xffffff, 0x00),
 	white:           rgb(0xffffff),
 }
 
