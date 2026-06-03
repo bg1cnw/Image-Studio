@@ -13,26 +13,27 @@ import (
 )
 
 type Config struct {
-	APIKey         string
-	BaseURL        string
-	TextModelID    string
-	ImageModelID   string
-	Prompt         string
-	Mode           client.Mode
-	APIMode        client.APIMode
-	RequestPolicy  client.RequestPolicy
-	Size           string
-	Quality        string
-	OutputFormat   string
-	ProxyMode      string
-	ProxyURL       string
-	SourcePaths    []string
-	OutputDir      string
-	Seed           int64
-	NegativePrompt string
-	PartialImages  int
-	StyleTag       string
-	BatchIndex     int
+	APIKey             string
+	BaseURL            string
+	TextModelID        string
+	ImageModelID       string
+	Prompt             string
+	Mode               client.Mode
+	APIMode            client.APIMode
+	RequestPolicy      client.RequestPolicy
+	ImagesNewAPICompat bool
+	Size               string
+	Quality            string
+	OutputFormat       string
+	ProxyMode          string
+	ProxyURL           string
+	SourcePaths        []string
+	OutputDir          string
+	Seed               int64
+	NegativePrompt     string
+	PartialImages      int
+	StyleTag           string
+	BatchIndex         int
 }
 
 type Callbacks struct {
@@ -137,21 +138,22 @@ func (Runner) Run(ctx context.Context, cfg Config, cb Callbacks) (Result, error)
 	}
 
 	opts := client.Options{
-		APIKey:         cfg.APIKey,
-		BaseURL:        cfg.BaseURL,
-		TextModelID:    cfg.TextModelID,
-		ImageModelID:   cfg.ImageModelID,
-		Prompt:         cfg.Prompt,
-		Mode:           cfg.Mode,
-		APIMode:        cfg.APIMode,
-		RequestPolicy:  cfg.RequestPolicy,
-		Size:           cfg.Size,
-		Quality:        cfg.Quality,
-		OutputFormat:   cfg.OutputFormat,
-		Proxy:          proxy,
-		Seed:           cfg.Seed,
-		NegativePrompt: cfg.NegativePrompt,
-		PartialImages:  cfg.PartialImages,
+		APIKey:             cfg.APIKey,
+		BaseURL:            cfg.BaseURL,
+		TextModelID:        cfg.TextModelID,
+		ImageModelID:       cfg.ImageModelID,
+		Prompt:             cfg.Prompt,
+		Mode:               cfg.Mode,
+		APIMode:            cfg.APIMode,
+		RequestPolicy:      cfg.RequestPolicy,
+		ImagesNewAPICompat: cfg.ImagesNewAPICompat,
+		Size:               cfg.Size,
+		Quality:            cfg.Quality,
+		OutputFormat:       cfg.OutputFormat,
+		Proxy:              proxy,
+		Seed:               cfg.Seed,
+		NegativePrompt:     cfg.NegativePrompt,
+		PartialImages:      cfg.PartialImages,
 	}
 	if cfg.Mode == client.ModeEdit {
 		if err := attachSourceImages(&opts, cfg.SourcePaths); err != nil {

@@ -62,6 +62,7 @@ func ConfigFromState(cfg kernel.Config, state shared.State) kernel.Config {
 	cfg.ImageModelID = profile.ImageModelID
 	cfg.APIMode = normaliseAPIMode(profile.APIMode)
 	cfg.RequestPolicy = normalisePolicy(profile.RequestPolicy)
+	cfg.ImagesNewAPICompat = profile.ImagesNewAPICompat
 	cfg.APIKey, _ = ReadAPIKey(profile.ID)
 	return cfg
 }
@@ -139,16 +140,17 @@ func UpsertConfig(state shared.State, cfg kernel.Config) shared.State {
 		profileID = "gio-" + randomID()
 	}
 	profile := shared.UpstreamProfile{
-		ID:               profileID,
-		Name:             nextDefaultProfileName(state.Profiles),
-		APIMode:          string(normaliseAPIMode(string(cfg.APIMode))),
-		RequestPolicy:    string(normalisePolicy(string(cfg.RequestPolicy))),
-		BaseURL:          strings.TrimSpace(cfg.BaseURL),
-		TextModelID:      strings.TrimSpace(cfg.TextModelID),
-		ImageModelID:     strings.TrimSpace(cfg.ImageModelID),
-		ConcurrencyLimit: 0,
-		CreatedAt:        now,
-		LastUsedAt:       now,
+		ID:                 profileID,
+		Name:               nextDefaultProfileName(state.Profiles),
+		APIMode:            string(normaliseAPIMode(string(cfg.APIMode))),
+		RequestPolicy:      string(normalisePolicy(string(cfg.RequestPolicy))),
+		ImagesNewAPICompat: cfg.ImagesNewAPICompat,
+		BaseURL:            strings.TrimSpace(cfg.BaseURL),
+		TextModelID:        strings.TrimSpace(cfg.TextModelID),
+		ImageModelID:       strings.TrimSpace(cfg.ImageModelID),
+		ConcurrencyLimit:   0,
+		CreatedAt:          now,
+		LastUsedAt:         now,
 	}
 	if profileIndex >= 0 {
 		profile.Name = state.Profiles[profileIndex].Name

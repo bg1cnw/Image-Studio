@@ -386,6 +386,7 @@ func (a *App) applySettingsProfileDraft(state sharedCompat.State, profile shared
 	a.profileNameInput.SetText(strings.TrimSpace(profile.Name))
 	a.api = normalizeProfileAPIMode(profile.APIMode)
 	a.policy = normalizeProfilePolicy(profile.RequestPolicy)
+	a.imagesNewAPICompat = profile.ImagesNewAPICompat
 	a.baseURLInput.SetText(strings.TrimSpace(profile.BaseURL))
 	a.textModelInput.SetText(strings.TrimSpace(profile.TextModelID))
 	a.imageModelInput.SetText(strings.TrimSpace(profile.ImageModelID))
@@ -434,6 +435,7 @@ func (a *App) loadSettingsProfileDraft(profileID string) error {
 			outputDir = kernel.DefaultOutputDir()
 		}
 		a.outputDirInput.SetText(outputDir)
+		a.imagesNewAPICompat = false
 		a.api = string(client.APIModeResponses)
 		a.policy = string(client.RequestPolicyOpenAI)
 		a.apiKeyVisible = false
@@ -521,6 +523,7 @@ func (a *App) saveSettingsSelection() error {
 		state.Profiles[i].Name = name
 		state.Profiles[i].APIMode = normalizeProfileAPIMode(a.api)
 		state.Profiles[i].RequestPolicy = normalizeProfilePolicy(a.policy)
+		state.Profiles[i].ImagesNewAPICompat = a.imagesNewAPICompat
 		state.Profiles[i].BaseURL = strings.TrimSpace(a.baseURLInput.Text())
 		state.Profiles[i].TextModelID = strings.TrimSpace(a.textModelInput.Text())
 		state.Profiles[i].ImageModelID = strings.TrimSpace(a.imageModelInput.Text())
@@ -598,14 +601,15 @@ func (a *App) createSettingsProfile(apiMode string) error {
 	now := time.Now().UnixMilli()
 	profileID := fmt.Sprintf("gio-%d", now)
 	profile := sharedCompat.UpstreamProfile{
-		ID:            profileID,
-		Name:          nextProfileName(state.Profiles),
-		APIMode:       normalizeProfileAPIMode(apiMode),
-		RequestPolicy: string(client.RequestPolicyOpenAI),
-		TextModelID:   client.TextModel,
-		ImageModelID:  client.ImageModel,
-		CreatedAt:     now,
-		LastUsedAt:    now,
+		ID:                 profileID,
+		Name:               nextProfileName(state.Profiles),
+		APIMode:            normalizeProfileAPIMode(apiMode),
+		RequestPolicy:      string(client.RequestPolicyOpenAI),
+		ImagesNewAPICompat: false,
+		TextModelID:        client.TextModel,
+		ImageModelID:       client.ImageModel,
+		CreatedAt:          now,
+		LastUsedAt:         now,
 	}
 	state.Profiles = append(state.Profiles, profile)
 	activate := len(state.Profiles) == 1 || strings.TrimSpace(state.ActiveProfile) == ""
@@ -824,14 +828,15 @@ func (a *App) createBlankProfileWithMode(apiMode string) {
 	now := time.Now().UnixMilli()
 	profileID := fmt.Sprintf("gio-%d", now)
 	profile := sharedCompat.UpstreamProfile{
-		ID:            profileID,
-		Name:          nextProfileName(state.Profiles),
-		APIMode:       apiMode,
-		RequestPolicy: string(client.RequestPolicyOpenAI),
-		TextModelID:   client.TextModel,
-		ImageModelID:  client.ImageModel,
-		CreatedAt:     now,
-		LastUsedAt:    now,
+		ID:                 profileID,
+		Name:               nextProfileName(state.Profiles),
+		APIMode:            apiMode,
+		RequestPolicy:      string(client.RequestPolicyOpenAI),
+		ImagesNewAPICompat: false,
+		TextModelID:        client.TextModel,
+		ImageModelID:       client.ImageModel,
+		CreatedAt:          now,
+		LastUsedAt:         now,
 	}
 	state.Profiles = append(state.Profiles, profile)
 	state.ActiveProfile = profileID

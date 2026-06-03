@@ -566,6 +566,9 @@ func (a *App) layoutSettingsModal(gtx layout.Context) layout.Dimensions {
 	for a.toggleAPIKeyMaskButton.Clicked(gtx) {
 		a.apiKeyVisible = !a.apiKeyVisible
 	}
+	for a.settingsImagesCompatButton.Clicked(gtx) {
+		a.imagesNewAPICompat = !a.imagesNewAPICompat
+	}
 	for a.settingsTestUpstreamButton.Clicked(gtx) {
 		if !a.settingsDraftReady() {
 			continue
@@ -1725,6 +1728,49 @@ func (a *App) layoutSettingsEditorPane(gtx layout.Context, snap snapshot) layout
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.technicalField(gtx, "并发数量限制", &a.concurrencyLimitInput, "留空 = 不限制", unit.Dp(40))
 			}),
+		)
+		if a.api == string(client.APIModeImages) {
+			rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				active := a.imagesNewAPICompat
+				return a.elevatedSurfaceButton(
+					gtx,
+					&a.settingsImagesCompatButton,
+					chooseColor(active, fluent.accentSoft, fluent.surfaceElevated),
+					chooseColor(active, accentAlpha(0x18), fluent.surface2),
+					chooseColor(active, accentAlpha(0x24), fluent.border),
+					unit.Dp(8),
+					image.Pt(0, 1),
+					layout.Inset{Top: 10, Bottom: 10, Left: 12, Right: 12},
+					func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+								return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(3))}.Layout(gtx,
+									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+										return a.label(gtx, "Images API 中转兼容", unit.Sp(12), chooseColor(active, fluent.accent, fluent.text), font.SemiBold)
+									}),
+									layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+										return a.label(gtx, "开启后会强制发送 response_format=b64_json，并关闭 stream / partial_images，更适合部分 NewAPI 风格中转站。", unit.Sp(10), chooseColor(active, withAlpha(fluent.accent, 0xd0), fluent.textDim), font.Normal)
+									}),
+								)
+							}),
+							layout.Rigid(layout.Spacer{Width: unit.Dp(10)}.Layout),
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								text := "已关闭"
+								bg := withAlpha(fluent.textDim, 0x24)
+								fg := fluent.textDim
+								if active {
+									text = "已开启"
+									bg = fluent.accentSoft
+									fg = fluent.accent
+								}
+								return a.badge(gtx, text, bg, fg)
+							}),
+						)
+					},
+				)
+			}))
+		}
+		rows = append(rows,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.segmentedWithTitle(gtx, "代理", proxyChoices, a.proxy, a.proxyButtons, func(value string) { a.proxy = value })
 			}),

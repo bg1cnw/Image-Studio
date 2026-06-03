@@ -131,17 +131,18 @@ type App struct {
 	historyTimelineQueryInput widget.Editor
 	workspaceNameInput        widget.Editor
 
-	mode       string
-	api        string
-	size       string
-	quality    string
-	format     string
-	policy     string
-	proxy      string
-	styleTag   string
-	themeMode  string
-	fontScale  float64
-	batchCount int
+	mode               string
+	api                string
+	size               string
+	quality            string
+	format             string
+	policy             string
+	proxy              string
+	styleTag           string
+	themeMode          string
+	fontScale          float64
+	imagesNewAPICompat bool
+	batchCount         int
 
 	modeButtons                      []widget.Clickable
 	apiButtons                       []widget.Clickable
@@ -191,6 +192,7 @@ type App struct {
 	optimizePromptButton             widget.Clickable
 	testUpstreamButton               widget.Clickable
 	settingsTestUpstreamButton       widget.Clickable
+	settingsImagesCompatButton       widget.Clickable
 	syncCodexConfigButton            widget.Clickable
 	historyTimelineModePickerButton  widget.Clickable
 	historyTimelineDatePickerButton  widget.Clickable
@@ -384,6 +386,7 @@ func New() *App {
 		styleTag:                   "",
 		themeMode:                  themeMode,
 		fontScale:                  fontScale,
+		imagesNewAPICompat:         cfg.ImagesNewAPICompat,
 		kernelRuntimeMode:          normalizeKernelRuntimeMode(compatState.Settings.KernelRuntimeMode),
 		batchCount:                 1,
 		themeButtons:               make([]widget.Clickable, 3),
@@ -521,6 +524,7 @@ func (a *App) applyRuntimeConfig(cfg kernel.Config) {
 	a.proxy = cfg.ProxyMode
 	a.proxyURLInput.SetText(cfg.ProxyURL)
 	a.outputDirInput.SetText(cfg.OutputDir)
+	a.imagesNewAPICompat = cfg.ImagesNewAPICompat
 	if strings.TrimSpace(cfg.OutputFormat) != "" {
 		a.format = cfg.OutputFormat
 	}
