@@ -201,7 +201,7 @@ func (a *App) layoutWorkbenchCard(gtx layout.Context) layout.Dimensions {
 						return a.titleLabel(gtx, "图像工作台", unit.Sp(18))
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.staticPill(gtx, modeSummary, true, false)
+						return a.workbenchModeBadge(gtx, modeSummary)
 					}),
 				)
 			}),
@@ -236,13 +236,13 @@ func (a *App) layoutModeCard(gtx layout.Context) layout.Dimensions {
 								return a.surfaceButton(
 									gtx,
 									&a.modeButtons[idx],
-									chooseColor(active, fluent.surface, rgba(0xffffff, 0x00)),
-									fluent.surface,
-									chooseColor(active, withAlpha(fluent.border2, 0x7a), rgba(0xffffff, 0x00)),
+									chooseColor(active, fluent.accentSoft, rgba(0xffffff, 0x00)),
+									chooseColor(active, accentAlpha(0x18), fluent.surface),
+									chooseColor(active, accentAlpha(0x32), rgba(0xffffff, 0x00)),
 									unit.Dp(8),
 									layout.Inset{Top: 9, Bottom: 9, Left: 10, Right: 10},
 									func(gtx layout.Context) layout.Dimensions {
-										fg := chooseColor(active, fluent.text, fluent.textMuted)
+										fg := chooseColor(active, fluent.accent, fluent.textMuted)
 										return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 											return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
 												layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -485,6 +485,36 @@ func (a *App) layoutPromptHelperModal(gtx layout.Context) layout.Dimensions {
 			)
 		},
 	)
+}
+
+func (a *App) workbenchModeBadge(gtx layout.Context, text string) layout.Dimensions {
+	lines := []string{text}
+	if strings.TrimSpace(text) == "文生图" {
+		lines = []string{"文生", "图"}
+	} else if strings.TrimSpace(text) == "图生图" {
+		lines = []string{"图生", "图"}
+	}
+	return fixedWidth(gtx, unit.Dp(56), func(gtx layout.Context) layout.Dimensions {
+		return fixedHeight(gtx, unit.Dp(40), func(gtx layout.Context) layout.Dimensions {
+			return a.elevatedBorderedSurface(gtx, fluent.accentSoft, unit.Dp(8), accentAlpha(0x22), image.Pt(0, 1), func(gtx layout.Context) layout.Dimensions {
+				return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					rows := make([]layout.FlexChild, 0, len(lines)*2)
+					for idx, line := range lines {
+						line := line
+						if idx > 0 {
+							rows = append(rows, layout.Rigid(layout.Spacer{Height: unit.Dp(1)}.Layout))
+						}
+						rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return a.label(gtx, line, unit.Sp(10), fluent.accent, font.SemiBold)
+							})
+						}))
+					}
+					return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle}.Layout(gtx, rows...)
+				})
+			})
+		})
+	})
 }
 
 func chooseFontWeight(active bool) font.Weight {
