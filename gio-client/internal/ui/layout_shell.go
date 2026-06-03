@@ -323,7 +323,7 @@ func (a *App) layoutBody(gtx layout.Context) layout.Dimensions {
 	}
 	width := gtx.Constraints.Max.X
 	centerMin := gtx.Dp(unit.Dp(360))
-	leftWidth := gtx.Dp(unit.Dp(360))
+	leftWidth := gtx.Dp(unit.Dp(372))
 	rightWidth := gtx.Dp(unit.Dp(320))
 	if width <= gtx.Dp(unit.Dp(1180)) {
 		leftWidth = gtx.Dp(unit.Dp(336))
