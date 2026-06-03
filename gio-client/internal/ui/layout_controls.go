@@ -816,6 +816,9 @@ func (a *App) layoutGeneralSettingsModal(gtx layout.Context) layout.Dimensions {
 	for a.clearGeneralHistoryButton.Clicked(gtx) {
 		a.clearAllHistory()
 	}
+	for a.openGeneralAboutButton.Clicked(gtx) {
+		a.aboutModalOpen = true
+	}
 	for idx, days := range []int{3, 7} {
 		days := days
 		for a.pruneGeneralHistoryButtons[idx].Clicked(gtx) {
@@ -1105,6 +1108,9 @@ func (a *App) layoutGeneralSettingsModal(gtx layout.Context) layout.Dimensions {
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return a.label(gtx, "保持界面简洁，围绕 prompt、参考图、结果预览和上游配置提供一个更接近 Windows Fluent 的原生工作台。", unit.Sp(10), fluent.textDim, font.Normal)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.compactIconTextButton(gtx, &a.openGeneralAboutButton, uiIconInfo, "打开关于面板", false)
 					}),
 				)
 			})

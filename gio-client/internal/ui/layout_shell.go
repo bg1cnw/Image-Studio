@@ -18,6 +18,7 @@ import (
 
 const repoURL = "https://github.com/RoseKhlifa/Image-Studio"
 const issuesURL = "https://github.com/RoseKhlifa/Image-Studio/issues"
+const licenseURL = "https://opensource.org/licenses/MIT"
 
 func (a *App) layout(gtx layout.Context) layout.Dimensions {
 	snap := a.readSnapshot()
@@ -73,6 +74,9 @@ func (a *App) layout(gtx layout.Context) layout.Dimensions {
 	}
 	if a.generalSettingsOpen {
 		a.layoutGeneralSettingsModal(gtx)
+	}
+	if a.aboutModalOpen {
+		a.layoutAboutModal(gtx)
 	}
 	if a.settingsModalOpen {
 		a.layoutSettingsModal(gtx)

@@ -208,11 +208,16 @@ type App struct {
 	openGeneralHistoryTimelineButton widget.Clickable
 	exportGeneralHistoryButton       widget.Clickable
 	importGeneralHistoryButton       widget.Clickable
+	openGeneralAboutButton           widget.Clickable
 	clearGeneralAPIKeyButton         widget.Clickable
 	clearGeneralHistoryButton        widget.Clickable
 	pruneGeneralHistoryButtons       []widget.Clickable
 	openGeneralRepoButton            widget.Clickable
 	openGeneralFeedbackButton        widget.Clickable
+	closeAboutButton                 widget.Clickable
+	openAboutRepoButton              widget.Clickable
+	openAboutFeedbackButton          widget.Clickable
+	openAboutLicenseButton           widget.Clickable
 	themeButtons                     []widget.Clickable
 	generalThemeButtons              []widget.Clickable
 	generalRuntimeButtons            []widget.Clickable
@@ -324,6 +329,7 @@ type App struct {
 	activePromptGroup             historyPromptGroup
 	generalSettingsOpen           bool
 	generalRuntimePickerOpen      bool
+	aboutModalOpen                bool
 	settingsModalOpen             bool
 	settingsHelpOpen              bool
 	settingsSelectedProfileID     string
