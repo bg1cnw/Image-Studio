@@ -2118,9 +2118,9 @@ func (a *App) layoutStyleSection(gtx layout.Context) layout.Dimensions {
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					if a.styleTag == "" {
-						return a.metaBadge(gtx, "默认风格", true)
+						return layout.Dimensions{}
 					}
-					return a.ghostIconTextButton(gtx, &a.clearStyleButton, uiIconClear, "清除", true)
+					return a.textActionButton(gtx, &a.clearStyleButton, "清除", true)
 				}),
 			)
 		}),
@@ -2241,7 +2241,7 @@ func (a *App) layoutSourceInputSection(gtx layout.Context, sourcePaths []string,
 							return a.singleLineLabel(gtx, filepath.Base(path), unit.Sp(11), fluent.text, font.Medium)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return a.compactIconTextButton(gtx, btn, uiIconDelete, "移除", false)
+							return a.ghostIconButton(gtx, btn, uiIconClose, false)
 						}),
 					)
 				})
@@ -2252,13 +2252,13 @@ func (a *App) layoutSourceInputSection(gtx layout.Context, sourcePaths []string,
 
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		row := []layout.FlexChild{}
-		row = append(row, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		row = append(row, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return a.compactIconTextButton(gtx, &a.addSourceFilesButton, uiIconAdd, "添加图片", false)
 		}))
 		if len(sourcePaths) > 0 {
 			row = append(row, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return a.compactIconTextButton(gtx, &a.clearSourcesButton, uiIconDelete, "清空", false)
+					return a.compactIconButton(gtx, &a.clearSourcesButton, uiIconDelete, false)
 				})
 			}))
 		}
@@ -2324,7 +2324,9 @@ func (a *App) layoutBatchCountSection(gtx layout.Context) layout.Dimensions {
 		})
 	}))
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		return layout.Dimensions{}
+		return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return a.label(gtx, "多张会并行请求, 完成后在画板按网格挑图; 受上游并发限制约束。", unit.Sp(10), fluent.textDim, font.Normal)
+		})
 	}))
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
