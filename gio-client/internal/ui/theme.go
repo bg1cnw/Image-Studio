@@ -3,6 +3,7 @@ package ui
 import (
 	"image/color"
 
+	"gioui.org/unit"
 	"gioui.org/widget/material"
 )
 
@@ -128,6 +129,33 @@ func resolveThemeMode(mode string) string {
 		return "dark"
 	}
 	return "light"
+}
+
+func normalizeFontScale(scale float64) float64 {
+	switch {
+	case scale <= 0:
+		return 1
+	case scale < 0.9:
+		return 0.85
+	case scale > 1.08:
+		return 1.15
+	default:
+		return 1
+	}
+}
+
+func (a *App) scaledSp(size unit.Sp) unit.Sp {
+	scale := float32(1)
+	if a != nil && a.fontScale > 0 {
+		scale = float32(a.fontScale)
+	}
+	return unit.Sp(float32(size) * scale)
+}
+
+func (a *App) applyFontScale(scale float64) {
+	a.fontScale = normalizeFontScale(scale)
+	a.th.TextSize = a.scaledSp(unit.Sp(14))
+	a.invalidateNow()
 }
 
 func (a *App) applyThemeMode(mode string) {

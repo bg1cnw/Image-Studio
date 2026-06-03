@@ -63,7 +63,7 @@ func (a *App) layoutRawResponseModal(gtx layout.Context) layout.Dimensions {
 							style := material.Editor(a.th, &a.rawResponseViewerInput, "")
 							style.Color = fluent.textMuted
 							style.HintColor = fluent.textDim
-							style.TextSize = unit.Sp(11)
+							style.TextSize = a.scaledSp(unit.Sp(11))
 							style.Font.Typeface = uiMonoTypeface
 							style.Font.Weight = font.Normal
 							return style.Layout(gtx)

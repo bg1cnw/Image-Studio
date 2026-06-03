@@ -36,7 +36,7 @@ func (a *App) fieldWithStyle(gtx layout.Context, title string, editor *widget.Ed
 						style.Color = fluent.text
 						style.HintColor = fluent.textDim
 						style.SelectionColor = accentAlpha(0x3d)
-						style.TextSize = unit.Sp(13)
+						style.TextSize = a.scaledSp(unit.Sp(13))
 						style.Font.Weight = font.Medium
 						if monospace {
 							style.Font.Typeface = uiMonoTypeface
@@ -72,7 +72,7 @@ func (a *App) searchField(gtx layout.Context, editor *widget.Editor, hint string
 						style.Color = fluent.text
 						style.HintColor = fluent.textDim
 						style.SelectionColor = accentAlpha(0x3d)
-						style.TextSize = unit.Sp(12)
+						style.TextSize = a.scaledSp(unit.Sp(12))
 						style.Font.Weight = font.Medium
 						return style.Layout(gtx)
 					}),

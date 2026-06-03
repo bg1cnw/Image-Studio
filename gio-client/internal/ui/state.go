@@ -302,6 +302,7 @@ func (a *App) persistGeneralSettings() error {
 		state.Settings.ProxyMode = "system"
 	}
 	state.Settings.KernelRuntimeMode = normalizeKernelRuntimeMode(a.kernelRuntimeMode)
+	state.Settings.FontScale = normalizeFontScale(a.fontScale)
 	state.Settings.ProxyURL = strings.TrimSpace(a.proxyURLInput.Text())
 	state.Settings.OutputDir = strings.TrimSpace(a.outputDirInput.Text())
 	state.Settings.KeepLogs = a.keepLogs

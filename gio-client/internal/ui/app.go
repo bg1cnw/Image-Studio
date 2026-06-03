@@ -140,6 +140,7 @@ type App struct {
 	proxy      string
 	styleTag   string
 	themeMode  string
+	fontScale  float64
 	batchCount int
 
 	modeButtons                      []widget.Clickable
@@ -207,11 +208,15 @@ type App struct {
 	openGeneralHistoryTimelineButton widget.Clickable
 	exportGeneralHistoryButton       widget.Clickable
 	importGeneralHistoryButton       widget.Clickable
+	clearGeneralAPIKeyButton         widget.Clickable
+	clearGeneralHistoryButton        widget.Clickable
+	pruneGeneralHistoryButtons       []widget.Clickable
 	openGeneralRepoButton            widget.Clickable
 	openGeneralFeedbackButton        widget.Clickable
 	themeButtons                     []widget.Clickable
 	generalThemeButtons              []widget.Clickable
 	generalRuntimeButtons            []widget.Clickable
+	generalFontScaleButtons          []widget.Clickable
 	generalSavePromptButtons         []widget.Clickable
 	generalProxyButtons              []widget.Clickable
 	generalKeepLogsButtons           []widget.Clickable
@@ -343,6 +348,7 @@ func New() *App {
 		cfg = gioCompat.ConfigFromState(cfg, compatState)
 	}
 	themeMode := normalizeThemeMode(compatState.Settings.Theme)
+	fontScale := normalizeFontScale(compatState.Settings.FontScale)
 	fluent = themePalette(resolveThemeMode(themeMode))
 	th := material.NewTheme()
 	collection := bundledFontCollection()
@@ -358,7 +364,7 @@ func New() *App {
 		ContrastBg: fluent.accent,
 		ContrastFg: fluent.white,
 	}
-	th.TextSize = unit.Sp(14)
+	th.TextSize = unit.Sp(float32(14) * float32(fontScale))
 	a := &App{
 		th:                         th,
 		runner:                     kernel.Runner{},
@@ -371,14 +377,17 @@ func New() *App {
 		proxy:                      cfg.ProxyMode,
 		styleTag:                   "",
 		themeMode:                  themeMode,
+		fontScale:                  fontScale,
 		kernelRuntimeMode:          normalizeKernelRuntimeMode(compatState.Settings.KernelRuntimeMode),
 		batchCount:                 1,
 		themeButtons:               make([]widget.Clickable, 3),
 		generalThemeButtons:        make([]widget.Clickable, 3),
 		generalRuntimeButtons:      make([]widget.Clickable, 3),
+		generalFontScaleButtons:    make([]widget.Clickable, 3),
 		generalSavePromptButtons:   make([]widget.Clickable, 2),
 		generalProxyButtons:        make([]widget.Clickable, len(proxyChoices)),
 		generalKeepLogsButtons:     make([]widget.Clickable, 2),
+		pruneGeneralHistoryButtons: make([]widget.Clickable, 2),
 		modeButtons:                make([]widget.Clickable, len(modeChoices)),
 		apiButtons:                 make([]widget.Clickable, len(apiChoices)),
 		sizeButtons:                make([]widget.Clickable, len(sizeChoices)),

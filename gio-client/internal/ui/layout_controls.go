@@ -764,6 +764,12 @@ func (a *App) layoutGeneralSettingsModal(gtx layout.Context) layout.Dimensions {
 			a.persistThemeMode(mode)
 		}
 	}
+	for idx, scale := range []float64{0.85, 1, 1.15} {
+		scale := scale
+		for a.generalFontScaleButtons[idx].Clicked(gtx) {
+			a.applyFontScale(scale)
+		}
+	}
 	for a.generalSavePromptButtons[0].Clicked(gtx) {
 		a.setSavePromptSuppressed(false)
 	}
@@ -804,6 +810,18 @@ func (a *App) layoutGeneralSettingsModal(gtx layout.Context) layout.Dimensions {
 	for a.importGeneralHistoryButton.Clicked(gtx) {
 		a.importHistoryJSON()
 	}
+	for a.clearGeneralAPIKeyButton.Clicked(gtx) {
+		a.clearCurrentProfileAPIKey()
+	}
+	for a.clearGeneralHistoryButton.Clicked(gtx) {
+		a.clearAllHistory()
+	}
+	for idx, days := range []int{3, 7} {
+		days := days
+		for a.pruneGeneralHistoryButtons[idx].Clicked(gtx) {
+			a.pruneHistoryOlderThanDays(days)
+		}
+	}
 	for a.openGeneralUpstreamButton.Clicked(gtx) {
 		a.closeGeneralSettingsModal()
 		a.openSettingsModal()
@@ -834,6 +852,17 @@ func (a *App) layoutGeneralSettingsModal(gtx layout.Context) layout.Dimensions {
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return a.compactIconTextButton(gtx, &a.generalThemeButtons[2], uiIconLight, "浅色", a.themeMode == "light")
+		}),
+	}
+	fontScaleRows := []layout.FlexChild{
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return a.compactButton(gtx, &a.generalFontScaleButtons[0], "小", a.fontScale == 0.85)
+		}),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return a.compactButton(gtx, &a.generalFontScaleButtons[1], "中", a.fontScale == 1)
+		}),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return a.compactButton(gtx, &a.generalFontScaleButtons[2], "大", a.fontScale == 1.15)
 		}),
 	}
 	savePromptRows := []layout.FlexChild{
@@ -975,6 +1004,18 @@ func (a *App) layoutGeneralSettingsModal(gtx layout.Context) layout.Dimensions {
 			})
 		},
 		func(gtx layout.Context) layout.Dimensions {
+			return a.generalSettingsCard(gtx, fmt.Sprintf("字号 %d%%", int(a.fontScale*100)), func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx, fontScaleRows...)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.label(gtx, "即时缩放 Gio 客户端里的标题、正文和输入文本。", unit.Sp(10), fluent.textDim, font.Normal)
+					}),
+				)
+			})
+		},
+		func(gtx layout.Context) layout.Dimensions {
 			return a.generalSettingsCard(gtx, "参数预设", func(gtx layout.Context) layout.Dimensions {
 				rows := []layout.FlexChild{
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -1031,6 +1072,16 @@ func (a *App) layoutGeneralSettingsModal(gtx layout.Context) layout.Dimensions {
 							}),
 						)
 					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+								return a.compactButton(gtx, &a.pruneGeneralHistoryButtons[0], "清理 3 天前", false)
+							}),
+							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+								return a.compactButton(gtx, &a.pruneGeneralHistoryButtons[1], "清理 7 天前", false)
+							}),
+						)
+					}),
 				)
 			})
 		},
@@ -1054,6 +1105,25 @@ func (a *App) layoutGeneralSettingsModal(gtx layout.Context) layout.Dimensions {
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return a.label(gtx, "保持界面简洁，围绕 prompt、参考图、结果预览和上游配置提供一个更接近 Windows Fluent 的原生工作台。", unit.Sp(10), fluent.textDim, font.Normal)
+					}),
+				)
+			})
+		},
+		func(gtx layout.Context) layout.Dimensions {
+			return a.generalSettingsCard(gtx, "凭据与清理", func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.label(gtx, "清理当前活动上游的 API Key，或直接移除本地历史记录。", unit.Sp(10), fluent.textDim, font.Normal)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+								return a.compactButton(gtx, &a.clearGeneralAPIKeyButton, "清除 API Key", false)
+							}),
+							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+								return a.compactButton(gtx, &a.clearGeneralHistoryButton, "清空历史", false)
+							}),
+						)
 					}),
 				)
 			})
@@ -1440,7 +1510,7 @@ func (a *App) layoutSettingsAPIKeyField(gtx layout.Context) layout.Dimensions {
 								style.Color = fluent.text
 								style.HintColor = fluent.textDim
 								style.SelectionColor = accentAlpha(0x3d)
-								style.TextSize = unit.Sp(13)
+								style.TextSize = a.scaledSp(unit.Sp(13))
 								style.Font.Weight = font.Medium
 								style.Font.Typeface = uiMonoTypeface
 								return style.Layout(gtx)
@@ -2488,7 +2558,7 @@ func (a *App) editorText(gtx layout.Context, editor *widget.Editor, hint string,
 	style.Color = fluent.text
 	style.HintColor = fluent.textDim
 	style.SelectionColor = accentAlpha(0x3d)
-	style.TextSize = size
+	style.TextSize = a.scaledSp(size)
 	return style.Layout(gtx)
 }
 

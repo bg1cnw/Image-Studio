@@ -26,7 +26,7 @@ const (
 )
 
 func (a *App) sectionTitle(gtx layout.Context, text string) layout.Dimensions {
-	style := material.Label(a.th, unit.Sp(15), text)
+	style := material.Label(a.th, a.scaledSp(unit.Sp(15)), text)
 	style.Color = fluent.text
 	style.Font.Weight = font.SemiBold
 	style.Font.Typeface = uiTitleTypeface
@@ -39,7 +39,7 @@ func (a *App) sectionEyebrow(gtx layout.Context, text string) layout.Dimensions 
 }
 
 func (a *App) titleLabel(gtx layout.Context, text string, size unit.Sp) layout.Dimensions {
-	style := material.Label(a.th, size, text)
+	style := material.Label(a.th, a.scaledSp(size), text)
 	style.Color = fluent.text
 	style.Font.Weight = font.SemiBold
 	style.Font.Typeface = uiTitleTypeface
@@ -52,7 +52,7 @@ func (a *App) button(gtx layout.Context, btn *widget.Clickable, text string, bg 
 	style.Background = bg
 	style.Color = fg
 	style.CornerRadius = fluentControlRadius
-	style.TextSize = unit.Sp(12)
+	style.TextSize = a.scaledSp(unit.Sp(12))
 	style.Font.Weight = font.Medium
 	style.Inset = layout.Inset{Top: 8, Bottom: 8, Left: 10, Right: 10}
 	return style.Layout(gtx)
@@ -925,7 +925,7 @@ func (a *App) imageThumbCover(gtx layout.Context, img image.Image, width unit.Dp
 }
 
 func (a *App) label(gtx layout.Context, text string, size unit.Sp, color color.NRGBA, weight font.Weight) layout.Dimensions {
-	style := material.Label(a.th, size, text)
+	style := material.Label(a.th, a.scaledSp(size), text)
 	style.Color = color
 	style.Font.Weight = weight
 	style.WrapPolicy = textWrapWords
@@ -933,7 +933,7 @@ func (a *App) label(gtx layout.Context, text string, size unit.Sp, color color.N
 }
 
 func (a *App) singleLineLabel(gtx layout.Context, text string, size unit.Sp, color color.NRGBA, weight font.Weight) layout.Dimensions {
-	style := material.Label(a.th, size, text)
+	style := material.Label(a.th, a.scaledSp(size), text)
 	style.Color = color
 	style.Font.Weight = weight
 	style.MaxLines = 1
@@ -945,7 +945,7 @@ func (a *App) clampedLabel(gtx layout.Context, text string, size unit.Sp, color 
 	if lines <= 0 {
 		lines = 1
 	}
-	style := material.Label(a.th, size, text)
+	style := material.Label(a.th, a.scaledSp(size), text)
 	style.Color = color
 	style.Font.Weight = weight
 	style.MaxLines = lines
@@ -955,7 +955,7 @@ func (a *App) clampedLabel(gtx layout.Context, text string, size unit.Sp, color 
 }
 
 func (a *App) monoLabel(gtx layout.Context, text string, size unit.Sp, color color.NRGBA, weight font.Weight) layout.Dimensions {
-	style := material.Label(a.th, size, text)
+	style := material.Label(a.th, a.scaledSp(size), text)
 	style.Color = color
 	style.Font.Weight = weight
 	style.Font.Typeface = uiMonoTypeface

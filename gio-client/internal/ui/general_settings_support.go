@@ -148,6 +148,134 @@ func (a *App) importHistoryJSON() {
 	a.appendLog(fmt.Sprintf("已导入 %d 条历史: %s", added, filepath.Base(src)))
 }
 
+func (a *App) clearCurrentProfileAPIKey() {
+	profileID := strings.TrimSpace(a.activeProfileID)
+	if profileID == "" {
+		a.appendLog("当前没有可清除 API Key 的活动配置")
+		return
+	}
+	if err := gioCompat.WriteAPIKey(profileID, ""); err != nil {
+		a.appendLog("清除 API Key 失败: " + err.Error())
+		return
+	}
+	a.apiKeyInput.SetText("")
+	a.appendLog("已清除当前活动配置的 API Key")
+}
+
+func (a *App) clearAllHistory() {
+	state, _, err := gioCompat.LoadState()
+	if err != nil {
+		a.appendLog("清空历史失败: " + err.Error())
+		return
+	}
+	state = sharedCompat.Normalize(state)
+	if len(state.History) == 0 {
+		a.appendLog("当前没有历史记录可清空")
+		return
+	}
+	state.History = nil
+	state.UpdatedAt = time.Now().UnixMilli()
+	if err := gioCompat.SaveState(state); err != nil {
+		a.appendLog("清空历史失败: " + err.Error())
+		return
+	}
+	a.replaceHistoryState(nil, "已清空全部历史记录")
+}
+
+func (a *App) pruneHistoryOlderThanDays(days int) {
+	if days <= 0 {
+		return
+	}
+	state, _, err := gioCompat.LoadState()
+	if err != nil {
+		a.appendLog("清理历史失败: " + err.Error())
+		return
+	}
+	state = sharedCompat.Normalize(state)
+	if len(state.History) == 0 {
+		a.appendLog("当前没有历史记录可清理")
+		return
+	}
+	cutoff := time.Now().Add(-time.Duration(days) * 24 * time.Hour).UnixMilli()
+	next := make([]sharedCompat.HistoryItem, 0, len(state.History))
+	removed := 0
+	for _, item := range state.History {
+		if item.CreatedAt > 0 && item.CreatedAt < cutoff {
+			removed++
+			continue
+		}
+		next = append(next, item)
+	}
+	if removed == 0 {
+		a.appendLog(fmt.Sprintf("没有 %d 天前的历史需要清理", days))
+		return
+	}
+	state.History = next
+	state.UpdatedAt = time.Now().UnixMilli()
+	if err := gioCompat.SaveState(state); err != nil {
+		a.appendLog("清理历史失败: " + err.Error())
+		return
+	}
+	a.replaceHistoryState(next, fmt.Sprintf("已清理 %d 条 %d 天前的历史", removed, days))
+}
+
+func (a *App) replaceHistoryState(next []sharedCompat.HistoryItem, logMessage string) {
+	kept := make(map[string]struct{}, len(next))
+	for _, item := range next {
+		kept[item.ID] = struct{}{}
+	}
+	a.mu.Lock()
+	a.history = append([]sharedCompat.HistoryItem(nil), next...)
+	if len(a.batchResultIDs) > 0 {
+		filtered := make([]string, 0, len(a.batchResultIDs))
+		for _, id := range a.batchResultIDs {
+			if _, ok := kept[id]; ok {
+				filtered = append(filtered, id)
+			}
+		}
+		a.batchResultIDs = filtered
+		if !a.canOpenResultGridLocked() {
+			a.resultGridOpen = false
+		}
+	}
+	if _, ok := kept[a.selectedHistoryID]; !ok {
+		a.selectedHistoryID = ""
+	}
+	if a.compare.Item.ID != "" {
+		if _, ok := kept[a.compare.Item.ID]; !ok {
+			a.compare = resultState{Rev: a.compare.Rev + 1}
+			a.compareSplitSlider.Value = 0.5
+		}
+	}
+	if a.activeResultDetail.ID != "" {
+		if _, ok := kept[a.activeResultDetail.ID]; !ok {
+			a.activeResultDetail = sharedCompat.HistoryItem{}
+		}
+	}
+	if a.result.Item.ID != "" {
+		if _, ok := kept[a.result.Item.ID]; !ok {
+			a.result = resultState{Rev: a.result.Rev + 1}
+		}
+	}
+	if a.activePromptGroup.Key != "" {
+		found := false
+		for _, item := range a.activePromptGroup.Items {
+			if _, ok := kept[item.ID]; ok {
+				found = true
+				break
+			}
+		}
+		if !found {
+			a.activePromptGroup = historyPromptGroup{}
+		}
+	}
+	if strings.TrimSpace(logMessage) != "" {
+		a.logs = appendBounded(a.logs, logMessage)
+	}
+	a.mu.Unlock()
+	a.invalidateNow()
+}
+
 func parseImportedHistoryItems(data []byte) ([]sharedCompat.HistoryItem, error) {
 	var payload historyExportPayload
 	if err := json.Unmarshal(data, &payload); err == nil && len(payload.Items) > 0 {
