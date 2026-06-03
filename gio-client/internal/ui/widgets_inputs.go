@@ -105,7 +105,13 @@ func (a *App) segmentedGridWithTitle(gtx layout.Context, title string, options [
 }
 
 func (a *App) segmented(gtx layout.Context, options []choice, selected string, buttons []widget.Clickable, set func(string)) layout.Dimensions {
-	return a.borderedSurface(gtx, fluent.surface2, unit.Dp(6), fluent.border, func(gtx layout.Context) layout.Dimensions {
+	baseBg := rgba(0x000000, 0x0a)
+	baseBorder := rgba(0x000000, 0x0d)
+	if resolveThemeMode(a.themeMode) == "dark" {
+		baseBg = rgba(0xffffff, 0x0f)
+		baseBorder = rgba(0xffffff, 0x12)
+	}
+	return a.borderedSurface(gtx, baseBg, unit.Dp(10), baseBorder, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(2)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			children := make([]layout.FlexChild, 0, len(options))
 			for i := range options {
@@ -116,15 +122,18 @@ func (a *App) segmented(gtx layout.Context, options []choice, selected string, b
 				children = append(children, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					active := options[i].Value == selected
 					bg := rgba(0xffffff, 0x00)
-					hoverBg := fluent.surface
+					hoverBg := rgba(0xffffff, 0x00)
 					fg := fluent.textMuted
 					border := rgba(0xffffff, 0x00)
 					weight := font.Medium
+					if buttons[i].Hovered() && !active {
+						fg = fluent.text
+					}
 					if active {
 						bg = fluent.surface
 						hoverBg = fluent.surface
 						fg = fluent.text
-						border = withAlpha(fluent.border2, 0x7a)
+						border = withAlpha(fluent.border2, 0x52)
 						weight = font.SemiBold
 					}
 					return a.surfaceButton(
@@ -133,8 +142,8 @@ func (a *App) segmented(gtx layout.Context, options []choice, selected string, b
 						bg,
 						hoverBg,
 						border,
-						fluentControlRadius,
-						layout.Inset{Top: 9, Bottom: 9, Left: 8, Right: 8},
+						unit.Dp(8),
+						layout.Inset{Top: 8, Bottom: 8, Left: 8, Right: 8},
 						func(gtx layout.Context) layout.Dimensions {
 							return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 								return a.label(gtx, options[i].Label, unit.Sp(12), fg, weight)
@@ -143,7 +152,7 @@ func (a *App) segmented(gtx layout.Context, options []choice, selected string, b
 					)
 				}))
 			}
-			return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(2))}.Layout(gtx, children...)
+			return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(4))}.Layout(gtx, children...)
 		})
 	})
 }
@@ -153,7 +162,13 @@ func (a *App) segmentedGrid(gtx layout.Context, options []choice, selected strin
 		columns = 2
 	}
 	rows := (len(options) + columns - 1) / columns
-	return a.borderedSurface(gtx, fluent.surface2, unit.Dp(6), fluent.border, func(gtx layout.Context) layout.Dimensions {
+	baseBg := rgba(0x000000, 0x0a)
+	baseBorder := rgba(0x000000, 0x0d)
+	if resolveThemeMode(a.themeMode) == "dark" {
+		baseBg = rgba(0xffffff, 0x0f)
+		baseBorder = rgba(0xffffff, 0x12)
+	}
+	return a.borderedSurface(gtx, baseBg, unit.Dp(10), baseBorder, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(2)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			children := make([]layout.FlexChild, 0, rows)
 			for row := 0; row < rows; row++ {
@@ -172,15 +187,18 @@ func (a *App) segmentedGrid(gtx layout.Context, options []choice, selected strin
 						cellChildren = append(cellChildren, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 							active := options[idx].Value == selected
 							bg := rgba(0xffffff, 0x00)
-							hoverBg := fluent.surface
+							hoverBg := rgba(0xffffff, 0x00)
 							fg := fluent.textMuted
 							border := rgba(0xffffff, 0x00)
 							weight := font.Medium
+							if buttons[idx].Hovered() && !active {
+								fg = fluent.text
+							}
 							if active {
 								bg = fluent.surface
 								hoverBg = fluent.surface
 								fg = fluent.text
-								border = withAlpha(fluent.border2, 0x7a)
+								border = withAlpha(fluent.border2, 0x52)
 								weight = font.SemiBold
 							}
 							return a.surfaceButton(
@@ -189,8 +207,8 @@ func (a *App) segmentedGrid(gtx layout.Context, options []choice, selected strin
 								bg,
 								hoverBg,
 								border,
-								fluentControlRadius,
-								layout.Inset{Top: 9, Bottom: 9, Left: 8, Right: 8},
+								unit.Dp(8),
+								layout.Inset{Top: 8, Bottom: 8, Left: 8, Right: 8},
 								func(gtx layout.Context) layout.Dimensions {
 									return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 										return a.label(gtx, options[idx].Label, unit.Sp(12), fg, weight)
@@ -204,7 +222,7 @@ func (a *App) segmentedGrid(gtx layout.Context, options []choice, selected strin
 						bottom = 0
 					}
 					return layout.Inset{Bottom: bottom}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(2))}.Layout(gtx, cellChildren...)
+						return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(4))}.Layout(gtx, cellChildren...)
 					})
 				}))
 			}
