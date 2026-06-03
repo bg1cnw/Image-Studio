@@ -107,6 +107,7 @@ var fluentDark = fluentColors{
 }
 
 var fluent = fluentLight
+var systemThemeResolver = systemThemeMode
 
 func themePalette(mode string) fluentColors {
 	if mode == "dark" {
@@ -125,10 +126,13 @@ func normalizeThemeMode(mode string) string {
 }
 
 func resolveThemeMode(mode string) string {
-	if normalizeThemeMode(mode) == "dark" {
+	switch normalizeThemeMode(mode) {
+	case "dark":
 		return "dark"
+	case "light":
+		return "light"
 	}
-	return "light"
+	return systemThemeResolver()
 }
 
 func normalizeFontScale(scale float64) float64 {

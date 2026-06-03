@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -278,4 +279,54 @@ func openExternalURL(rawURL string) error {
 	default:
 		return exec.Command("xdg-open", parsed.String()).Start()
 	}
+}
+
+func systemThemeMode() string {
+	if env := strings.ToLower(strings.TrimSpace(os.Getenv("GTK_THEME"))); strings.Contains(env, "dark") {
+		return "dark"
+	}
+	if env := strings.TrimSpace(os.Getenv("COLORFGBG")); env != "" {
+		parts := strings.Split(env, ";")
+		if len(parts) > 0 {
+			last := strings.TrimSpace(parts[len(parts)-1])
+			if last == "0" || last == "1" || last == "2" || last == "3" || last == "4" || last == "5" || last == "6" || last == "8" {
+				return "dark"
+			}
+		}
+	}
+	switch runtime.GOOS {
+	case "darwin":
+		out, err := exec.Command("defaults", "read", "-g", "AppleInterfaceStyle").Output()
+		if err == nil && strings.Contains(strings.ToLower(string(out)), "dark") {
+			return "dark"
+		}
+	case "windows":
+		out, err := exec.Command("reg", "query", `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`, "/v", "AppsUseLightTheme").Output()
+		if err == nil {
+			lower := strings.ToLower(string(out))
+			if strings.Contains(lower, "0x0") {
+				return "dark"
+			}
+			if strings.Contains(lower, "0x1") {
+				return "light"
+			}
+		}
+	default:
+		if path, err := exec.LookPath("gsettings"); err == nil {
+			if out, err := exec.Command(path, "get", "org.gnome.desktop.interface", "color-scheme").Output(); err == nil {
+				if strings.Contains(strings.ToLower(string(out)), "dark") {
+					return "dark"
+				}
+				if strings.Contains(strings.ToLower(string(out)), "light") {
+					return "light"
+				}
+			}
+			if out, err := exec.Command(path, "get", "org.gnome.desktop.interface", "gtk-theme").Output(); err == nil {
+				if strings.Contains(strings.ToLower(string(out)), "dark") {
+					return "dark"
+				}
+			}
+		}
+	}
+	return "light"
 }

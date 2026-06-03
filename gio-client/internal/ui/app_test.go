@@ -219,10 +219,13 @@ func TestDisplayedWorkspaceNameUsesPromptForDefaultActiveWorkspace(t *testing.T)
 }
 
 func TestResolveThemeMode(t *testing.T) {
+	prev := systemThemeResolver
+	systemThemeResolver = func() string { return "dark" }
+	defer func() { systemThemeResolver = prev }()
 	if got := resolveThemeMode("dark"); got != "dark" {
 		t.Fatalf("resolveThemeMode(dark)=%q", got)
 	}
-	if got := resolveThemeMode("system"); got != "light" {
+	if got := resolveThemeMode("system"); got != "dark" {
 		t.Fatalf("resolveThemeMode(system)=%q", got)
 	}
 	if got := normalizeThemeMode("unknown"); got != "system" {
