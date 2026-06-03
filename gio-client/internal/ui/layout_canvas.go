@@ -901,7 +901,7 @@ func (a *App) canvasStatusBar(gtx layout.Context, snap snapshot) layout.Dimensio
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Left: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return a.metaBadgeRow(gtx, historyMetaBadgeItems(snap.Result.Item), true)
+							return a.metaBadgeRow(gtx, statusBarMetaBadgeItems(snap.Result.Item), true)
 						})
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -909,18 +909,19 @@ func (a *App) canvasStatusBar(gtx layout.Context, snap snapshot) layout.Dimensio
 							return layout.Dimensions{}
 						}
 						return layout.Inset{Left: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return a.singleLineLabel(gtx, formatHistoryClock(snap.Result.Item.CreatedAt), unit.Sp(11), fluent.textDim, font.Normal)
+							return a.singleLineLabel(gtx, formatHistoryClockPrecise(snap.Result.Item.CreatedAt), unit.Sp(11), fluent.textDim, font.Normal)
 						})
 					}),
-					layout.Flexed(1, layout.Spacer{}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					func() layout.FlexChild {
 						if strings.TrimSpace(snap.Result.RevisedPrompt) == "" {
-							return layout.Dimensions{}
+							return layout.Flexed(1, layout.Spacer{}.Layout)
 						}
-						return fixedWidth(gtx, unit.Dp(240), func(gtx layout.Context) layout.Dimensions {
-							return a.singleLineLabel(gtx, snap.Result.RevisedPrompt, unit.Sp(11), fluent.textDim, font.Normal)
+						return layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							return layout.Inset{Left: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return a.singleLineLabel(gtx, "✨ "+snap.Result.RevisedPrompt, unit.Sp(11), fluent.textDim, font.Normal)
+							})
 						})
-					}),
+					}(),
 				)
 			}
 

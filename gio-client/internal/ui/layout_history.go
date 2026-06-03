@@ -1339,6 +1339,23 @@ func historyMetaBadgeItems(item sharedCompat.HistoryItem) []string {
 	return compactNonEmpty([]string{sizeDisplayLabel(item.Size), qualityDisplayLabel(item.Quality), style})
 }
 
+func statusBarMetaBadgeItems(item sharedCompat.HistoryItem) []string {
+	items := []string{
+		sizeDisplayLabel(item.Size),
+		qualityDisplayLabel(item.Quality),
+	}
+	if item.ElapsedSec > 0 {
+		items = append(items, detailValue(item.ElapsedSec)+"s")
+	}
+	if item.Seed != 0 {
+		items = append(items, "seed "+detailValue(item.Seed))
+	}
+	if strings.TrimSpace(item.StyleTag) != "" {
+		items = append(items, "#"+styleChoiceLabel(item.StyleTag))
+	}
+	return compactNonEmpty(items)
+}
+
 func historyPathText(path string) string {
 	path = strings.TrimSpace(path)
 	if path == "" {
@@ -1352,6 +1369,13 @@ func formatHistoryClock(createdAt int64) string {
 		return ""
 	}
 	return time.UnixMilli(createdAt).Format("15:04")
+}
+
+func formatHistoryClockPrecise(createdAt int64) string {
+	if createdAt <= 0 {
+		return ""
+	}
+	return time.UnixMilli(createdAt).Format("15:04:05")
 }
 
 func formatHistoryDateTime(createdAt int64) string {
