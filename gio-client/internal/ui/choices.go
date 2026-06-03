@@ -80,6 +80,26 @@ var (
 		{"不使用", client.ProxyModeNone},
 		{"自定义", client.ProxyModeCustom},
 	}
+	backgroundChoices = []choice{
+		{"自动", "auto"},
+		{"实心", "opaque"},
+		{"透明", "transparent"},
+	}
+	inputFidelityChoices = []choice{
+		{"自动", "auto"},
+		{"低", "low"},
+		{"高", "high"},
+	}
+	moderationChoices = []choice{
+		{"低", "low"},
+		{"自动", "auto"},
+	}
+	partialPreviewChoices = []choice{
+		{"仅最终图", "0"},
+		{"1 帧", "1"},
+		{"2 帧", "2"},
+		{"3 帧", "3"},
+	}
 	styleChoices = []choice{
 		{"赛博朋克", "cyberpunk"},
 		{"二次元", "anime"},
@@ -210,6 +230,18 @@ func sizeDisplayLabel(value string) string {
 
 func qualityChoiceLabel(value string) string {
 	return choiceLabel(qualityChoices, value)
+}
+
+func backgroundChoiceLabel(value string) string {
+	return choiceLabel(backgroundChoices, value)
+}
+
+func inputFidelityChoiceLabel(value string) string {
+	return choiceLabel(inputFidelityChoices, value)
+}
+
+func moderationChoiceLabel(value string) string {
+	return choiceLabel(moderationChoices, value)
 }
 
 func qualityDisplayLabel(value string) string {

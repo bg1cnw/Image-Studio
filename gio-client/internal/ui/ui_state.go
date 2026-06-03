@@ -407,6 +407,29 @@ func (a *App) applySettingsProfileDraft(state sharedCompat.State, profile shared
 		outputDir = kernel.DefaultOutputDir()
 	}
 	a.outputDirInput.SetText(outputDir)
+	a.background = strings.TrimSpace(state.Settings.Background)
+	if a.background == "" {
+		a.background = client.DefaultBackground
+	}
+	if state.Settings.OutputCompression != nil {
+		a.outputCompressionInput.SetText(strconv.Itoa(*state.Settings.OutputCompression))
+	} else {
+		a.outputCompressionInput.SetText(strconv.Itoa(client.DefaultOutputCompression))
+	}
+	a.inputFidelity = strings.TrimSpace(state.Settings.InputFidelity)
+	if a.inputFidelity == "" {
+		a.inputFidelity = client.DefaultInputFidelity
+	}
+	a.moderation = strings.TrimSpace(state.Settings.Moderation)
+	if a.moderation == "" {
+		a.moderation = client.DefaultModeration
+	}
+	a.userIdentifierInput.SetText(strings.TrimSpace(state.Settings.UserIdentifier))
+	if state.Settings.PartialImages != nil {
+		a.partialImagesInput.SetText(strconv.Itoa(*state.Settings.PartialImages))
+	} else {
+		a.partialImagesInput.SetText(strconv.Itoa(client.DefaultPartialImages))
+	}
 	a.apiKeyVisible = false
 }
 
@@ -435,6 +458,32 @@ func (a *App) loadSettingsProfileDraft(profileID string) error {
 			outputDir = kernel.DefaultOutputDir()
 		}
 		a.outputDirInput.SetText(outputDir)
+		background := strings.TrimSpace(state.Settings.Background)
+		if background == "" {
+			background = client.DefaultBackground
+		}
+		a.background = background
+		if state.Settings.OutputCompression != nil {
+			a.outputCompressionInput.SetText(strconv.Itoa(*state.Settings.OutputCompression))
+		} else {
+			a.outputCompressionInput.SetText(strconv.Itoa(client.DefaultOutputCompression))
+		}
+		inputFidelity := strings.TrimSpace(state.Settings.InputFidelity)
+		if inputFidelity == "" {
+			inputFidelity = client.DefaultInputFidelity
+		}
+		a.inputFidelity = inputFidelity
+		moderation := strings.TrimSpace(state.Settings.Moderation)
+		if moderation == "" {
+			moderation = client.DefaultModeration
+		}
+		a.moderation = moderation
+		a.userIdentifierInput.SetText(strings.TrimSpace(state.Settings.UserIdentifier))
+		if state.Settings.PartialImages != nil {
+			a.partialImagesInput.SetText(strconv.Itoa(*state.Settings.PartialImages))
+		} else {
+			a.partialImagesInput.SetText(strconv.Itoa(client.DefaultPartialImages))
+		}
 		a.imagesNewAPICompat = false
 		a.api = string(client.APIModeResponses)
 		a.policy = string(client.RequestPolicyOpenAI)
@@ -540,6 +589,24 @@ func (a *App) saveSettingsSelection() error {
 	}
 	state.Settings.ProxyURL = strings.TrimSpace(a.proxyURLInput.Text())
 	state.Settings.OutputDir = strings.TrimSpace(a.outputDirInput.Text())
+	state.Settings.Background = strings.TrimSpace(a.background)
+	outputCompression := client.DefaultOutputCompression
+	if raw := strings.TrimSpace(a.outputCompressionInput.Text()); raw != "" {
+		if value, err := strconv.Atoi(raw); err == nil {
+			outputCompression = value
+		}
+	}
+	state.Settings.OutputCompression = &outputCompression
+	state.Settings.InputFidelity = strings.TrimSpace(a.inputFidelity)
+	state.Settings.Moderation = strings.TrimSpace(a.moderation)
+	state.Settings.UserIdentifier = strings.TrimSpace(a.userIdentifierInput.Text())
+	partialImages := client.DefaultPartialImages
+	if raw := strings.TrimSpace(a.partialImagesInput.Text()); raw != "" {
+		if value, err := strconv.Atoi(raw); err == nil {
+			partialImages = value
+		}
+	}
+	state.Settings.PartialImages = &partialImages
 	state.UpdatedAt = now
 	if err := gioCompat.SaveState(state); err != nil {
 		return err

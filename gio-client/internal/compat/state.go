@@ -63,6 +63,22 @@ func ConfigFromState(cfg kernel.Config, state shared.State) kernel.Config {
 	cfg.APIMode = normaliseAPIMode(profile.APIMode)
 	cfg.RequestPolicy = normalisePolicy(profile.RequestPolicy)
 	cfg.ImagesNewAPICompat = profile.ImagesNewAPICompat
+	if strings.TrimSpace(state.Settings.Background) != "" {
+		cfg.Background = state.Settings.Background
+	}
+	if state.Settings.OutputCompression != nil {
+		cfg.OutputCompression = *state.Settings.OutputCompression
+	}
+	if strings.TrimSpace(state.Settings.InputFidelity) != "" {
+		cfg.InputFidelity = state.Settings.InputFidelity
+	}
+	if strings.TrimSpace(state.Settings.Moderation) != "" {
+		cfg.Moderation = state.Settings.Moderation
+	}
+	cfg.UserIdentifier = strings.TrimSpace(state.Settings.UserIdentifier)
+	if state.Settings.PartialImages != nil {
+		cfg.PartialImages = *state.Settings.PartialImages
+	}
 	cfg.APIKey, _ = ReadAPIKey(profile.ID)
 	return cfg
 }
@@ -165,6 +181,14 @@ func UpsertConfig(state shared.State, cfg kernel.Config) shared.State {
 	state.Settings.ProxyURL = strings.TrimSpace(cfg.ProxyURL)
 	state.Settings.OutputFormat = strings.TrimSpace(cfg.OutputFormat)
 	state.Settings.OutputDir = strings.TrimSpace(cfg.OutputDir)
+	state.Settings.Background = strings.TrimSpace(cfg.Background)
+	state.Settings.InputFidelity = strings.TrimSpace(cfg.InputFidelity)
+	state.Settings.Moderation = strings.TrimSpace(cfg.Moderation)
+	state.Settings.UserIdentifier = strings.TrimSpace(cfg.UserIdentifier)
+	outputCompression := cfg.OutputCompression
+	state.Settings.OutputCompression = &outputCompression
+	partialImages := cfg.PartialImages
+	state.Settings.PartialImages = &partialImages
 	if state.Settings.Theme == "" {
 		state.Settings.Theme = "system"
 	}
@@ -178,7 +202,7 @@ func UpsertConfig(state shared.State, cfg kernel.Config) shared.State {
 }
 
 func HistoryItemFromRun(cfg kernel.Config, result kernel.Result, elapsedSec float64) shared.HistoryItem {
-	return shared.HistoryItem{
+	item := shared.HistoryItem{
 		ID:             randomID(),
 		Prompt:         cfg.Prompt,
 		RevisedPrompt:  result.RevisedPrompt,
@@ -189,6 +213,9 @@ func HistoryItemFromRun(cfg kernel.Config, result kernel.Result, elapsedSec floa
 		CreatedAt:      time.Now().UnixMilli(),
 		Seed:           cfg.Seed,
 		NegativePrompt: cfg.NegativePrompt,
+		Background:     cfg.Background,
+		InputFidelity:  cfg.InputFidelity,
+		Moderation:     cfg.Moderation,
 		StyleTag:       cfg.StyleTag,
 		BatchIndex:     cfg.BatchIndex,
 		ElapsedSec:     elapsedSec,
@@ -196,6 +223,11 @@ func HistoryItemFromRun(cfg kernel.Config, result kernel.Result, elapsedSec floa
 		RawPath:        result.RawPath,
 		PreviewOnly:    true,
 	}
+	if cfg.OutputCompression > 0 {
+		compression := cfg.OutputCompression
+		item.OutputCompression = &compression
+	}
+	return item
 }
 
 func ReadAPIKey(profileID string) (string, error) {

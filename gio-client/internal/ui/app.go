@@ -124,7 +124,9 @@ type App struct {
 	seedInput                 widget.Editor
 	negativePromptInput       widget.Editor
 	partialImagesInput        widget.Editor
+	outputCompressionInput    widget.Editor
 	proxyURLInput             widget.Editor
+	userIdentifierInput       widget.Editor
 	savePromptPathInput       widget.Editor
 	rawResponseViewerInput    widget.Editor
 	historyQueryInput         widget.Editor
@@ -138,6 +140,9 @@ type App struct {
 	format             string
 	policy             string
 	proxy              string
+	background         string
+	inputFidelity      string
+	moderation         string
 	styleTag           string
 	themeMode          string
 	fontScale          float64
@@ -158,6 +163,10 @@ type App struct {
 	formatButtons                    []widget.Clickable
 	policyButtons                    []widget.Clickable
 	proxyButtons                     []widget.Clickable
+	backgroundButtons                []widget.Clickable
+	inputFidelityButtons             []widget.Clickable
+	moderationButtons                []widget.Clickable
+	partialPreviewButtons            []widget.Clickable
 	historyModeButtons               []widget.Clickable
 	historyDateButtons               []widget.Clickable
 	historyTimelineModeButtons       []widget.Clickable
@@ -383,6 +392,9 @@ func New() *App {
 		format:                     cfg.OutputFormat,
 		policy:                     string(cfg.RequestPolicy),
 		proxy:                      cfg.ProxyMode,
+		background:                 cfg.Background,
+		inputFidelity:              cfg.InputFidelity,
+		moderation:                 cfg.Moderation,
 		styleTag:                   "",
 		themeMode:                  themeMode,
 		fontScale:                  fontScale,
@@ -408,6 +420,10 @@ func New() *App {
 		formatButtons:              make([]widget.Clickable, len(formatChoices)),
 		policyButtons:              make([]widget.Clickable, len(policyChoices)),
 		proxyButtons:               make([]widget.Clickable, len(proxyChoices)),
+		backgroundButtons:          make([]widget.Clickable, len(backgroundChoices)),
+		inputFidelityButtons:       make([]widget.Clickable, len(inputFidelityChoices)),
+		moderationButtons:          make([]widget.Clickable, len(moderationChoices)),
+		partialPreviewButtons:      make([]widget.Clickable, len(partialPreviewChoices)),
 		historyModeButtons:         make([]widget.Clickable, 3),
 		historyDateButtons:         make([]widget.Clickable, 3),
 		historyTimelineModeButtons: make([]widget.Clickable, 3),
@@ -489,7 +505,9 @@ func (a *App) configureEditors(cfg kernel.Config) {
 		&a.outputDirInput,
 		&a.seedInput,
 		&a.partialImagesInput,
+		&a.outputCompressionInput,
 		&a.proxyURLInput,
+		&a.userIdentifierInput,
 		&a.savePromptPathInput,
 		&a.historyQueryInput,
 		&a.historyTimelineQueryInput,
@@ -503,6 +521,7 @@ func (a *App) configureEditors(cfg kernel.Config) {
 	a.rawResponseViewerInput.ReadOnly = true
 	a.seedInput.Filter = "0123456789"
 	a.partialImagesInput.Filter = "0123456789"
+	a.outputCompressionInput.Filter = "0123456789"
 	a.concurrencyLimitInput.Filter = "0123456789"
 	a.apiKeyInput.SetText(cfg.APIKey)
 	a.baseURLInput.SetText(cfg.BaseURL)
@@ -510,7 +529,9 @@ func (a *App) configureEditors(cfg kernel.Config) {
 	a.imageModelInput.SetText(cfg.ImageModelID)
 	a.outputDirInput.SetText(cfg.OutputDir)
 	a.partialImagesInput.SetText(strconv.Itoa(cfg.PartialImages))
+	a.outputCompressionInput.SetText(strconv.Itoa(cfg.OutputCompression))
 	a.proxyURLInput.SetText(cfg.ProxyURL)
+	a.userIdentifierInput.SetText(cfg.UserIdentifier)
 	a.promptInput.SetText("")
 }
 
@@ -522,8 +543,14 @@ func (a *App) applyRuntimeConfig(cfg kernel.Config) {
 	a.textModelInput.SetText(cfg.TextModelID)
 	a.imageModelInput.SetText(cfg.ImageModelID)
 	a.proxy = cfg.ProxyMode
+	a.background = cfg.Background
+	a.inputFidelity = cfg.InputFidelity
+	a.moderation = cfg.Moderation
 	a.proxyURLInput.SetText(cfg.ProxyURL)
 	a.outputDirInput.SetText(cfg.OutputDir)
+	a.partialImagesInput.SetText(strconv.Itoa(cfg.PartialImages))
+	a.outputCompressionInput.SetText(strconv.Itoa(cfg.OutputCompression))
+	a.userIdentifierInput.SetText(cfg.UserIdentifier)
 	a.imagesNewAPICompat = cfg.ImagesNewAPICompat
 	if strings.TrimSpace(cfg.OutputFormat) != "" {
 		a.format = cfg.OutputFormat

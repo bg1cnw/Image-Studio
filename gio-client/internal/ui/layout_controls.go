@@ -2249,9 +2249,19 @@ func (a *App) layoutBatchCountSection(gtx layout.Context) layout.Dimensions {
 }
 
 func (a *App) layoutAdvancedCard(gtx layout.Context) layout.Dimensions {
+	partialPreview := strings.TrimSpace(a.partialImagesInput.Text())
+	if partialPreview == "" {
+		partialPreview = strconv.Itoa(client.DefaultPartialImages)
+	}
 	summary := strings.Join(compactNonEmpty([]string{
 		negativePromptSummary(a.negativePromptInput.Text()),
 		strings.ToUpper(strings.TrimSpace(a.format)),
+		"背景 " + backgroundChoiceLabel(a.background),
+		chooseOptionalCompressionSummary(a.outputCompressionInput.Text(), a.format),
+		chooseOptionalFidelitySummary(a.inputFidelity),
+		"审核 " + moderationChoiceLabel(a.moderation),
+		"预览 " + partialPreview + " 帧",
+		chooseOptionalUserIdentifierSummary(a.userIdentifierInput.Text()),
 		seedSummary(a.seedInput.Text()),
 	}), " · ")
 
@@ -2288,6 +2298,60 @@ func (a *App) layoutAdvancedCard(gtx layout.Context) layout.Dimensions {
 					}),
 					layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.advancedSectionCard(gtx, "背景", "", func(gtx layout.Context) layout.Dimensions {
+							return a.segmented(gtx, backgroundChoices, a.background, a.backgroundButtons, func(value string) { a.background = value })
+						})
+					}),
+					layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.advancedSectionCard(gtx, "输出压缩", "", func(gtx layout.Context) layout.Dimensions {
+							return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return a.field(gtx, "0-100", &a.outputCompressionInput, strconv.Itoa(client.DefaultOutputCompression), unit.Dp(42))
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return a.label(gtx, "JPEG / WebP 会读取该值；PNG 会忽略它。", unit.Sp(10), fluent.textDim, font.Normal)
+								}),
+							)
+						})
+					}),
+					layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.advancedSectionCard(gtx, "输入保真", "", func(gtx layout.Context) layout.Dimensions {
+							return a.segmented(gtx, inputFidelityChoices, a.inputFidelity, a.inputFidelityButtons, func(value string) { a.inputFidelity = value })
+						})
+					}),
+					layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.advancedSectionCard(gtx, "内容审核", "", func(gtx layout.Context) layout.Dimensions {
+							return a.segmented(gtx, moderationChoices, a.moderation, a.moderationButtons, func(value string) { a.moderation = value })
+						})
+					}),
+					layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.advancedSectionCard(gtx, "稳定用户标识", "", func(gtx layout.Context) layout.Dimensions {
+							return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return a.technicalField(gtx, "User", &a.userIdentifierInput, "留空 = 不发送", unit.Dp(42))
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return a.label(gtx, "Responses API 会映射到 safety_identifier；Images API 会映射到 user。", unit.Sp(10), fluent.textDim, font.Normal)
+								}),
+							)
+						})
+					}),
+					layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.advancedSectionCard(gtx, "流式预览帧数", "", func(gtx layout.Context) layout.Dimensions {
+							selected := strings.TrimSpace(a.partialImagesInput.Text())
+							if selected == "" {
+								selected = strconv.Itoa(client.DefaultPartialImages)
+							}
+							return a.segmented(gtx, partialPreviewChoices, selected, a.partialPreviewButtons, func(value string) { a.partialImagesInput.SetText(value) })
+						})
+					}),
+					layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return a.advancedSectionCard(gtx, "随机种子", "", func(gtx layout.Context) layout.Dimensions {
 							for a.randomSeedButton.Clicked(gtx) {
 								a.seedInput.SetText(strconv.FormatInt(time.Now().UnixNano()%1000000007, 10))
@@ -2297,14 +2361,7 @@ func (a *App) layoutAdvancedCard(gtx layout.Context) layout.Dimensions {
 							}
 							return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
-										layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-											return a.field(gtx, "Seed", &a.seedInput, "0", unit.Dp(42))
-										}),
-										layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-											return a.field(gtx, "Partial", &a.partialImagesInput, "1", unit.Dp(42))
-										}),
-									)
+									return a.field(gtx, "Seed", &a.seedInput, "0", unit.Dp(42))
 								}),
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 									return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
@@ -2631,6 +2688,30 @@ func negativePromptSummary(value string) string {
 		return "无负向限制"
 	}
 	return "已填负向提示词"
+}
+
+func chooseOptionalCompressionSummary(value string, format string) string {
+	value = strings.TrimSpace(value)
+	format = strings.TrimSpace(strings.ToLower(format))
+	if format == "png" || value == "" {
+		return ""
+	}
+	return "压缩 " + value
+}
+
+func chooseOptionalFidelitySummary(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || value == client.DefaultInputFidelity {
+		return ""
+	}
+	return "保真 " + inputFidelityChoiceLabel(value)
+}
+
+func chooseOptionalUserIdentifierSummary(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return ""
+	}
+	return "用户标识 已填"
 }
 
 func seedSummary(value string) string {

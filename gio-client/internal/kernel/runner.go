@@ -25,6 +25,11 @@ type Config struct {
 	Size               string
 	Quality            string
 	OutputFormat       string
+	Background         string
+	OutputCompression  int
+	InputFidelity      string
+	Moderation         string
+	UserIdentifier     string
 	ProxyMode          string
 	ProxyURL           string
 	SourcePaths        []string
@@ -54,17 +59,21 @@ type Runner struct{}
 
 func DefaultConfig() Config {
 	return Config{
-		TextModelID:   client.TextModel,
-		ImageModelID:  client.ImageModel,
-		Mode:          client.ModeGenerate,
-		APIMode:       client.APIModeResponses,
-		RequestPolicy: client.RequestPolicyOpenAI,
-		Size:          client.DefaultSize,
-		Quality:       client.DefaultQuality,
-		OutputFormat:  client.OutputFormat,
-		ProxyMode:     client.ProxyModeSystem,
-		OutputDir:     DefaultOutputDir(),
-		PartialImages: client.DefaultPartialImages,
+		TextModelID:       client.TextModel,
+		ImageModelID:      client.ImageModel,
+		Mode:              client.ModeGenerate,
+		APIMode:           client.APIModeResponses,
+		RequestPolicy:     client.RequestPolicyOpenAI,
+		Size:              client.DefaultSize,
+		Quality:           client.DefaultQuality,
+		OutputFormat:      client.OutputFormat,
+		Background:        client.DefaultBackground,
+		OutputCompression: client.DefaultOutputCompression,
+		InputFidelity:     client.DefaultInputFidelity,
+		Moderation:        client.DefaultModeration,
+		ProxyMode:         client.ProxyModeSystem,
+		OutputDir:         DefaultOutputDir(),
+		PartialImages:     client.DefaultPartialImages,
 	}
 }
 
@@ -150,6 +159,11 @@ func (Runner) Run(ctx context.Context, cfg Config, cb Callbacks) (Result, error)
 		Size:               cfg.Size,
 		Quality:            cfg.Quality,
 		OutputFormat:       cfg.OutputFormat,
+		Background:         cfg.Background,
+		OutputCompression:  cfg.OutputCompression,
+		InputFidelity:      cfg.InputFidelity,
+		Moderation:         cfg.Moderation,
+		UserIdentifier:     cfg.UserIdentifier,
 		Proxy:              proxy,
 		Seed:               cfg.Seed,
 		NegativePrompt:     cfg.NegativePrompt,
@@ -211,10 +225,14 @@ func normalizeConfig(cfg Config) Config {
 	cfg.Size = strings.TrimSpace(cfg.Size)
 	cfg.Quality = strings.TrimSpace(cfg.Quality)
 	cfg.OutputFormat = strings.TrimSpace(cfg.OutputFormat)
+	cfg.Background = strings.TrimSpace(cfg.Background)
 	cfg.ProxyMode = strings.TrimSpace(cfg.ProxyMode)
 	cfg.ProxyURL = strings.TrimSpace(cfg.ProxyURL)
 	cfg.OutputDir = strings.TrimSpace(cfg.OutputDir)
 	cfg.NegativePrompt = strings.TrimSpace(cfg.NegativePrompt)
+	cfg.InputFidelity = strings.TrimSpace(cfg.InputFidelity)
+	cfg.Moderation = strings.TrimSpace(cfg.Moderation)
+	cfg.UserIdentifier = strings.TrimSpace(cfg.UserIdentifier)
 	if cfg.TextModelID == "" {
 		cfg.TextModelID = client.TextModel
 	}
@@ -238,6 +256,18 @@ func normalizeConfig(cfg Config) Config {
 	}
 	if cfg.OutputFormat == "" {
 		cfg.OutputFormat = client.OutputFormat
+	}
+	if cfg.Background == "" {
+		cfg.Background = client.DefaultBackground
+	}
+	if cfg.OutputCompression <= 0 {
+		cfg.OutputCompression = client.DefaultOutputCompression
+	}
+	if cfg.InputFidelity == "" {
+		cfg.InputFidelity = client.DefaultInputFidelity
+	}
+	if cfg.Moderation == "" {
+		cfg.Moderation = client.DefaultModeration
 	}
 	if cfg.ProxyMode == "" {
 		cfg.ProxyMode = client.ProxyModeSystem

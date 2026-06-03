@@ -161,6 +161,7 @@ func (a *App) startRunWithConfig(cfg kernel.Config, total int) {
 func (a *App) currentConfig() kernel.Config {
 	seed, _ := strconv.ParseInt(strings.TrimSpace(a.seedInput.Text()), 10, 64)
 	partial, _ := strconv.Atoi(strings.TrimSpace(a.partialImagesInput.Text()))
+	outputCompression, _ := strconv.Atoi(strings.TrimSpace(a.outputCompressionInput.Text()))
 	sourcePaths := kernel.ParseSourcePaths(a.sourcePathsInput.Text())
 	if client.Mode(a.mode) == client.ModeEdit && len(sourcePaths) == 0 {
 		if current := strings.TrimSpace(a.readSnapshot().Result.SavedPath); current != "" {
@@ -180,6 +181,11 @@ func (a *App) currentConfig() kernel.Config {
 		Size:               a.size,
 		Quality:            a.quality,
 		OutputFormat:       a.format,
+		Background:         a.background,
+		OutputCompression:  outputCompression,
+		InputFidelity:      a.inputFidelity,
+		Moderation:         a.moderation,
+		UserIdentifier:     a.userIdentifierInput.Text(),
 		ProxyMode:          a.proxy,
 		ProxyURL:           a.proxyURLInput.Text(),
 		SourcePaths:        sourcePaths,
