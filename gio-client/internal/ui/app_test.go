@@ -297,6 +297,32 @@ func TestImageForHistoryItemPrefersSavedPathAndFallsBackToThumb(t *testing.T) {
 	assertImagePixelColor(t, fallbackImg, color.NRGBA{R: 0x44, G: 0x88, B: 0xff, A: 0xff})
 }
 
+func TestLoadHistoryPreviewUsesThumbImageButKeepsSavedPath(t *testing.T) {
+	dir := t.TempDir()
+	fullPath := filepath.Join(dir, "full.png")
+	thumbPath := filepath.Join(dir, "thumb.png")
+	writeSolidTestPNG(t, fullPath, color.NRGBA{R: 0xf0, G: 0x44, B: 0x44, A: 0xff})
+	writeSolidTestPNG(t, thumbPath, color.NRGBA{R: 0x44, G: 0x88, B: 0xff, A: 0xff})
+
+	app := &App{imageCache: map[string]cachedImage{}}
+	item := sharedCompat.HistoryItem{
+		ID:        "hist-preview",
+		Prompt:    "赛博海报",
+		SavedPath: fullPath,
+		ThumbPath: thumbPath,
+	}
+	if err := app.loadHistoryPreview(item, true); err != nil {
+		t.Fatalf("loadHistoryPreview: %v", err)
+	}
+	if app.result.SavedPath != fullPath {
+		t.Fatalf("result.SavedPath=%q want %q", app.result.SavedPath, fullPath)
+	}
+	if app.selectedHistoryID != item.ID {
+		t.Fatalf("selectedHistoryID=%q want %q", app.selectedHistoryID, item.ID)
+	}
+	assertImagePixelColor(t, app.result.Image, color.NRGBA{R: 0x44, G: 0x88, B: 0xff, A: 0xff})
+}
+
 func TestResolveThemeMode(t *testing.T) {
 	prev := systemThemeResolver
 	systemThemeResolver = func() string { return "dark" }

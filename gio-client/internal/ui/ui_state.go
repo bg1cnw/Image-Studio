@@ -173,7 +173,7 @@ func (a *App) filteredTimelineHistory(items []sharedCompat.HistoryItem) []shared
 }
 
 func (a *App) loadHistoryPreview(item sharedCompat.HistoryItem, addLog bool) error {
-	img, err := a.imageForHistoryItem(item)
+	img, err := a.imageForHistoryThumb(item)
 	if err != nil {
 		return err
 	}
