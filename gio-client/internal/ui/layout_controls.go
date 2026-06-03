@@ -749,6 +749,16 @@ func (a *App) layoutGeneralSettingsModal(gtx layout.Context) layout.Dimensions {
 	for a.closeGeneralSettingsButton.Clicked(gtx) {
 		a.closeGeneralSettingsModal()
 	}
+	for a.generalRuntimePickerButton.Clicked(gtx) {
+		a.generalRuntimePickerOpen = !a.generalRuntimePickerOpen
+	}
+	for idx, choice := range generalKernelRuntimeChoices {
+		choice := choice
+		for a.generalRuntimeButtons[idx].Clicked(gtx) {
+			a.kernelRuntimeMode = choice.Value
+			a.generalRuntimePickerOpen = false
+		}
+	}
 	for idx, mode := range []string{"system", "dark", "light"} {
 		for a.generalThemeButtons[idx].Clicked(gtx) {
 			a.persistThemeMode(mode)
@@ -783,6 +793,16 @@ func (a *App) layoutGeneralSettingsModal(gtx layout.Context) layout.Dimensions {
 	}
 	for a.resetGeneralOutputButton.Clicked(gtx) {
 		a.outputDirInput.SetText(kernel.DefaultOutputDir())
+	}
+	for a.openGeneralHistoryTimelineButton.Clicked(gtx) {
+		a.closeGeneralSettingsModal()
+		a.openHistoryTimeline()
+	}
+	for a.exportGeneralHistoryButton.Clicked(gtx) {
+		a.exportHistoryJSON()
+	}
+	for a.importGeneralHistoryButton.Clicked(gtx) {
+		a.importHistoryJSON()
 	}
 	for a.openGeneralUpstreamButton.Clicked(gtx) {
 		a.closeGeneralSettingsModal()
@@ -832,7 +852,43 @@ func (a *App) layoutGeneralSettingsModal(gtx layout.Context) layout.Dimensions {
 			return a.compactButton(gtx, &a.generalKeepLogsButtons[1], "开启", a.keepLogs)
 		}),
 	}
+	presetItems := presetLabels(a.presets)
 	sections := []layout.Widget{
+		func(gtx layout.Context) layout.Dimensions {
+			return a.generalSettingsCard(gtx, "内核执行", func(gtx layout.Context) layout.Dimensions {
+				rows := []layout.FlexChild{
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return fixedHeight(gtx, unit.Dp(40), func(gtx layout.Context) layout.Dimensions {
+							return a.timelineFilterButton(gtx, &a.generalRuntimePickerButton, kernelRuntimeModeLabel(a.kernelRuntimeMode), a.generalRuntimePickerOpen)
+						})
+					}),
+				}
+				if a.generalRuntimePickerOpen {
+					rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.borderedSurface(gtx, fluent.surface, fluentCardRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {
+							return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								menuRows := make([]layout.FlexChild, 0, len(generalKernelRuntimeChoices)*2)
+								for idx, choice := range generalKernelRuntimeChoices {
+									idx := idx
+									choice := choice
+									if idx > 0 {
+										menuRows = append(menuRows, layout.Rigid(layout.Spacer{Height: unit.Dp(4)}.Layout))
+									}
+									menuRows = append(menuRows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+										return a.compactButton(gtx, &a.generalRuntimeButtons[idx], choice.Title, a.kernelRuntimeMode == choice.Value)
+									}))
+								}
+								return layout.Flex{Axis: layout.Vertical}.Layout(gtx, menuRows...)
+							})
+						})
+					}))
+				}
+				rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return a.label(gtx, "桌面可切到 remote 对照 Android / Worker 是否走同一套共享请求内核。", unit.Sp(10), fluent.textDim, font.Normal)
+				}))
+				return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx, rows...)
+			})
+		},
 		func(gtx layout.Context) layout.Dimensions {
 			return a.generalSettingsCard(gtx, "代理服务器", func(gtx layout.Context) layout.Dimensions {
 				rows := []layout.FlexChild{
@@ -919,6 +975,66 @@ func (a *App) layoutGeneralSettingsModal(gtx layout.Context) layout.Dimensions {
 			})
 		},
 		func(gtx layout.Context) layout.Dimensions {
+			return a.generalSettingsCard(gtx, "参数预设", func(gtx layout.Context) layout.Dimensions {
+				rows := []layout.FlexChild{
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if len(presetItems) == 0 {
+							return a.label(gtx, "当前还没有保存参数预设。常用的尺寸、质量、格式和张数会显示在这里。", unit.Sp(10), fluent.textDim, font.Normal)
+						}
+						return a.label(gtx, fmt.Sprintf("已保存 %d 个参数预设，常用配置会在创作参数里直接复用。", len(presetItems)), unit.Sp(10), fluent.textDim, font.Normal)
+					}),
+				}
+				if len(presetItems) > 0 {
+					limit := min(len(presetItems), 3)
+					for idx := 0; idx < limit; idx++ {
+						item := presetItems[idx]
+						rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return a.borderedSurface(gtx, fluent.surface, fluentCardRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {
+								return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(3))}.Layout(gtx,
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											return a.singleLineLabel(gtx, item.Title, unit.Sp(11), fluent.text, font.SemiBold)
+										}),
+										layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+											return a.singleLineLabel(gtx, item.Detail, unit.Sp(10), fluent.textDim, font.Normal)
+										}),
+									)
+								})
+							})
+						}))
+					}
+					if len(presetItems) > limit {
+						rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return a.label(gtx, fmt.Sprintf("还有 %d 个预设未展开显示。", len(presetItems)-limit), unit.Sp(10), fluent.textDim, font.Normal)
+						}))
+					}
+				}
+				return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx, rows...)
+			})
+		},
+		func(gtx layout.Context) layout.Dimensions {
+			return a.generalSettingsCard(gtx, "历史与数据", func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.label(gtx, "历史时间线、JSON 导入导出和最近结果管理都集中在这一组里。", unit.Sp(10), fluent.textDim, font.Normal)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+								return a.compactIconTextButton(gtx, &a.openGeneralHistoryTimelineButton, uiIconHistory, "完整历史", false)
+							}),
+							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+								return a.compactIconTextButton(gtx, &a.exportGeneralHistoryButton, uiIconDownload, "导出历史", false)
+							}),
+							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+								return a.compactIconTextButton(gtx, &a.importGeneralHistoryButton, uiIconFolder, "导入历史", false)
+							}),
+						)
+					}),
+				)
+			})
+		},
+		func(gtx layout.Context) layout.Dimensions {
 			return a.generalSettingsCard(gtx, "上游配置", func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -931,10 +1047,22 @@ func (a *App) layoutGeneralSettingsModal(gtx layout.Context) layout.Dimensions {
 			})
 		},
 		func(gtx layout.Context) layout.Dimensions {
+			return a.generalSettingsCard(gtx, "关于 Image Studio", func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.label(gtx, "独立 Gio 客户端 · 当前版本 v"+client.Version, unit.Sp(11), fluent.text, font.SemiBold)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return a.label(gtx, "保持界面简洁，围绕 prompt、参考图、结果预览和上游配置提供一个更接近 Windows Fluent 的原生工作台。", unit.Sp(10), fluent.textDim, font.Normal)
+					}),
+				)
+			})
+		},
+		func(gtx layout.Context) layout.Dimensions {
 			return a.generalSettingsCard(gtx, "支持与反馈", func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return a.label(gtx, "当前版本 v"+client.Version+"。代码仓库、问题反馈和更新记录都以 GitHub 为准。", unit.Sp(10), fluent.textDim, font.Normal)
+						return a.label(gtx, "代码仓库、问题反馈和更新记录都以 GitHub 为准。", unit.Sp(10), fluent.textDim, font.Normal)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
@@ -954,7 +1082,7 @@ func (a *App) layoutGeneralSettingsModal(gtx layout.Context) layout.Dimensions {
 	return a.layoutStandardModal(
 		gtx,
 		unit.Dp(540),
-		unit.Dp(720),
+		unit.Dp(820),
 		"设置",
 		"",
 		&a.closeGeneralSettingsButton,

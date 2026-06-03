@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 )
@@ -89,6 +90,139 @@ func chooseDirectory() (string, error) {
 			return paths[0], nil
 		}
 		return "", fmt.Errorf("当前系统没有可用的目录选择器")
+	}
+}
+
+func chooseJSONFile() (string, error) {
+	switch runtime.GOOS {
+	case "windows":
+		cmd := exec.Command(
+			"powershell",
+			"-NoProfile",
+			"-Command",
+			`Add-Type -AssemblyName System.Windows.Forms; `+
+				`$dlg = New-Object System.Windows.Forms.OpenFileDialog; `+
+				`$dlg.Multiselect = $false; `+
+				`$dlg.Filter = "JSON|*.json"; `+
+				`if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::UTF8; $dlg.FileName }`,
+		)
+		out, err := cmd.Output()
+		if err != nil {
+			return "", err
+		}
+		paths := parseDialogPaths(string(out))
+		if len(paths) == 0 {
+			return "", nil
+		}
+		return paths[0], nil
+	case "darwin":
+		out, err := exec.Command(
+			"osascript",
+			"-e",
+			`POSIX path of (choose file of type {"public.json"})`,
+		).Output()
+		if err != nil {
+			return "", err
+		}
+		paths := parseDialogPaths(string(out))
+		if len(paths) == 0 {
+			return "", nil
+		}
+		return paths[0], nil
+	default:
+		if path, err := exec.LookPath("zenity"); err == nil {
+			out, err := exec.Command(path, "--file-selection", "--file-filter=JSON | *.json").Output()
+			if err != nil {
+				return "", err
+			}
+			paths := parseDialogPaths(string(out))
+			if len(paths) == 0 {
+				return "", nil
+			}
+			return paths[0], nil
+		}
+		if path, err := exec.LookPath("kdialog"); err == nil {
+			out, err := exec.Command(path, "--getopenfilename", ".", "JSON (*.json)").Output()
+			if err != nil {
+				return "", err
+			}
+			paths := parseDialogPaths(string(out))
+			if len(paths) == 0 {
+				return "", nil
+			}
+			return paths[0], nil
+		}
+		return "", fmt.Errorf("当前系统没有可用的 JSON 文件选择器")
+	}
+}
+
+func chooseSaveJSONFile(suggestedName string) (string, error) {
+	suggestedName = strings.TrimSpace(suggestedName)
+	if suggestedName == "" {
+		suggestedName = "image-studio-history.json"
+	}
+	switch runtime.GOOS {
+	case "windows":
+		cmd := exec.Command(
+			"powershell",
+			"-NoProfile",
+			"-Command",
+			fmt.Sprintf(
+				`Add-Type -AssemblyName System.Windows.Forms; `+
+					`$dlg = New-Object System.Windows.Forms.SaveFileDialog; `+
+					`$dlg.Filter = "JSON|*.json"; `+
+					`$dlg.FileName = %q; `+
+					`if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::UTF8; $dlg.FileName }`,
+				suggestedName,
+			),
+		)
+		out, err := cmd.Output()
+		if err != nil {
+			return "", err
+		}
+		paths := parseDialogPaths(string(out))
+		if len(paths) == 0 {
+			return "", nil
+		}
+		return paths[0], nil
+	case "darwin":
+		out, err := exec.Command(
+			"osascript",
+			"-e",
+			fmt.Sprintf(`POSIX path of (choose file name with prompt "导出历史 JSON" default name %q)`, suggestedName),
+		).Output()
+		if err != nil {
+			return "", err
+		}
+		paths := parseDialogPaths(string(out))
+		if len(paths) == 0 {
+			return "", nil
+		}
+		return paths[0], nil
+	default:
+		if path, err := exec.LookPath("zenity"); err == nil {
+			out, err := exec.Command(path, "--file-selection", "--save", "--confirm-overwrite", "--filename="+suggestedName, "--file-filter=JSON | *.json").Output()
+			if err != nil {
+				return "", err
+			}
+			paths := parseDialogPaths(string(out))
+			if len(paths) == 0 {
+				return "", nil
+			}
+			return paths[0], nil
+		}
+		if path, err := exec.LookPath("kdialog"); err == nil {
+			out, err := exec.Command(path, "--getsavefilename", filepath.Join(".", suggestedName), "JSON (*.json)").Output()
+			if err != nil {
+				return "", err
+			}
+			paths := parseDialogPaths(string(out))
+			if len(paths) == 0 {
+				return "", nil
+			}
+			return paths[0], nil
+		}
+		return "", fmt.Errorf("当前系统没有可用的 JSON 文件保存器")
 	}
 }
 

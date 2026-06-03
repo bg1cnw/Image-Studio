@@ -142,115 +142,120 @@ type App struct {
 	themeMode  string
 	batchCount int
 
-	modeButtons                     []widget.Clickable
-	apiButtons                      []widget.Clickable
-	sizeButtons                     []widget.Clickable
-	aspectButtons                   []widget.Clickable
-	styleButtons                    []widget.Clickable
-	clearStyleButton                widget.Clickable
-	randomSeedButton                widget.Clickable
-	clearSeedButton                 widget.Clickable
-	batchCountButtons               []widget.Clickable
-	resolutionButtons               []widget.Clickable
-	qualityButtons                  []widget.Clickable
-	formatButtons                   []widget.Clickable
-	policyButtons                   []widget.Clickable
-	proxyButtons                    []widget.Clickable
-	historyModeButtons              []widget.Clickable
-	historyDateButtons              []widget.Clickable
-	historyTimelineModeButtons      []widget.Clickable
-	historyTimelineDateButtons      []widget.Clickable
-	runButton                       widget.Clickable
-	cancelButton                    widget.Clickable
-	retryLastRunButton              widget.Clickable
-	openRawResponseButton           widget.Clickable
-	openLogsRawResponseButton       widget.Clickable
-	dismissErrorButton              widget.Clickable
-	closeRawResponseButton          widget.Clickable
-	copyRawResponseButton           widget.Clickable
-	clearLogButton                  widget.Clickable
-	saveAsButton                    widget.Clickable
-	latestResultButton              widget.Clickable
-	currentGroupButton              widget.Clickable
-	closeCompareButton              widget.Clickable
-	closeResultGridButton           widget.Clickable
-	rotateLeftButton                widget.Clickable
-	rotateRightButton               widget.Clickable
-	flipHorizontalButton            widget.Clickable
-	flipVerticalButton              widget.Clickable
-	clearCurrentButton              widget.Clickable
-	clearSourcesButton              widget.Clickable
-	addSourceFilesButton            widget.Clickable
-	addSourceStripButton            widget.Clickable
-	emptyStateImportButton          widget.Clickable
-	promptHelperButton              widget.Clickable
-	promptHelperTemplatesButton     widget.Clickable
-	promptHelperHistoryButton       widget.Clickable
-	closePromptHelperButton         widget.Clickable
-	optimizePromptButton            widget.Clickable
-	testUpstreamButton              widget.Clickable
-	settingsTestUpstreamButton      widget.Clickable
-	syncCodexConfigButton           widget.Clickable
-	historyTimelineModePickerButton widget.Clickable
-	historyTimelineDatePickerButton widget.Clickable
-	toggleAPIKeyMaskButton          widget.Clickable
-	upstreamConfigButton            widget.Clickable
-	settingsHelpButton              widget.Clickable
-	closeSettingsHelpButton         widget.Clickable
-	saveSettingsButton              widget.Clickable
-	closeGeneralSettingsButton      widget.Clickable
-	openGeneralUpstreamButton       widget.Clickable
-	openGeneralOutputButton         widget.Clickable
-	chooseGeneralOutputButton       widget.Clickable
-	resetGeneralOutputButton        widget.Clickable
-	openGeneralRepoButton           widget.Clickable
-	openGeneralFeedbackButton       widget.Clickable
-	themeButtons                    []widget.Clickable
-	generalThemeButtons             []widget.Clickable
-	generalSavePromptButtons        []widget.Clickable
-	generalProxyButtons             []widget.Clickable
-	generalKeepLogsButtons          []widget.Clickable
-	headerAddWorkspaceButton        widget.Clickable
-	headerQuoteButton               widget.Clickable
-	githubButton                    widget.Clickable
-	headerStarButton                widget.Clickable
-	settingsButton                  widget.Clickable
-	fullscreenButton                widget.Clickable
-	resultDetailButton              widget.Clickable
-	footerOutputButton              widget.Clickable
-	footerGithubButton              widget.Clickable
-	footerFeedbackButton            widget.Clickable
-	addWorkspaceButton              widget.Clickable
-	workspaceRenameSaveButton       widget.Clickable
-	workspaceRenameCancelButton     widget.Clickable
-	closeSettingsButton             widget.Clickable
-	createProfileButton             widget.Clickable
-	createImagesProfileButton       widget.Clickable
-	duplicateProfileButton          widget.Clickable
-	deleteProfileButton             widget.Clickable
-	settingsActivateProfileButton   widget.Clickable
-	closeResultDetailButton         widget.Clickable
-	resultDetailSaveAsButton        widget.Clickable
-	resultDetailUseSourceButton     widget.Clickable
-	resultDetailUsePromptButton     widget.Clickable
-	resultDetailUseRevisedButton    widget.Clickable
-	resultDetailOpenPathButton      widget.Clickable
-	resultDetailCopyPromptButton    widget.Clickable
-	resultDetailCopyRevisedButton   widget.Clickable
-	resultDetailCopyPathButton      widget.Clickable
-	resultDetailDeleteButton        widget.Clickable
-	composeToggleButton             widget.Clickable
-	advancedToggleButton            widget.Clickable
-	profilePickerButton             widget.Clickable
-	manageUpstreamButton            widget.Clickable
-	historyCollapseButton           widget.Clickable
-	closePromptGroupButton          widget.Clickable
-	openHistoryTimelineButton       widget.Clickable
-	openHistoryTimelineMoreButton   widget.Clickable
-	closeHistoryTimelineButton      widget.Clickable
-	savePromptSaveButton            widget.Clickable
-	savePromptSkipButton            widget.Clickable
-	savePromptNeverAsk              widget.Bool
+	modeButtons                      []widget.Clickable
+	apiButtons                       []widget.Clickable
+	sizeButtons                      []widget.Clickable
+	aspectButtons                    []widget.Clickable
+	styleButtons                     []widget.Clickable
+	clearStyleButton                 widget.Clickable
+	randomSeedButton                 widget.Clickable
+	clearSeedButton                  widget.Clickable
+	batchCountButtons                []widget.Clickable
+	resolutionButtons                []widget.Clickable
+	qualityButtons                   []widget.Clickable
+	formatButtons                    []widget.Clickable
+	policyButtons                    []widget.Clickable
+	proxyButtons                     []widget.Clickable
+	historyModeButtons               []widget.Clickable
+	historyDateButtons               []widget.Clickable
+	historyTimelineModeButtons       []widget.Clickable
+	historyTimelineDateButtons       []widget.Clickable
+	runButton                        widget.Clickable
+	cancelButton                     widget.Clickable
+	retryLastRunButton               widget.Clickable
+	openRawResponseButton            widget.Clickable
+	openLogsRawResponseButton        widget.Clickable
+	dismissErrorButton               widget.Clickable
+	closeRawResponseButton           widget.Clickable
+	copyRawResponseButton            widget.Clickable
+	clearLogButton                   widget.Clickable
+	saveAsButton                     widget.Clickable
+	latestResultButton               widget.Clickable
+	currentGroupButton               widget.Clickable
+	closeCompareButton               widget.Clickable
+	closeResultGridButton            widget.Clickable
+	rotateLeftButton                 widget.Clickable
+	rotateRightButton                widget.Clickable
+	flipHorizontalButton             widget.Clickable
+	flipVerticalButton               widget.Clickable
+	clearCurrentButton               widget.Clickable
+	clearSourcesButton               widget.Clickable
+	addSourceFilesButton             widget.Clickable
+	addSourceStripButton             widget.Clickable
+	emptyStateImportButton           widget.Clickable
+	promptHelperButton               widget.Clickable
+	promptHelperTemplatesButton      widget.Clickable
+	promptHelperHistoryButton        widget.Clickable
+	closePromptHelperButton          widget.Clickable
+	optimizePromptButton             widget.Clickable
+	testUpstreamButton               widget.Clickable
+	settingsTestUpstreamButton       widget.Clickable
+	syncCodexConfigButton            widget.Clickable
+	historyTimelineModePickerButton  widget.Clickable
+	historyTimelineDatePickerButton  widget.Clickable
+	toggleAPIKeyMaskButton           widget.Clickable
+	upstreamConfigButton             widget.Clickable
+	settingsHelpButton               widget.Clickable
+	closeSettingsHelpButton          widget.Clickable
+	saveSettingsButton               widget.Clickable
+	closeGeneralSettingsButton       widget.Clickable
+	generalRuntimePickerButton       widget.Clickable
+	openGeneralUpstreamButton        widget.Clickable
+	openGeneralOutputButton          widget.Clickable
+	chooseGeneralOutputButton        widget.Clickable
+	resetGeneralOutputButton         widget.Clickable
+	openGeneralHistoryTimelineButton widget.Clickable
+	exportGeneralHistoryButton       widget.Clickable
+	importGeneralHistoryButton       widget.Clickable
+	openGeneralRepoButton            widget.Clickable
+	openGeneralFeedbackButton        widget.Clickable
+	themeButtons                     []widget.Clickable
+	generalThemeButtons              []widget.Clickable
+	generalRuntimeButtons            []widget.Clickable
+	generalSavePromptButtons         []widget.Clickable
+	generalProxyButtons              []widget.Clickable
+	generalKeepLogsButtons           []widget.Clickable
+	headerAddWorkspaceButton         widget.Clickable
+	headerQuoteButton                widget.Clickable
+	githubButton                     widget.Clickable
+	headerStarButton                 widget.Clickable
+	settingsButton                   widget.Clickable
+	fullscreenButton                 widget.Clickable
+	resultDetailButton               widget.Clickable
+	footerOutputButton               widget.Clickable
+	footerGithubButton               widget.Clickable
+	footerFeedbackButton             widget.Clickable
+	addWorkspaceButton               widget.Clickable
+	workspaceRenameSaveButton        widget.Clickable
+	workspaceRenameCancelButton      widget.Clickable
+	closeSettingsButton              widget.Clickable
+	createProfileButton              widget.Clickable
+	createImagesProfileButton        widget.Clickable
+	duplicateProfileButton           widget.Clickable
+	deleteProfileButton              widget.Clickable
+	settingsActivateProfileButton    widget.Clickable
+	closeResultDetailButton          widget.Clickable
+	resultDetailSaveAsButton         widget.Clickable
+	resultDetailUseSourceButton      widget.Clickable
+	resultDetailUsePromptButton      widget.Clickable
+	resultDetailUseRevisedButton     widget.Clickable
+	resultDetailOpenPathButton       widget.Clickable
+	resultDetailCopyPromptButton     widget.Clickable
+	resultDetailCopyRevisedButton    widget.Clickable
+	resultDetailCopyPathButton       widget.Clickable
+	resultDetailDeleteButton         widget.Clickable
+	composeToggleButton              widget.Clickable
+	advancedToggleButton             widget.Clickable
+	profilePickerButton              widget.Clickable
+	manageUpstreamButton             widget.Clickable
+	historyCollapseButton            widget.Clickable
+	closePromptGroupButton           widget.Clickable
+	openHistoryTimelineButton        widget.Clickable
+	openHistoryTimelineMoreButton    widget.Clickable
+	closeHistoryTimelineButton       widget.Clickable
+	savePromptSaveButton             widget.Clickable
+	savePromptSkipButton             widget.Clickable
+	savePromptNeverAsk               widget.Bool
 
 	mu                    sync.Mutex
 	running               bool
@@ -289,6 +294,7 @@ type App struct {
 	savePromptVisible             bool
 	savePromptSuppressed          bool
 	keepLogs                      bool
+	kernelRuntimeMode             string
 	savePromptSourcePath          string
 	composeOpen                   bool
 	advancedOpen                  bool
@@ -312,6 +318,7 @@ type App struct {
 	promptHelperTab               string
 	activePromptGroup             historyPromptGroup
 	generalSettingsOpen           bool
+	generalRuntimePickerOpen      bool
 	settingsModalOpen             bool
 	settingsHelpOpen              bool
 	settingsSelectedProfileID     string
@@ -364,9 +371,11 @@ func New() *App {
 		proxy:                      cfg.ProxyMode,
 		styleTag:                   "",
 		themeMode:                  themeMode,
+		kernelRuntimeMode:          normalizeKernelRuntimeMode(compatState.Settings.KernelRuntimeMode),
 		batchCount:                 1,
 		themeButtons:               make([]widget.Clickable, 3),
 		generalThemeButtons:        make([]widget.Clickable, 3),
+		generalRuntimeButtons:      make([]widget.Clickable, 3),
 		generalSavePromptButtons:   make([]widget.Clickable, 2),
 		generalProxyButtons:        make([]widget.Clickable, len(proxyChoices)),
 		generalKeepLogsButtons:     make([]widget.Clickable, 2),

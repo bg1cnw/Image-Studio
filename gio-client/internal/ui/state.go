@@ -275,6 +275,7 @@ func (a *App) readSnapshot() snapshot {
 func (a *App) openGeneralSettingsModal() {
 	a.mu.Lock()
 	a.generalSettingsOpen = true
+	a.generalRuntimePickerOpen = false
 	a.mu.Unlock()
 	a.invalidateNow()
 }
@@ -285,6 +286,7 @@ func (a *App) closeGeneralSettingsModal() {
 	}
 	a.mu.Lock()
 	a.generalSettingsOpen = false
+	a.generalRuntimePickerOpen = false
 	a.mu.Unlock()
 	a.invalidateNow()
 }
@@ -299,6 +301,7 @@ func (a *App) persistGeneralSettings() error {
 	if state.Settings.ProxyMode == "" {
 		state.Settings.ProxyMode = "system"
 	}
+	state.Settings.KernelRuntimeMode = normalizeKernelRuntimeMode(a.kernelRuntimeMode)
 	state.Settings.ProxyURL = strings.TrimSpace(a.proxyURLInput.Text())
 	state.Settings.OutputDir = strings.TrimSpace(a.outputDirInput.Text())
 	state.Settings.KeepLogs = a.keepLogs
