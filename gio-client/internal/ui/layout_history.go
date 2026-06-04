@@ -929,7 +929,7 @@ func (a *App) layoutHistoryGroupRow(gtx layout.Context, group historyPromptGroup
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Gap: gtx.Dp(unit.Dp(7))}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return pileBtn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-						return a.layoutHistoryGroupPile(gtx, group)
+						return a.layoutHistoryGroupPileSized(gtx, group, unit.Dp(72), unit.Dp(52), unit.Dp(52), unit.Dp(40), unit.Dp(7), unit.Dp(3))
 					})
 				}),
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
