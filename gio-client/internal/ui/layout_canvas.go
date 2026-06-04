@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -343,6 +344,21 @@ func (a *App) layoutSourceStripTile(gtx layout.Context, path string) layout.Dime
 			})
 		}),
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+			label := sourceStripFormatLabel(path)
+			if label == "" {
+				return layout.Dimensions{}
+			}
+			return layout.SW.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Left: unit.Dp(3), Bottom: unit.Dp(3)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return a.surface(gtx, rgba(0x111111, 0xb8), unit.Dp(3), func(gtx layout.Context) layout.Dimensions {
+						return layout.Inset{Top: 1, Bottom: 1, Left: 4, Right: 4}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return a.label(gtx, label, unit.Sp(7), fluent.white, font.Medium)
+						})
+					})
+				})
+			})
+		}),
+		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 			return layout.NE.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Top: unit.Dp(3), Right: unit.Dp(3)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return a.surfaceButton(
@@ -401,6 +417,14 @@ func sourceStripIndexLabel(path string, sourcePaths []string) string {
 		}
 	}
 	return ""
+}
+
+func sourceStripFormatLabel(path string) string {
+	ext := strings.TrimPrefix(strings.ToUpper(filepath.Ext(strings.TrimSpace(path))), ".")
+	if ext == "" {
+		return ""
+	}
+	return ext
 }
 
 func (a *App) resultSurface(gtx layout.Context, snap snapshot) layout.Dimensions {
