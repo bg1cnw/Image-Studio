@@ -1693,7 +1693,11 @@ func (a *App) layoutSettingsProfileRail(gtx layout.Context, snap snapshot) layou
 			if snap.SyncingCodexConfig {
 				label = "同步中..."
 			}
-			return a.compactIconTextButton(gtx, &a.syncCodexConfigButton, uiIconRefresh, label, true)
+			return a.borderedSurface(gtx, withAlpha(fluent.accentSoft, 0x88), unit.Dp(8), accentAlpha(0x16), func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Top: 5, Bottom: 5, Left: 8, Right: 8}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return a.ghostIconTextButton(gtx, &a.syncCodexConfigButton, uiIconRefresh, label, true)
+				})
+			})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Gap: gtx.Dp(unit.Dp(6))}.Layout(gtx,
