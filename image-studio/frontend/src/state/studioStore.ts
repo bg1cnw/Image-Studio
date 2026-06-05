@@ -57,6 +57,13 @@ import {
   scheduleCompatibilityExport,
 } from "../lib/compatState";
 import {
+  normalizeCompletionSoundConfig,
+  playCompletionSound,
+  persistCompletionSoundConfig,
+  readCompletionSoundConfig,
+  shouldPlayCompletionSound,
+} from "../lib/completionSound";
+import {
   loadCustomAspectRatios,
   makeCustomAspectRatio,
   MAX_CUSTOM_ASPECT_RATIOS,
@@ -498,6 +505,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   savePromptQueue: [],
   savePromptSuppressed: readSavePromptSuppressed(),
   keepLogs: readKeepLogs(),
+  completionSound: readCompletionSoundConfig(),
   promptHistory: [],
   batchCount: 1,
   loopGeneration: defaultLoopGenerationConfig(),
@@ -608,6 +616,39 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     writeKeepLogs(value);
     set({ keepLogs: value });
     await SetKeepLogsEnabled(value).catch(() => undefined);
+  },
+  setCompletionSoundEnabled: (value) => {
+    const next = normalizeCompletionSoundConfig({ ...get().completionSound, enabled: value });
+    persistCompletionSoundConfig(next);
+    set({ completionSound: next });
+  },
+  setCompletionSoundMode: (value) => {
+    const next = normalizeCompletionSoundConfig({ ...get().completionSound, mode: value });
+    persistCompletionSoundConfig(next);
+    set({ completionSound: next });
+  },
+  setCompletionSoundCustom: (input) => {
+    const next = normalizeCompletionSoundConfig({
+      ...get().completionSound,
+      mode: "custom",
+      customName: input.name,
+      customDataURL: input.dataURL,
+    });
+    persistCompletionSoundConfig(next);
+    set({ completionSound: next });
+  },
+  resetCompletionSoundCustom: () => {
+    const next = normalizeCompletionSoundConfig({
+      ...get().completionSound,
+      mode: "default",
+      customName: "",
+      customDataURL: "",
+    });
+    persistCompletionSoundConfig(next);
+    set({ completionSound: next });
+  },
+  previewCompletionSound: async () => {
+    await playCompletionSound(get().completionSound, { force: true });
   },
   workspaces: [],
   activeWorkspaceId: "",
@@ -1091,6 +1132,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         savePromptQueue: [],
         savePromptSuppressed: readSavePromptSuppressed(),
         keepLogs: readKeepLogs(),
+        completionSound: readCompletionSoundConfig(),
       });
       return;
     }
@@ -1130,6 +1172,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       if (v === "auto" || v === "local" || v === "remote") kernelRuntimeMode = v;
     } catch {}
     const keepLogs = readKeepLogs();
+    const completionSound = readCompletionSoundConfig();
     const noPromptRevision = true;
     const proxyConfig = loadProxyConfig();
     let outputFormat: OutputFormatValue = "png";
@@ -1357,6 +1400,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       savePromptQueue: [],
       savePromptSuppressed: readSavePromptSuppressed(),
       keepLogs,
+      completionSound,
     });
     enableCompatibilityExport();
     void backfillHistoryPreviewRefs(items);
@@ -1848,6 +1892,14 @@ async function launchOneJob(
           persistHistoryItem(historyItem).catch(() => undefined);
           const loopMode = snapshot.loopGeneration.enabled;
           const isFinalLoopResult = loopMode && completedNow === totalNow;
+          const shouldPlaySound = shouldPlayCompletionSound({
+            config: store.getState().completionSound,
+            completedNow,
+            totalNow,
+          });
+          if (shouldPlaySound) {
+            void playCompletionSound(store.getState().completionSound);
+          }
           // 桌面通知 —— 点击拉前台 + 直达详情抽屉
           if (willNotify && (!loopMode || isFinalLoopResult)) {
             tryNotify("Image Studio · 已完成", r.prompt ?? "", () => {

@@ -12,6 +12,7 @@ import type {
   Mode,
   OutputFormatValue,
   CustomAspectRatio,
+  CompletionSoundConfig,
   Preset,
   ProgressInfo,
   ProxyMode,
@@ -196,10 +197,16 @@ export interface StudioState {
   savePromptQueue: HistoryItem[];
   savePromptSuppressed: boolean;
   keepLogs: boolean;
+  completionSound: CompletionSoundConfig;
   enqueueSavePrompt: (item: HistoryItem) => void;
   closeSavePrompt: () => void;
   setSavePromptSuppressed: (value: boolean) => void;
   setKeepLogs: (value: boolean) => Promise<void>;
+  setCompletionSoundEnabled: (value: boolean) => void;
+  setCompletionSoundMode: (value: CompletionSoundConfig["mode"]) => void;
+  setCompletionSoundCustom: (input: { name: string; dataURL: string }) => void;
+  resetCompletionSoundCustom: () => void;
+  previewCompletionSound: () => Promise<void>;
   materializeCurrentImage: (item: HistoryItem) => Promise<HistoryItem>;
   retryLast: () => Promise<void>;
   setHistoryRailCollapsed: (collapsed: boolean) => void;

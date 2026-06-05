@@ -38,6 +38,12 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 			ReducedEffects:       true,
 			SavePromptSuppressed: true,
 			KeepLogs:             true,
+			CompletionSound: &CompletionSoundSettings{
+				Enabled:    true,
+				Mode:       "custom",
+				CustomName: "ding.wav",
+				CustomData: "data:audio/wav;base64,AAAA",
+			},
 		},
 		Profiles: []UpstreamProfile{{
 			ID:            "p1",
@@ -72,6 +78,9 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	}
 	if loaded.Client != "test" || loaded.ActiveProfile != "p1" || loaded.Settings.OutputDir != "/tmp/images" || !loaded.Settings.ReducedEffects || !loaded.Settings.SavePromptSuppressed || !loaded.Settings.KeepLogs {
 		t.Fatalf("unexpected state: %#v", loaded)
+	}
+	if loaded.Settings.CompletionSound == nil || !loaded.Settings.CompletionSound.Enabled || loaded.Settings.CompletionSound.Mode != "custom" || loaded.Settings.CompletionSound.CustomName != "ding.wav" || loaded.Settings.CompletionSound.CustomData != "data:audio/wav;base64,AAAA" {
+		t.Fatalf("completion sound not preserved: %#v", loaded.Settings.CompletionSound)
 	}
 	if len(loaded.Profiles) != 1 || loaded.Profiles[0].BaseURL != "https://upstream.example" {
 		t.Fatalf("profiles not preserved: %#v", loaded.Profiles)

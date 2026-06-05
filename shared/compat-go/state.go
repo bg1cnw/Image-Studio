@@ -42,6 +42,14 @@ type Settings struct {
 	TrustedOutputRoots   []string `json:"trustedOutputRoots,omitempty"`
 	SavePromptSuppressed bool     `json:"savePromptSuppressed,omitempty"`
 	KeepLogs             bool     `json:"keepLogs,omitempty"`
+	CompletionSound      *CompletionSoundSettings `json:"completionSound,omitempty"`
+}
+
+type CompletionSoundSettings struct {
+	Enabled    bool   `json:"enabled,omitempty"`
+	Mode       string `json:"mode,omitempty"`
+	CustomName string `json:"customName,omitempty"`
+	CustomData string `json:"customDataURL,omitempty"`
 }
 
 type UpstreamProfile struct {

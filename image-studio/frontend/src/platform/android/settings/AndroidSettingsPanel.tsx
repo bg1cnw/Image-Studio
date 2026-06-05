@@ -1,4 +1,5 @@
 import {
+  Bell,
   ChevronRight,
   Database,
   Download,
@@ -19,7 +20,7 @@ import {
   Upload,
 } from "lucide-react";
 import { SettingsPresetsRow } from "../../../components/panel/SettingsPresetsRow";
-import type { KernelRuntimeMode, ProxyMode, ThemeMode, UpstreamProfile } from "../../../types/domain";
+import type { CompletionSoundConfig, KernelRuntimeMode, ProxyMode, ThemeMode, UpstreamProfile } from "../../../types/domain";
 import { androidSaveHint } from "../bridge";
 
 export type AndroidSettingsSurface = "phone" | "pad";
@@ -30,6 +31,7 @@ export type AndroidSettingsPanelProps = {
   apiMode: "responses" | "images";
   clearAPIKey: () => void;
   clearHistory: () => void;
+  completionSound: CompletionSoundConfig;
   exportHistory: () => void;
   fontScale: number;
   historyCount: number;
@@ -40,7 +42,12 @@ export type AndroidSettingsPanelProps = {
   onOpenFeedback: () => void;
   onOpenRepo: () => void;
   onOpenUpstream: () => void;
+  onPreviewCompletionSound: () => void;
+  onResetCompletionSound: () => void;
+  onSelectCompletionSound: () => void;
   onSetActiveProfile: (id: string) => void;
+  onSetCompletionSoundEnabled: (value: boolean) => void;
+  onSetCompletionSoundMode: (value: CompletionSoundConfig["mode"]) => void;
   onSetFontScale: (value: number) => void;
   onSetKernelRuntimeMode: (value: KernelRuntimeMode) => void;
   onSetProxyConfig: (mode: ProxyMode, url?: string) => void;
@@ -89,6 +96,7 @@ export function AndroidSettingsPanel({
   apiMode,
   clearAPIKey,
   clearHistory,
+  completionSound,
   exportHistory,
   fontScale,
   historyCount,
@@ -99,7 +107,12 @@ export function AndroidSettingsPanel({
   onOpenFeedback,
   onOpenRepo,
   onOpenUpstream,
+  onPreviewCompletionSound,
+  onResetCompletionSound,
+  onSelectCompletionSound,
   onSetActiveProfile,
+  onSetCompletionSoundEnabled,
+  onSetCompletionSoundMode,
   onSetFontScale,
   onSetKernelRuntimeMode,
   onSetProxyConfig,
@@ -125,6 +138,7 @@ export function AndroidSettingsPanel({
     `主题 ${themeLabel(theme)}`,
     `字号 ${Math.round(fontScale * 100)}%`,
     savePromptSuppressed ? "保存提示 关" : "保存提示 开",
+    completionSound.enabled ? "提示音 开" : "提示音 关",
     `${historyCount} 条历史`,
   ];
 
@@ -267,6 +281,62 @@ export function AndroidSettingsPanel({
           >
             不提示
           </button>
+        </div>
+      </div>
+
+      <div className="android-settings-field android-settings-field-stacked">
+        <div>
+          <span className="android-settings-field-title">完成提示音</span>
+          <span className="android-settings-field-subtitle">
+            {completionSound.enabled
+              ? (completionSound.mode === "custom" && completionSound.customName
+                ? `当前使用 ${completionSound.customName}`
+                : "当前使用内置默认音")
+              : "生成完成时不播放提示音。"}
+          </span>
+        </div>
+        <div className="android-settings-segmented" role="group" aria-label="完成提示音开关">
+          <button
+            type="button"
+            className={completionSound.enabled ? "active" : ""}
+            onClick={() => onSetCompletionSoundEnabled(true)}
+          >
+            <Bell className="h-3.5 w-3.5" /> 开启
+          </button>
+          <button
+            type="button"
+            className={!completionSound.enabled ? "active" : ""}
+            onClick={() => onSetCompletionSoundEnabled(false)}
+          >
+            关闭
+          </button>
+        </div>
+        <div className="android-settings-segmented" role="group" aria-label="完成提示音类型">
+          <button
+            type="button"
+            className={completionSound.mode === "default" ? "active" : ""}
+            onClick={() => onSetCompletionSoundMode("default")}
+          >
+            默认音
+          </button>
+          <button
+            type="button"
+            className={completionSound.mode === "custom" ? "active" : ""}
+            onClick={() => {
+              if (!completionSound.customDataURL) {
+                onSelectCompletionSound();
+                return;
+              }
+              onSetCompletionSoundMode("custom");
+            }}
+          >
+            自定义
+          </button>
+        </div>
+        <div className="android-settings-action-grid">
+          <button type="button" onClick={onPreviewCompletionSound}>试听</button>
+          <button type="button" onClick={onSelectCompletionSound}>导入音频</button>
+          <button type="button" onClick={onResetCompletionSound}>恢复默认</button>
         </div>
       </div>
     </section>

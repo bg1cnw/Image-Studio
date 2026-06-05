@@ -42,6 +42,14 @@ export type InputFidelityValue = "auto" | "low" | "high";
 export type ImageStyleValue = "default" | "vivid" | "natural";
 export type ModerationValue = "low" | "auto";
 export type ThemeMode = "system" | "light" | "dark";
+export type CompletionSoundMode = "default" | "custom";
+
+export interface CompletionSoundConfig {
+  enabled: boolean;
+  mode: CompletionSoundMode;
+  customName: string;
+  customDataURL: string;
+}
 
 export interface SizeOption { value: SizeValue; label: string; }
 export interface QualityOption { value: QualityValue; label: string; }

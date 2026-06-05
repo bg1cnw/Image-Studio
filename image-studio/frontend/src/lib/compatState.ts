@@ -2,6 +2,7 @@ import { LoadCompatibilityState, SaveCompatibilityState } from "../platform/runt
 import type {
   BackgroundValue,
   CustomAspectRatio,
+  CompletionSoundConfig,
   HistoryItem,
   ImageStyleValue,
   InputFidelityValue,
@@ -25,6 +26,10 @@ import {
   persistHistoryItems,
   pruneHistoryStorage,
 } from "./storage";
+import {
+  normalizeCompletionSoundConfig,
+  persistCompletionSoundConfig,
+} from "./completionSound";
 
 const SCHEMA_VERSION = 1;
 const MARKER_KEY = "gptcodex.compatStateUpdatedAt";
@@ -54,6 +59,7 @@ export type CompatibilityState = {
     trustedOutputRoots?: string[];
     savePromptSuppressed?: boolean;
     keepLogs?: boolean;
+    completionSound?: CompletionSoundConfig;
   };
   profiles: UpstreamProfile[];
   activeProfileId: string;
@@ -82,6 +88,7 @@ export type CompatibilityExportInput = {
   customAspectRatios: CustomAspectRatio[];
   kernelRuntimeMode: KernelRuntimeMode;
   keepLogs: boolean;
+  completionSound: CompletionSoundConfig;
 };
 
 let exportTimer: ReturnType<typeof setTimeout> | null = null;
@@ -135,6 +142,7 @@ export function compatibilityExportFingerprint(input: CompatibilityExportInput):
     customAspectRatios: input.customAspectRatios,
     kernelRuntimeMode: input.kernelRuntimeMode,
     keepLogs: input.keepLogs,
+    completionSound: input.completionSound,
     outputDir: readLocalStorageString("gptcodex.outputDir"),
     trustedOutputRoots: loadTrustedOutputRoots(),
     savePromptSuppressed: readLocalStorageString("gptcodex.savePromptSuppressed") === "1",
@@ -169,6 +177,7 @@ function buildCompatibilityState(input: CompatibilityExportInput): Compatibility
       trustedOutputRoots: loadTrustedOutputRoots(),
       savePromptSuppressed: readLocalStorageString("gptcodex.savePromptSuppressed") === "1",
       keepLogs: input.keepLogs === true,
+      completionSound: normalizeCompletionSoundConfig(input.completionSound),
     },
     profiles: normalizeProfiles(input.profiles),
     activeProfileId: input.activeProfileId || "",
@@ -208,6 +217,7 @@ function applyCompatibilityLocalStorage(state: CompatibilityState): void {
   else removeLocalStorage("gptcodex.savePromptSuppressed");
   if (settings.keepLogs) writeLocalStorageString("gptcodex.keepLogs", "1");
   else removeLocalStorage("gptcodex.keepLogs");
+  persistCompletionSoundConfig(normalizeCompletionSoundConfig(settings.completionSound));
 }
 
 async function persistCompatibilityHistory(state: CompatibilityState): Promise<void> {
@@ -268,6 +278,7 @@ function normalizeSettings(raw: unknown): CompatibilityState["settings"] {
     trustedOutputRoots: cleanStringList(source.trustedOutputRoots ?? [], 100),
     savePromptSuppressed: source.savePromptSuppressed === true,
     keepLogs: source.keepLogs === true,
+    completionSound: normalizeCompletionSoundConfig(source.completionSound),
   };
 }
 
@@ -367,6 +378,7 @@ function cloneExportInput(input: CompatibilityExportInput): CompatibilityExportI
     customAspectRatios: input.customAspectRatios.map((ratio) => ({ ...ratio })),
     kernelRuntimeMode: input.kernelRuntimeMode,
     keepLogs: input.keepLogs,
+    completionSound: normalizeCompletionSoundConfig(input.completionSound),
   };
 }
 
