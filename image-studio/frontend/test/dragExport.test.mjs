@@ -13,7 +13,7 @@ function restoreWindow() {
   globalThis.window = realWindow;
 }
 
-test("buildHistoryItemDragExport prefers the persisted full image path", async () => {
+test("buildHistoryItemDragExport prefers the persisted saved file path", async () => {
   installWindow();
   try {
     const dragExport = await import(`../src/lib/dragExport.ts?drag-export-test=${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -28,10 +28,10 @@ test("buildHistoryItemDragExport prefers the persisted full image path", async (
       previewOnly: false,
     });
     assert.deepEqual(spec, {
-      href: "http://wails.localhost/media/full/abc123",
+      href: "file:///tmp/image-generate-cat.png",
       fileName: "image-generate-cat.png",
       mimeType: "image/png",
-      downloadURL: "image/png:image-generate-cat.png:http://wails.localhost/media/full/abc123",
+      downloadURL: "image/png:image-generate-cat.png:file:///tmp/image-generate-cat.png",
     });
   } finally {
     restoreWindow();
@@ -57,6 +57,31 @@ test("buildHistoryItemDragExport falls back to the generated media route and sug
       fileName: "image-edit-abcdef12.jpg",
       mimeType: "image/jpeg",
       downloadURL: "image/jpeg:image-edit-abcdef12.jpg:http://wails.localhost/media/full/feedbeef",
+    });
+  } finally {
+    restoreWindow();
+  }
+});
+
+test("buildHistoryItemDragExport rewrites wails asset URLs for drag export", async () => {
+  installWindow("wails://wails/index.html");
+  try {
+    const dragExport = await import(`../src/lib/dragExport.ts?drag-export-test=${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const spec = dragExport.buildHistoryItemDragExport({
+      id: "result-abcdef12",
+      mode: "generate",
+      outputFormat: "png",
+      savedPath: "",
+      fullUrl: "/media/full/ff00ff00",
+      imageId: "ff00ff00",
+      imageB64: "",
+      previewOnly: false,
+    });
+    assert.deepEqual(spec, {
+      href: "http://wails.localhost/media/full/ff00ff00",
+      fileName: "image-generate-result-a.png",
+      mimeType: "image/png",
+      downloadURL: "image/png:image-generate-result-a.png:http://wails.localhost/media/full/ff00ff00",
     });
   } finally {
     restoreWindow();

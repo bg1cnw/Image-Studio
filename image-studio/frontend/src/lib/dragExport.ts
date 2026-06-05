@@ -23,12 +23,37 @@ function mediaFullURL(imageId?: string): string {
   return imageId ? `/media/full/${imageId}` : "";
 }
 
+function isWindowsDrivePath(path: string): boolean {
+  return /^[a-zA-Z]:[\\/]/.test(path);
+}
+
+function fileURLFromPath(path?: string): string {
+  const trimmed = path?.trim() || "";
+  if (!trimmed) return "";
+  if (trimmed.startsWith("file://")) return trimmed;
+  if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(trimmed) && !isWindowsDrivePath(trimmed)) return trimmed;
+  const normalized = trimmed.replace(/\\/g, "/");
+  if (normalized.startsWith("//")) return `file:${normalized}`;
+  if (/^[a-zA-Z]:\//.test(normalized)) return `file:///${normalized}`;
+  return `file://${normalized.startsWith("/") ? "" : "/"}${normalized}`;
+}
+
 function isTransientPreview(item: DragExportHistoryItem): boolean {
   return !!item.previewOnly && item.id.startsWith("preview-");
 }
 
 function resolveAbsoluteURL(rawURL: string): string {
-  if (typeof window === "undefined" || !window.location?.href) return rawURL;
+  if (!rawURL) return rawURL;
+  if (rawURL.startsWith("file://") || rawURL.startsWith("data:")) return rawURL;
+  if (rawURL.startsWith("wails://wails/")) {
+    return rawURL.replace(/^wails:\/\/wails/i, "http://wails.localhost");
+  }
+  if (typeof window === "undefined") return rawURL;
+  if (rawURL.startsWith("/")) {
+    const href = window.location?.href || "";
+    if (href.startsWith("wails://")) return `http://wails.localhost${rawURL}`;
+  }
+  if (!window.location?.href) return rawURL;
   try {
     return new URL(rawURL, window.location.href).toString();
   } catch {
@@ -42,9 +67,10 @@ export function buildHistoryItemDragExport(
 ): DragExportSpec | null {
   if (!item) return null;
   const fileName = basename(item.savedPath) || suggestedImageName(item);
+  const pathURL = fileURLFromPath(item.savedPath);
   const preferredURL = sourceURL?.trim() || "";
   const fullURL = isTransientPreview(item) ? "" : (item.fullUrl || mediaFullURL(item.imageId));
-  const rawURL = fullURL || preferredURL || (item.imageB64
+  const rawURL = pathURL || fullURL || preferredURL || (item.imageB64
     ? `data:${detectImageMimeTypeFromBase64(item.imageB64) || "image/png"};base64,${item.imageB64}`
     : "");
   if (!rawURL) return null;
