@@ -13,6 +13,17 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+func (s *Service) BeginNativeFileDrag(path string) error {
+	allowed, err := s.ensureManagedReadablePath(path, managedImageFile)
+	if err != nil {
+		return err
+	}
+	if s.ctx != nil {
+		runtime.EventsEmit(s.ctx, "native-file-drag", allowed)
+	}
+	return beginNativeFileDrag(allowed)
+}
+
 // OpenImageDialog shows a file picker filtered to supported image types and
 // returns the selected absolute path, size, and a managed AVIF preview URL when
 // thumbnail generation succeeds.

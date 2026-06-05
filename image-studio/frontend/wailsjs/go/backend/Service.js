@@ -22,6 +22,10 @@ export function Edit(arg1) {
   return window['go']['backend']['Service']['Edit'](arg1);
 }
 
+export function BeginNativeFileDrag(arg1) {
+  return window['go']['backend']['Service']['BeginNativeFileDrag'](arg1);
+}
+
 export function ExportHistoryToFile(arg1) {
   return window['go']['backend']['Service']['ExportHistoryToFile'](arg1);
 }

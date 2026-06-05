@@ -435,6 +435,13 @@ export function SaveImagePathAs(path: string, suggestedName: string): Promise<st
   return ReadImageAsBase64(path).then((b64) => SaveImageAs(b64, suggestedName));
 }
 
+export function BeginNativeFileDrag(path: string): Promise<void> {
+  if (hasServiceMethod("BeginNativeFileDrag")) {
+    return invokeService<void>(unsupportedMessage, "BeginNativeFileDrag", path);
+  }
+  return Promise.reject(new Error(unsupportedMessage("BeginNativeFileDrag")));
+}
+
 export function SaveImageToDir(imageB64: string, directory: string, suggestedName: string): Promise<string> {
   if (hasServiceMethod("SaveImageToDir")) {
     return invokeService<string>(unsupportedMessage, "SaveImageToDir", imageB64, directory, suggestedName);

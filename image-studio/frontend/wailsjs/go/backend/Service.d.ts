@@ -12,6 +12,8 @@ export function DeleteStoredAPIKey(arg1:string):Promise<void>;
 
 export function Edit(arg1:backend.GenerateOptions):Promise<backend.JobStarted>;
 
+export function BeginNativeFileDrag(arg1:string):Promise<void>;
+
 export function ExportHistoryToFile(arg1:string):Promise<string>;
 
 export function FlipImage(arg1:string,arg2:boolean):Promise<backend.ImageTransformResult>;

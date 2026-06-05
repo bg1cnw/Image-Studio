@@ -2,6 +2,7 @@ import { Ellipsis, X } from "lucide-react";
 import type React from "react";
 import { buildHistoryItemDragExport, writeImageFileDragData } from "../../lib/dragExport.ts";
 import { historyPreviewSrc, useBlobURL, useImageLoadState } from "../../lib/images";
+import { BeginNativeFileDrag } from "../../platform/runtime/host";
 import { usePlatform } from "../../platform/context";
 import type { HistoryItem } from "../../types/domain";
 import { HistoryMetaBadges } from "./HistoryMetaBadges";
@@ -60,6 +61,14 @@ export function HistoryTile({
   function handleImageDragStart(e: React.DragEvent<HTMLElement>) {
     if (!dragSpec) return;
     e.stopPropagation();
+    if (isMac && item.savedPath) {
+      e.preventDefault();
+      console.debug("[drag-export] native-file-drag", item.savedPath);
+      void BeginNativeFileDrag(item.savedPath).catch((error) => {
+        console.error("[drag-export] native-file-drag failed", error);
+      });
+      return;
+    }
     e.dataTransfer.effectAllowed = "copy";
     writeImageFileDragData(e.dataTransfer, dragSpec);
   }
