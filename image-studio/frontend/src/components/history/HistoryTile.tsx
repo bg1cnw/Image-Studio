@@ -1,6 +1,10 @@
 import { Ellipsis, X } from "lucide-react";
 import type React from "react";
-import { buildHistoryItemDragExport, writeImageFileDragData } from "../../lib/dragExport.ts";
+import {
+  buildHistoryItemDragExport,
+  writeImageFileDragData,
+  writeInternalHistoryItemDragData,
+} from "../../lib/dragExport.ts";
 import { historyPreviewSrc, useBlobURL, useImageLoadState } from "../../lib/images";
 import { BeginNativeFileDrag } from "../../platform/runtime/host";
 import { usePlatform } from "../../platform/context";
@@ -70,6 +74,7 @@ export function HistoryTile({
       return;
     }
     e.dataTransfer.effectAllowed = "copy";
+    writeInternalHistoryItemDragData(e.dataTransfer, item);
     writeImageFileDragData(e.dataTransfer, dragSpec);
   }
 

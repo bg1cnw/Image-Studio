@@ -70,7 +70,7 @@ export function createImageActions(store: StateAdapter) {
         const baseName = res.path.split(/[\\/]/).pop() ?? res.path;
         const existing = store.getState().sources;
         if (existing.some((source) => source.path === res.path)) {
-          store.setState({ mode: "edit", errorMessage: null, errorRawPath: null });
+          store.setState({ mode: "edit", errorMessage: null, errorCanRetry: false, errorRawPath: null });
           return;
         }
         store.setState({
@@ -84,10 +84,11 @@ export function createImageActions(store: StateAdapter) {
           }],
           mode: "edit",
           errorMessage: null,
+          errorCanRetry: false,
           errorRawPath: null,
         });
       } catch (error: any) {
-        store.setState({ errorMessage: `选择图片失败:${error?.message ?? error}`, errorRawPath: null });
+        store.setState({ errorMessage: `选择图片失败:${error?.message ?? error}`, errorCanRetry: false, errorRawPath: null });
       }
     },
 
@@ -113,7 +114,7 @@ export function createImageActions(store: StateAdapter) {
       if (!source) return;
       const ref = await RegisterImportedImageAsset(source.path).catch(() => null);
       const item = buildSourceCanvasItem(source, ref);
-      store.setState({ mode: "edit", errorMessage: null, errorRawPath: null });
+      store.setState({ mode: "edit", errorMessage: null, errorCanRetry: false, errorRawPath: null });
       store.getState().setField("currentImage", item);
     },
 
@@ -121,7 +122,7 @@ export function createImageActions(store: StateAdapter) {
       let localItem = await materializeHistoryItem(item, {
         setState: (fn) => store.setState((state) => fn(state)),
       }).catch((e: any) => {
-        store.setState({ errorMessage: `源图准备失败:${e?.message ?? e}`, errorRawPath: null });
+        store.setState({ errorMessage: `源图准备失败:${e?.message ?? e}`, errorCanRetry: false, errorRawPath: null });
         return null;
       });
       if (!localItem?.savedPath) return;
@@ -208,7 +209,7 @@ export function createImageActions(store: StateAdapter) {
         if (saved) store.getState().pushToast(`已保存:${saved.split(/[\\/]/).pop()}`, "success");
       } catch (e: any) {
         const msg = `保存失败:${e?.message ?? e}`;
-        store.setState({ errorMessage: msg, errorRawPath: null });
+        store.setState({ errorMessage: msg, errorCanRetry: false, errorRawPath: null });
         store.getState().pushToast(msg, "error");
       }
     },
@@ -216,7 +217,7 @@ export function createImageActions(store: StateAdapter) {
     async importImageFile(file: File) {
       try {
         if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) {
-          store.setState({ errorMessage: `不支持的图片类型:${file.type || "(未知)"},请用 PNG/JPG/WebP`, errorRawPath: null });
+          store.setState({ errorMessage: `不支持的图片类型:${file.type || "(未知)"},请用 PNG/JPG/WebP`, errorCanRetry: false, errorRawPath: null });
           return;
         }
         const b64 = await fileToBase64(file);
@@ -253,12 +254,13 @@ export function createImageActions(store: StateAdapter) {
                 imageBlob: legacyBlob,
                 imageB64: legacyB64 || undefined,
                 previewUrl: importedItem.previewUrl,
-              }],
+          }],
           errorMessage: null,
+          errorCanRetry: false,
           errorRawPath: null,
         });
       } catch (e: any) {
-        store.setState({ errorMessage: `导入失败:${e?.message ?? e}`, errorRawPath: null });
+        store.setState({ errorMessage: `导入失败:${e?.message ?? e}`, errorCanRetry: false, errorRawPath: null });
       }
     },
   };

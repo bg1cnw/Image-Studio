@@ -38,7 +38,7 @@ export function ControlPanel({
     userIdentifier, partialImages,
     outputFormat, batchCount, loopGeneration,
     sources, currentImage,
-    errorMessage, errorRawPath, isRunning, lastPayload, isTestingKey, isOptimizingPrompt,
+    errorMessage, errorCanRetry, errorRawPath, isRunning, lastPayload, isTestingKey, isOptimizingPrompt,
     apiMode, requestPolicy, baseURL, profiles, imageModelID,
     customAspectRatios,
     setField, clearError, pushToast,
@@ -165,7 +165,7 @@ export function ControlPanel({
         <ErrorNotice
           errorMessage={errorMessage}
           errorRawPath={errorRawPath}
-          showRetry={!!(lastPayload && !isRunning)}
+          showRetry={!!(errorCanRetry && lastPayload && !isRunning)}
           onRetry={retryLast}
           onClear={clearError}
           onPushToast={pushToast}

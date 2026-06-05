@@ -136,3 +136,42 @@ test("writeImageFileDragData writes the expected drag payload formats", async ()
     ["text/plain", "http://wails.localhost/media/full/abc123"],
   ]);
 });
+
+test("internal history drag payload round-trips through dataTransfer", async () => {
+  const dragExport = await import(`../src/lib/dragExport.ts?drag-export-test=${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const store = new Map();
+  const dataTransfer = {
+    setData(format, value) {
+      store.set(format, value);
+    },
+    getData(format) {
+      return store.get(format) ?? "";
+    },
+  };
+  dragExport.writeInternalHistoryItemDragData(dataTransfer, {
+    id: "history-1",
+    imageId: "img-1",
+    previewUrl: "/media/preview/img-1",
+    fullUrl: "/media/full/img-1",
+    previewOnly: true,
+    prompt: "cat",
+    mode: "edit",
+    size: "1024x1024",
+    quality: "medium",
+    createdAt: 123,
+    savedPath: "/tmp/cat.png",
+  });
+  assert.deepEqual(dragExport.readInternalHistoryItemDragData(dataTransfer), {
+    id: "history-1",
+    imageId: "img-1",
+    previewUrl: "/media/preview/img-1",
+    fullUrl: "/media/full/img-1",
+    previewOnly: true,
+    prompt: "cat",
+    mode: "edit",
+    size: "1024x1024",
+    quality: "medium",
+    createdAt: 123,
+    savedPath: "/tmp/cat.png",
+  });
+});

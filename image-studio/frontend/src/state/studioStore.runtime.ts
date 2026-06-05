@@ -207,6 +207,7 @@ export function saveActiveWorkspaceSnapshot(s: StudioState): Workspace[] {
       streamPreviews: s.streamPreviews,
       lastLogLine: s.lastLogLine,
       errorMessage: s.errorMessage,
+      errorCanRetry: s.errorCanRetry,
       lastPayload: s.lastPayload,
     };
   });

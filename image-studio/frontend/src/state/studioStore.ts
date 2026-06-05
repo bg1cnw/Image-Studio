@@ -464,6 +464,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   streamPreviews: {},
   lastLogLine: "",
   errorMessage: null,
+  errorCanRetry: false,
   errorRawPath: null,
   isRunning: false,
   lastPayload: null,
@@ -713,6 +714,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       });
     } else if (key === "errorMessage") {
       set({ workspaces: patchWorkspaceRuntime(get().workspaces, get().activeWorkspaceId, { errorMessage: value as string | null }) });
+    } else if (key === "errorCanRetry") {
+      set({ workspaces: patchWorkspaceRuntime(get().workspaces, get().activeWorkspaceId, { errorCanRetry: value as boolean }) });
     } else if (key === "errorRawPath") {
       set({ workspaces: patchWorkspaceRuntime(get().workspaces, get().activeWorkspaceId, { errorRawPath: value as string | null }) });
     } else if (key === "lastPayload") {
@@ -783,9 +786,11 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     const wsId = get().activeWorkspaceId;
     set({
       errorMessage: null,
+      errorCanRetry: false,
       errorRawPath: null,
       workspaces: patchWorkspaceRuntime(get().workspaces, wsId, {
         errorMessage: null,
+        errorCanRetry: false,
         errorRawPath: null,
       }),
     });
@@ -800,15 +805,15 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     const s = get();
     if (s.isRunning) return;
     if (!s.apiKey.trim()) {
-      set({ errorMessage: "请填写 API Key", errorRawPath: null });
+      set({ errorMessage: "请填写 API Key", errorCanRetry: false, errorRawPath: null });
       return;
     }
     if (!s.prompt.trim()) {
-      set({ errorMessage: "请填写提示词", errorRawPath: null });
+      set({ errorMessage: "请填写提示词", errorCanRetry: false, errorRawPath: null });
       return;
     }
     if (!s.baseURL.trim()) {
-      set({ errorMessage: "请在右侧工作栏顶部的「上游配置」中填入你的中转站地址(必须兼容 OpenAI Responses API + image_generation 工具)", errorRawPath: null });
+      set({ errorMessage: "请在右侧工作栏顶部的「上游配置」中填入你的中转站地址(必须兼容 OpenAI Responses API + image_generation 工具)", errorCanRetry: false, errorRawPath: null });
       return;
     }
     const cleanedBaseURL = cleanBaseURL(s.baseURL);
@@ -820,7 +825,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       ? Math.min(requestedJobCount, normalizeLoopGenerationConcurrency(loopGeneration.concurrency))
       : batchCount;
     if (loopEnabled && loopGeneration.autoSave && !loopGeneration.autoSaveDir.trim()) {
-      set({ errorMessage: "请先为循环出图配置自动另存为路径", errorRawPath: null });
+      set({ errorMessage: "请先为循环出图配置自动另存为路径", errorCanRetry: false, errorRawPath: null });
       return;
     }
     const activeProfile = s.profiles.find((p) => p.id === s.activeProfileId);
@@ -835,6 +840,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
           errorMessage: loopEnabled
             ? `${apiLabel} 并发限制 ${concurrencyLimit},当前还可提交 ${Math.max(0, available)} 个,循环模式并发需要 ${requiredConcurrency} 个。`
             : `${apiLabel} 并发限制 ${concurrencyLimit},当前还可提交 ${Math.max(0, available)} 个,本次需要 ${batchCount} 个。`,
+          errorCanRetry: false,
           errorRawPath: null,
         });
         return;
@@ -855,6 +861,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
           errorMessage: platform.isAndroid
             ? "图生图模式需要先从相册或历史添加源图"
             : "图生图模式需要先添加源图(或从文件管理器拖图到画板)",
+          errorCanRetry: false,
           errorRawPath: null,
         });
         return;
@@ -866,6 +873,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     stopLoopRun(workspaceId);
     const runPatch = {
       errorMessage: null,
+      errorCanRetry: false,
       errorRawPath: null,
       progress: null,
       streamPreview: null,
@@ -1649,7 +1657,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     if (s.mode === "edit" && sourcePaths.length === 0 && s.currentImage?.savedPath) {
       sourcePaths.push(s.currentImage.savedPath);
     }
-    set({ isOptimizingPrompt: true, errorMessage: null, errorRawPath: null });
+    set({ isOptimizingPrompt: true, errorMessage: null, errorCanRetry: false, errorRawPath: null });
     try {
       const optimized = await wailsOptimizePrompt({
         apiKey: optimizeAPIKey,
@@ -1670,7 +1678,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       s.pushToast("已优化提示词", "success");
     } catch (e: any) {
       const msg = `优化失败:${e?.message ?? e}`;
-      set({ errorMessage: msg, errorRawPath: null });
+      set({ errorMessage: msg, errorCanRetry: false, errorRawPath: null });
       s.pushToast(msg, "error", 6000);
     } finally {
       set({ isOptimizingPrompt: false });
@@ -1687,7 +1695,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   retryLast: async () => {
     const s = get();
     if (!s.lastPayload || s.isRunning) return;
-    set({ errorMessage: null, errorRawPath: null });
+    set({ errorMessage: null, errorCanRetry: false, errorRawPath: null });
     // Re-invoke submit, which will rebuild the payload from current state.
     // (We don't reuse lastPayload verbatim so any tweaks the user made
     // after the failure — different seed, different prompt — take effect.)
@@ -1952,6 +1960,7 @@ async function launchOneJob(
         } catch (err: any) {
           const patch: WorkspacePatch = {
             errorMessage: `处理结果失败:${err?.message ?? err}`,
+            errorCanRetry: true,
             errorRawPath: null,
           };
           store.setState((state) => ({
@@ -1970,6 +1979,7 @@ async function launchOneJob(
         const prunedPreview = removeStreamPreview(runtime.streamPreviews, jobId);
         const patch: WorkspacePatch = {
           errorMessage: e?.message ?? "未知错误",
+          errorCanRetry: true,
           errorRawPath: (typeof e?.rawPath === "string" && e.rawPath) ? e.rawPath : null,
           streamPreview: prunedPreview.streamPreview,
           streamPreviews: prunedPreview.streamPreviews,
@@ -2006,6 +2016,7 @@ async function launchOneJob(
     cleanup();
     const patch: WorkspacePatch = {
       errorMessage: `提交失败:${e?.message ?? e}`,
+      errorCanRetry: true,
       errorRawPath: null,
     };
     store.setState((state) => {

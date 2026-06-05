@@ -98,6 +98,7 @@ export interface StudioState {
   streamPreviews: StreamPreviewMap;
   lastLogLine: string;
   errorMessage: string | null;
+  errorCanRetry: boolean;
   errorRawPath: string | null;
   isRunning: boolean;
   lastPayload: backend.GenerateOptions | null;

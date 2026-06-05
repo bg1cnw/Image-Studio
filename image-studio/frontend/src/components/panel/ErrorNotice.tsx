@@ -35,6 +35,7 @@ export function ErrorNotice({
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {showRetry ? (
             <button
+              type="button"
               onClick={onRetry}
               className={`platform-pill inline-flex items-center gap-1 bg-red-500/15 px-2.5 py-1 text-[11px] transition-colors hover:bg-red-500/25 ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
             >

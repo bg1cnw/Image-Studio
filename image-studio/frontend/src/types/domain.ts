@@ -238,6 +238,7 @@ export interface Workspace {
   streamPreviews?: StreamPreviewMap;
   lastLogLine: string;
   errorMessage: string | null;
+  errorCanRetry?: boolean;
   // 最近一次失败时上游原始响应文件的绝对路径(SSE / Images API JSON)。前端
   // 「查看日志」按钮调 OpenFile 直接打开。请求前期校验失败 / 早期 IO 错误时
   // 此字段为 null。跟 errorMessage 一对,workspace 隔离,切 tab 各自保持。

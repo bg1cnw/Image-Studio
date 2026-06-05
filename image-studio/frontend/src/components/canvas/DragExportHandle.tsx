@@ -1,5 +1,9 @@
 import type { HistoryItem } from "../../types/domain";
-import { buildHistoryItemDragExport, writeImageFileDragData } from "../../lib/dragExport.ts";
+import {
+  buildHistoryItemDragExport,
+  writeImageFileDragData,
+  writeInternalHistoryItemDragData,
+} from "../../lib/dragExport.ts";
 import { BeginNativeFileDrag } from "../../platform/runtime/host";
 import { usePlatform } from "../../platform/context";
 
@@ -8,7 +12,7 @@ export function DragExportHandle({
   className = "",
   sourceURL,
 }: {
-  item: Pick<HistoryItem, "id" | "mode" | "outputFormat" | "savedPath" | "imageId" | "fullUrl" | "imageB64" | "previewOnly">;
+  item: HistoryItem;
   className?: string;
   sourceURL?: string | null;
 }) {
@@ -43,6 +47,7 @@ export function DragExportHandle({
           return;
         }
         event.dataTransfer.effectAllowed = "copy";
+        writeInternalHistoryItemDragData(event.dataTransfer, item);
         writeImageFileDragData(event.dataTransfer, spec);
       }}
     >

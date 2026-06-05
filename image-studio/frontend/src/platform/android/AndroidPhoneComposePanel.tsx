@@ -35,7 +35,7 @@ export function AndroidPhoneComposePanel({
   const {
     apiKey, mode, prompt, background, imageStyle, inputFidelity, moderation, negativePrompt, outputCompression, size, quality, seed, styleTag,
     userIdentifier, partialImages,
-    outputFormat, batchCount, loopGeneration, sources, currentImage, errorMessage, errorRawPath,
+    outputFormat, batchCount, loopGeneration, sources, currentImage, errorMessage, errorCanRetry, errorRawPath,
     isRunning, lastPayload, isOptimizingPrompt, apiMode, requestPolicy, baseURL, profiles, imageModelID,
     customAspectRatios,
     setField, clearError, pushToast, selectSourceImage,
@@ -126,9 +126,9 @@ export function AndroidPhoneComposePanel({
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
-          {(lastPayload && !isRunning) || errorRawPath ? (
+          {(errorCanRetry && lastPayload && !isRunning) || errorRawPath ? (
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              {lastPayload && !isRunning ? (
+              {errorCanRetry && lastPayload && !isRunning ? (
                 <button
                   type="button"
                   onClick={retryLast}
