@@ -70,7 +70,7 @@ export function buildHistoryItemDragExport(
   const pathURL = fileURLFromPath(item.savedPath);
   const preferredURL = sourceURL?.trim() || "";
   const fullURL = isTransientPreview(item) ? "" : (item.fullUrl || mediaFullURL(item.imageId));
-  const rawURL = pathURL || fullURL || preferredURL || (item.imageB64
+  const rawURL = fullURL || preferredURL || pathURL || (item.imageB64
     ? `data:${detectImageMimeTypeFromBase64(item.imageB64) || "image/png"};base64,${item.imageB64}`
     : "");
   if (!rawURL) return null;

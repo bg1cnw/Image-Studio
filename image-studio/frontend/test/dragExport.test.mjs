@@ -13,7 +13,7 @@ function restoreWindow() {
   globalThis.window = realWindow;
 }
 
-test("buildHistoryItemDragExport prefers the persisted saved file path", async () => {
+test("buildHistoryItemDragExport prefers the managed full media route over saved file path", async () => {
   installWindow();
   try {
     const dragExport = await import(`../src/lib/dragExport.ts?drag-export-test=${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -28,10 +28,35 @@ test("buildHistoryItemDragExport prefers the persisted saved file path", async (
       previewOnly: false,
     });
     assert.deepEqual(spec, {
-      href: "file:///tmp/image-generate-cat.png",
+      href: "http://wails.localhost/media/full/abc123",
       fileName: "image-generate-cat.png",
       mimeType: "image/png",
-      downloadURL: "image/png:image-generate-cat.png:file:///tmp/image-generate-cat.png",
+      downloadURL: "image/png:image-generate-cat.png:http://wails.localhost/media/full/abc123",
+    });
+  } finally {
+    restoreWindow();
+  }
+});
+
+test("buildHistoryItemDragExport falls back to the saved file path when no media route exists", async () => {
+  installWindow();
+  try {
+    const dragExport = await import(`../src/lib/dragExport.ts?drag-export-test=${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const spec = dragExport.buildHistoryItemDragExport({
+      id: "result-22334455",
+      mode: "generate",
+      outputFormat: "png",
+      savedPath: "/tmp/image-generate-only-path.png",
+      fullUrl: "",
+      imageId: "",
+      imageB64: "",
+      previewOnly: false,
+    });
+    assert.deepEqual(spec, {
+      href: "file:///tmp/image-generate-only-path.png",
+      fileName: "image-generate-only-path.png",
+      mimeType: "image/png",
+      downloadURL: "image/png:image-generate-only-path.png:file:///tmp/image-generate-only-path.png",
     });
   } finally {
     restoreWindow();
