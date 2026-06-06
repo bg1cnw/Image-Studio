@@ -175,20 +175,25 @@ export function DesktopComposeSections({
         label="出图张数"
         trailing={<span className="font-mono-token text-[10px] text-zinc-400">{batchCount}x</span>}
       >
-        <div className="grid grid-cols-3 gap-2">
+        <div className={`grid grid-cols-3 gap-2 ${usesFluentUI ? "windows-batch-count-grid" : ""}`}>
           {[1, 2, 4, 6, 8, 9].map((count) => (
             <button
               key={count}
               type="button"
+              aria-pressed={batchCount === count}
+              data-active={batchCount === count ? "true" : "false"}
               onClick={() => setField("batchCount", count)}
               title={`同一提示词发起 ${count} 次请求`}
-              className={`flex items-center justify-center border text-xs font-medium transition-colors ${
+              className={`windows-batch-count-button flex items-center justify-center border text-xs font-medium transition-colors ${
                 batchCount === count
                   ? "border-[color:var(--accent)]/35 bg-[var(--accent-soft)] text-[var(--accent)]"
                   : "border-black/[0.08] text-zinc-600 hover:border-[color:var(--accent)]/30 hover:text-zinc-900 dark:border-white/[0.08] dark:text-zinc-400 dark:hover:text-zinc-200"
               } ${usesFluentUI ? "h-9 rounded-[8px]" : "h-9 rounded-[12px]"}`}
             >
-              {count}
+              <span className="windows-batch-count-content">
+                <span className="windows-batch-count-value">{count}</span>
+                <span className="windows-batch-count-unit">张</span>
+              </span>
             </button>
           ))}
         </div>
