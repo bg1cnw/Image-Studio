@@ -214,6 +214,7 @@ node scripts/live-verify.mjs
 当前发布链路在 `.github/workflows/release.yml`：
 
 - 并行构建 Windows、macOS、Linux Wails 桌面产物。
+- Windows 额外产出 NSIS installer `*-installer.exe`，供正式安装分发或 Microsoft Store Win32 提交使用。
 - 单独构建一个 Android release APK。
 - tag 为 `v*` 时将所有产物附加到 GitHub Release。
 

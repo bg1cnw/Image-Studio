@@ -74,12 +74,24 @@ jobs:
             artifact_suffix: windows-amd64.exe
             wails_args: -platform windows/amd64 -clean
             package_cmd: cp image-studio/build/bin/image-studio.exe "$artifact_path"
+          - id: windows-amd64-installer
+            runner: windows-latest
+            goos: windows
+            artifact_suffix: windows-amd64-installer.exe
+            wails_args: -platform windows/amd64 -clean -nsis
+            package_cmd: cp image-studio/build/bin/image-studio-amd64-installer.exe "$artifact_path"
           - id: windows-arm64
             runner: windows-11-arm
             goos: windows
             artifact_suffix: windows-arm64.exe
             wails_args: -platform windows/arm64 -clean
             package_cmd: cp image-studio/build/bin/image-studio.exe "$artifact_path"
+          - id: windows-arm64-installer
+            runner: windows-11-arm
+            goos: windows
+            artifact_suffix: windows-arm64-installer.exe
+            wails_args: -platform windows/arm64 -clean -nsis
+            package_cmd: cp image-studio/build/bin/image-studio-arm64-installer.exe "$artifact_path"
           - id: macos-universal
             runner: macos-latest
             goos: darwin

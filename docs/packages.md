@@ -22,8 +22,10 @@ Windows 用户需要额外注意：Actions 里的 CI artifact 如果没有经过
 
 | 平台 | 文件名模式 | 说明 |
 |---|---|---|
-| Windows x64 | `image-studio-<version>-windows-amd64.exe` | 标准 Wails 桌面版，依赖 WebView2 Runtime。 |
-| Windows ARM64 | `image-studio-<version>-windows-arm64.exe` | 面向 Windows on Arm 设备。 |
+| Windows x64 | `image-studio-<version>-windows-amd64.exe` | 裸 Wails 可执行文件，适合内部测试，不是安装器。 |
+| Windows x64 Installer | `image-studio-<version>-windows-amd64-installer.exe` | NSIS 安装器，适合对外分发或提交 Microsoft Store Win32 通道。 |
+| Windows ARM64 | `image-studio-<version>-windows-arm64.exe` | 裸 Wails 可执行文件，适合内部测试，不是安装器。 |
+| Windows ARM64 Installer | `image-studio-<version>-windows-arm64-installer.exe` | ARM64 NSIS 安装器。 |
 | macOS universal | `image-studio-<version>-macos-universal.zip` | 解压后得到 `Image Studio.app`。 |
 | Linux x64 | `image-studio-<version>-linux-amd64.tar.gz` | 标准 Wails 桌面版。 |
 | Linux ARM64 | `image-studio-<version>-linux-arm64.tar.gz` | 面向 ARM64 Linux 桌面环境。 |
@@ -44,9 +46,10 @@ Windows 用户需要额外注意：Actions 里的 CI artifact 如果没有经过
 
 ### Windows
 
-- Wails 桌面版依赖 WebView2 Runtime；Windows 10+ 通常已预装。
+- Wails 裸 `exe` 依赖 WebView2 Runtime；安装器版本会在安装阶段检查并静默拉起 WebView2 Runtime 安装。
 - ARM64 设备优先下载 `windows-arm64`，避免 x64 仿真带来的额外开销。
-- 对外分发请优先使用带有效 Authenticode 签名的正式 release；未签名的 CI `exe` 在 Windows 11 上可能被智能应用控制直接阻止运行。
+- 对外分发或提交 Microsoft Store 时请优先使用 `*-installer.exe`，不要直接使用裸 `exe`。
+- 对外分发请优先使用带有效 Authenticode 签名的正式 release；未签名的 CI `exe` 或安装器在 Windows 11 上可能被智能应用控制直接阻止运行。
 
 ### macOS
 
