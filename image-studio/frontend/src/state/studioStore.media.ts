@@ -13,6 +13,11 @@ import {
   sanitizeHistoryForExport,
   sanitizeImportedHistoryItem,
 } from "../lib/security";
+import {
+  buildPresetFromSnapshot,
+  buildPresetPatch,
+  pickPresetStateSnapshot,
+} from "../lib/presets";
 import { base64ToBlob } from "../lib/images";
 import { persistHistoryItems } from "../lib/storage";
 import type { HistoryItem, Preset, Toast } from "../types/domain";
@@ -37,6 +42,11 @@ type StateAdapter = {
 };
 
 export function createMediaActions(store: StateAdapter) {
+  function persistPresets(next: Preset[]) {
+    store.setState({ presets: next });
+    try { localStorage.setItem("gptcodex.presets", JSON.stringify(next)); } catch {}
+  }
+
   return {
     async setCompareB(item: HistoryItem | null) {
       if (!item) {
@@ -231,49 +241,61 @@ export function createMediaActions(store: StateAdapter) {
     savePreset(name: string) {
       const state = store.getState();
       const trimmed = name.trim();
-      if (!trimmed) return;
-      const preset: Preset = {
-        id: genId(),
-        name: trimmed,
-        size: state.size,
-        quality: state.quality,
-        outputFormat: state.outputFormat,
-        negativePrompt: state.negativePrompt,
-        background: state.background,
-        outputCompression: state.outputCompression,
-        inputFidelity: state.inputFidelity,
-        imageStyle: state.imageStyle,
-        moderation: state.moderation,
-        batchCount: state.batchCount,
-      };
+      if (!trimmed) return null;
+      const preset: Preset = buildPresetFromSnapshot(trimmed, genId(), pickPresetStateSnapshot(state));
       const next = [...state.presets, preset];
-      store.setState({ presets: next });
-      try { localStorage.setItem("gptcodex.presets", JSON.stringify(next)); } catch {}
+      persistPresets(next);
       store.getState().pushToast(`已保存预设「${trimmed}」`, "success");
+      return preset.id;
+    },
+
+    overwritePreset(id: string) {
+      const state = store.getState();
+      const preset = state.presets.find((item) => item.id === id);
+      if (!preset) return false;
+      const next = state.presets.map((item) => (
+        item.id === id
+          ? {
+              ...item,
+              ...pickPresetStateSnapshot(state),
+              name: item.name,
+            }
+          : item
+      ));
+      persistPresets(next);
+      store.getState().pushToast(`已更新预设「${preset.name}」`, "success");
+      return true;
+    },
+
+    updatePreset(id: string, patch: Partial<Omit<Preset, "id">>) {
+      const state = store.getState();
+      const index = state.presets.findIndex((item) => item.id === id);
+      if (index < 0) return false;
+      const current = state.presets[index];
+      const nextPreset: Preset = {
+        ...current,
+        ...patch,
+        name: patch.name !== undefined ? patch.name.trim() : current.name,
+      };
+      if (!nextPreset.name) return false;
+      const next = state.presets.map((item, itemIndex) => itemIndex === index ? nextPreset : item);
+      persistPresets(next);
+      store.getState().pushToast(`已保存预设「${nextPreset.name}」`, "success");
+      return true;
     },
 
     applyPreset(id: string) {
       const preset = store.getState().presets.find((x) => x.id === id);
       if (!preset) return;
-      store.setState({
-        size: preset.size,
-        quality: preset.quality,
-        outputFormat: preset.outputFormat ?? store.getState().outputFormat,
-        negativePrompt: preset.negativePrompt,
-        background: preset.background ?? store.getState().background,
-        outputCompression: preset.outputCompression ?? store.getState().outputCompression,
-        inputFidelity: preset.inputFidelity ?? store.getState().inputFidelity,
-        imageStyle: preset.imageStyle ?? store.getState().imageStyle,
-        moderation: preset.moderation ?? store.getState().moderation,
-        batchCount: preset.batchCount,
-      });
+      store.setState(buildPresetPatch(preset, pickPresetStateSnapshot(store.getState())));
       store.getState().pushToast(`已应用预设「${preset.name}」`, "success");
     },
 
     deletePreset(id: string) {
       const next = store.getState().presets.filter((preset) => preset.id !== id);
-      store.setState({ presets: next });
-      try { localStorage.setItem("gptcodex.presets", JSON.stringify(next)); } catch {}
+      if (next.length === store.getState().presets.length) return;
+      persistPresets(next);
+      store.getState().pushToast("已删除预设", "success");
     },
 
     async exportHistory() {

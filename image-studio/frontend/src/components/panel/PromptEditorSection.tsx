@@ -3,6 +3,7 @@ import { ListPlus, Sparkles } from "lucide-react";
 import { submitShortcutLabel } from "../../platform";
 import { usePlatform } from "../../platform/context";
 import { useStudioStore } from "../../state/studioStore";
+import { ParameterPresetsSection } from "./ParameterPresetsSection";
 
 const PromptPopover = lazy(() => import("./PromptPopover").then((m) => ({ default: m.PromptPopover })));
 
@@ -32,6 +33,9 @@ export function PromptEditorSection({
 
   return (
     <section className={`platform-card relative overflow-visible ${promptPopover ? "z-30" : "z-0"} ${isMac ? "p-5" : "p-4"}`}>
+      <div className="mb-3">
+        <ParameterPresetsSection />
+      </div>
       <div className="mb-1 flex items-center justify-between gap-3">
         <label className="text-[10px] uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500">
           {mode === "edit" ? "修改要求" : "提示词"}

@@ -12,6 +12,7 @@ import { AndroidAdvancedSection } from "./AndroidAdvancedSection";
 import { AndroidPadParameterSection } from "./AndroidPadParameterSection";
 import { AndroidPadSourceSection } from "./AndroidPadSourceSection";
 import { AndroidPromptTemplateModal } from "./AndroidPromptTemplateModal";
+import { ParameterPresetsSection } from "../../components/panel/ParameterPresetsSection";
 import {
   aspectPresetLabel,
   availableResolutionPresets,
@@ -172,7 +173,10 @@ export function AndroidPadComposePanel({
 
       <div className="android-pad-compose-grid">
         <section className="platform-card android-pad-prompt p-5">
-          <div className="android-pad-section-head">
+          <div className="mt-3">
+            <ParameterPresetsSection variant="android" />
+          </div>
+          <div className="android-pad-section-head mt-3">
             <label className="android-phone-kicker">{mode === "edit" ? "修改要求" : "提示词"}</label>
             <span className="font-mono-token text-[11px] text-zinc-400 dark:text-zinc-500">{promptLen}</span>
           </div>

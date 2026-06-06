@@ -223,7 +223,9 @@ export interface StudioState {
   openHistoryTimeline: () => void;
   closeHistoryTimeline: () => void;
   pruneHistoryOlderThanDays: (days: number) => Promise<number>;
-  savePreset: (name: string) => void;
+  savePreset: (name: string) => string | null;
+  overwritePreset: (id: string) => boolean;
+  updatePreset: (id: string, patch: Partial<Omit<Preset, "id">>) => boolean;
   applyPreset: (id: string) => void;
   deletePreset: (id: string) => void;
   exportHistory: () => Promise<void>;

@@ -16,7 +16,6 @@ import { androidSaveHint, androidTarget, openExternalURLForPlatform, openOutputL
 import { AndroidSettingsPanel } from "../../platform/android/settings/AndroidSettingsPanel";
 import { usePlatform } from "../../platform/context";
 import { AboutImageStudioModal } from "./AboutImageStudioModal";
-import { SettingsPresetsRow } from "./SettingsPresetsRow";
 import { SettingsRow, SettingsSegButton } from "./settingsPrimitives";
 import { importCompletionSoundFile } from "../../lib/completionSound";
 
@@ -415,10 +414,6 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
                 </SettingsSegButton>
               ))}
             </div>
-          </SettingsRow>
-
-          <SettingsRow label="参数预设">
-            <SettingsPresetsRow />
           </SettingsRow>
 
           {/* 历史 import / export */}

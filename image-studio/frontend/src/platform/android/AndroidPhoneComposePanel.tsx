@@ -20,6 +20,7 @@ import { AndroidPhoneAdvancedSection } from "./AndroidPhoneAdvancedSection";
 import { AndroidPhoneParameterSection } from "./AndroidPhoneParameterSection";
 import { AndroidPhoneSourceSection } from "./AndroidPhoneSourceSection";
 import { AndroidPromptTemplateModal } from "./AndroidPromptTemplateModal";
+import { ParameterPresetsSection } from "../../components/panel/ParameterPresetsSection";
 import {
   buildAndroidAspectSizeSelection,
   buildAndroidResolutionSizeSelection,
@@ -208,6 +209,9 @@ export function AndroidPhoneComposePanel({
             </p>
           </div>
         ) : null}
+        <div className="mb-3">
+          <ParameterPresetsSection variant="android" />
+        </div>
         <div className="android-phone-prompt-head">
           <label className="android-phone-kicker">{mode === "edit" ? "修改要求" : "提示词"}</label>
           <span className="font-mono-token text-[11px] text-zinc-400 dark:text-zinc-500">{promptLen}</span>

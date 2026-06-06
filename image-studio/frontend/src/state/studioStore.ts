@@ -1627,6 +1627,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   flipCurrent: async (horizontal) => mediaActions.flipCurrent(horizontal),
   cropToRect: async (x, y, w, h) => mediaActions.cropToRect(x, y, w, h),
   savePreset: (name) => mediaActions.savePreset(name),
+  overwritePreset: (id) => mediaActions.overwritePreset(id),
+  updatePreset: (id, patch) => mediaActions.updatePreset(id, patch),
   applyPreset: (id) => mediaActions.applyPreset(id),
   deletePreset: (id) => mediaActions.deletePreset(id),
   exportHistory: async () => mediaActions.exportHistory(),

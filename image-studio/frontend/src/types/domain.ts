@@ -268,6 +268,7 @@ export interface Preset {
   inputFidelity?: InputFidelityValue;
   imageStyle?: ImageStyleValue;
   moderation?: ModerationValue;
+  styleTag?: string;
   kernelRuntimeMode?: KernelRuntimeMode;
   batchCount: number;
 }

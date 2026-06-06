@@ -19,7 +19,6 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { SettingsPresetsRow } from "../../../components/panel/SettingsPresetsRow";
 import type { CompletionSoundConfig, KernelRuntimeMode, ProxyMode, ThemeMode, UpstreamProfile } from "../../../types/domain";
 import { androidSaveHint } from "../bridge";
 
@@ -377,13 +376,6 @@ export function AndroidSettingsPanel({
     </section>
   );
 
-  const presetsSection = (
-    <section className="android-settings-card android-settings-card-presets">
-      <div className="android-settings-section-title">参数预设</div>
-      <SettingsPresetsRow />
-    </section>
-  );
-
   const historySection = (
     <section className="android-settings-card android-settings-card-history">
       <div className="android-settings-section-title">历史数据</div>
@@ -439,7 +431,6 @@ export function AndroidSettingsPanel({
         <div className="android-settings-pad-column android-settings-pad-column-primary">
           {heroSection}
           {appearanceSection}
-          {presetsSection}
         </div>
         <div className="android-settings-pad-column android-settings-pad-column-secondary">
           {runtimeSection}
@@ -458,7 +449,6 @@ export function AndroidSettingsPanel({
       {heroSection}
       {runtimeSection}
       {appearanceSection}
-      {presetsSection}
       {historySection}
       {dangerSection}
       {supportSection}

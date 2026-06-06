@@ -424,6 +424,7 @@ function normalizePresets(raw: unknown): Preset[] {
       inputFidelity: source.inputFidelity === undefined ? undefined : normalizeInputFidelity(source.inputFidelity),
       imageStyle: source.imageStyle === undefined ? undefined : normalizeImageStyle(source.imageStyle),
       moderation: source.moderation === undefined ? undefined : normalizeModeration(source.moderation),
+      styleTag: typeof source.styleTag === "string" ? source.styleTag : undefined,
       kernelRuntimeMode: normalizeKernelRuntimeMode(source.kernelRuntimeMode),
       batchCount: normalizeBatchCount(source.batchCount),
     });
