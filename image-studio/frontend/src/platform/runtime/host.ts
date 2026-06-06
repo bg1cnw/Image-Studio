@@ -45,6 +45,7 @@ import type {
   HostCapabilities,
   HostKind,
   CompatibilityStateLike,
+  AppUpdateInfoLike,
   ImageTransformResultLike,
   ImportedImageLike,
   JobStartedLike,
@@ -562,6 +563,14 @@ export function SaveCompatibilityState(state: CompatibilityStateLike): Promise<v
     return invokeService<void>(unsupportedMessage, "SaveCompatibilityState", state);
   }
   return Promise.resolve();
+}
+
+export function CheckForAppUpdate(): Promise<AppUpdateInfoLike | null> {
+  if (hasServiceMethod("CheckForAppUpdate")) {
+    return invokeService<AppUpdateInfoLike>(unsupportedMessage, "CheckForAppUpdate")
+      .catch(() => null);
+  }
+  return Promise.resolve(null);
 }
 
 export function RegisterTrustedOutputDir(root: string): Promise<void> {

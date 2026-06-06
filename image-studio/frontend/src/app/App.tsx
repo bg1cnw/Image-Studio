@@ -12,6 +12,7 @@ import { ResultDetailGate } from "./gates/ResultDetailGate";
 import { SavePromptGate } from "./gates/SavePromptGate";
 import { SettingsPanelGate } from "./gates/SettingsPanelGate";
 import { StarPromptGate } from "./gates/StarPromptGate";
+import { AppUpdateGate } from "./gates/AppUpdateGate";
 import { UpstreamConfigGate } from "./gates/UpstreamConfigGate";
 import { useAndroidView } from "./hooks/useAndroidView";
 import { useGlobalImageImport } from "./hooks/useGlobalImageImport";
@@ -53,6 +54,7 @@ export default function App() {
       <ResultDetailGate />
       <SavePromptGate />
       <StarPromptGate />
+      <AppUpdateGate />
     </div>
   );
 }

@@ -21,6 +21,7 @@ import { SettingsRow, SettingsSegButton } from "./settingsPrimitives";
 import { importCompletionSoundFile } from "../../lib/completionSound";
 
 const REPO_URL = "https://github.com/RoseKhlifa/Image-Studio";
+const RELEASES_URL = "https://github.com/RoseKhlifa/Image-Studio/releases";
 const ISSUES_URL = "https://github.com/RoseKhlifa/Image-Studio/issues";
 const MIT_URL = "https://opensource.org/licenses/MIT";
 
@@ -479,10 +480,10 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
           <SettingsRow label="支持与反馈">
             <div className="flex gap-1.5">
               <button
-                onClick={() => openExternal(REPO_URL)}
+                onClick={() => openExternal(RELEASES_URL)}
                 className={`flex-1 inline-flex items-center justify-center gap-1.5 border border-black/[0.08] px-3 py-2 text-[12px] text-zinc-700 transition-colors hover:border-[color:var(--accent)]/35 hover:text-[var(--accent)] dark:border-white/[0.08] dark:text-zinc-300 ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
               >
-                <Github className="w-3 h-3" /> GitHub
+                <Github className="w-3 h-3" /> 更新
               </button>
               <button
                 onClick={() => openExternal(ISSUES_URL)}

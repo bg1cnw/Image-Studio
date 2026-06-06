@@ -38,6 +38,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 			ReducedEffects:       true,
 			SavePromptSuppressed: true,
 			KeepLogs:             true,
+			IgnoredReleaseTag:    "1.1.6",
 			CompletionSound: &CompletionSoundSettings{
 				Enabled:    true,
 				Mode:       "custom",
@@ -77,7 +78,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if loaded.Client != "test" || loaded.ActiveProfile != "p1" || loaded.Settings.OutputDir != "/tmp/images" || !loaded.Settings.ReducedEffects || !loaded.Settings.SavePromptSuppressed || !loaded.Settings.KeepLogs {
+	if loaded.Client != "test" || loaded.ActiveProfile != "p1" || loaded.Settings.OutputDir != "/tmp/images" || !loaded.Settings.ReducedEffects || !loaded.Settings.SavePromptSuppressed || !loaded.Settings.KeepLogs || loaded.Settings.IgnoredReleaseTag != "1.1.6" {
 		t.Fatalf("unexpected state: %#v", loaded)
 	}
 	if loaded.Settings.CompletionSound == nil || !loaded.Settings.CompletionSound.Enabled || loaded.Settings.CompletionSound.Mode != "custom" || loaded.Settings.CompletionSound.CustomName != "ding.wav" || loaded.Settings.CompletionSound.CustomData != "data:audio/wav;base64,AAAA" {

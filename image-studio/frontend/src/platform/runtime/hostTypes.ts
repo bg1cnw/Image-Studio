@@ -106,6 +106,16 @@ export type MediaAssetRefLike = {
   previewHeight?: number;
 };
 export type CompatibilityStateLike = Record<string, unknown>;
+export type AppUpdateInfoLike = {
+  currentVersion: string;
+  latestVersion: string;
+  releaseTag: string;
+  releaseName?: string;
+  releaseURL: string;
+  publishedAt?: string;
+  body?: string;
+  hasUpdate: boolean;
+};
 export type HostKind = "wails-desktop" | "android-shell" | "browser";
 
 export type HostCapabilities = {

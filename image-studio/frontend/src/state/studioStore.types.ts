@@ -1,6 +1,7 @@
 import type { backend } from "../../wailsjs/go/models";
 import type {
   Annotation,
+  AppUpdateInfo,
   APIMode,
   BackgroundValue,
   HistoryItem,
@@ -201,10 +202,15 @@ export interface StudioState {
   savePromptSuppressed: boolean;
   keepLogs: boolean;
   completionSound: CompletionSoundConfig;
+  ignoredReleaseTag: string;
+  appUpdate: AppUpdateInfo | null;
+  appUpdateModalOpen: boolean;
   enqueueSavePrompt: (item: HistoryItem) => void;
   closeSavePrompt: () => void;
   setSavePromptSuppressed: (value: boolean) => void;
   setKeepLogs: (value: boolean) => Promise<void>;
+  ignoreAppUpdate: (releaseTag: string) => void;
+  dismissAppUpdateModal: () => void;
   setCompletionSoundEnabled: (value: boolean) => void;
   setCompletionSoundMode: (value: CompletionSoundConfig["mode"]) => void;
   setCompletionSoundCustom: (input: { name: string; dataURL: string }) => void;

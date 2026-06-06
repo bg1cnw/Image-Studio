@@ -4,8 +4,10 @@ import { androidTarget } from "../../platform/android/bridge";
 import { appVersion } from "../../lib/version";
 import { platformRuntimeLabel } from "../../platform";
 import { usePlatform } from "../../platform/context";
-import { getHostCapabilities } from "../../platform/runtime/host";
+import { getHostCapabilities, OpenExternalURL } from "../../platform/runtime/host";
 import { SettingsFact } from "./settingsPrimitives";
+import { useStudioStore } from "../../state/studioStore";
+import { openExternalURLForPlatform } from "../../platform/android/bridge";
 
 export function AboutImageStudioModal({
   mitURL,
@@ -24,6 +26,11 @@ export function AboutImageStudioModal({
 }) {
   const { usesFluentUI } = usePlatform();
   const hostCapabilities = getHostCapabilities();
+  const appUpdate = useStudioStore((state) => state.appUpdate);
+  const openUpdateURL = () => {
+    if (!appUpdate?.releaseURL) return;
+    void openExternalURLForPlatform(appUpdate.releaseURL, OpenExternalURL).catch(() => undefined);
+  };
 
   return (
     <Modal open={open} onClose={onClose} title="关于 Image Studio" width={460}>
@@ -53,6 +60,7 @@ export function AboutImageStudioModal({
             <SettingsFact label="运行时" value="Android WebView" />
             <SettingsFact label="图像加速" value={hostCapabilities.imageTransformAcceleration} />
             <SettingsFact label="上游" value="Responses / Images" />
+            <SettingsFact label="更新" value={appUpdate?.latestVersion ? `可升级到 v${appUpdate.latestVersion}` : "已是当前已知版本"} />
           </div>
         </>
       ) : (
@@ -67,6 +75,7 @@ export function AboutImageStudioModal({
             <div>· 前端:React 18 + TypeScript / Tailwind v4 / zustand / react-konva</div>
             <div>· 打包:{platformRuntimeLabel()}</div>
             <div>· 图像变换:{hostCapabilities.imageTransformAcceleration}</div>
+            <div>· 更新:{appUpdate?.latestVersion ? `可升级到 v${appUpdate.latestVersion}` : "未发现更高版本"}</div>
             <div className="pt-1.5"><strong className="text-zinc-700 dark:text-zinc-300">支持的上游:</strong></div>
             <div>· 兼容 OpenAI <strong className="text-zinc-700 dark:text-zinc-300">Responses API</strong></div>
             <div>· 标准 <strong className="text-zinc-700 dark:text-zinc-300">Images API</strong>(generations + edits)</div>
@@ -76,10 +85,10 @@ export function AboutImageStudioModal({
       <div className="mt-3.5 flex gap-2">
         <button
           type="button"
-          onClick={onOpenRepo}
+          onClick={appUpdate?.releaseURL ? openUpdateURL : onOpenRepo}
           className={`liquid-primary-button flex-1 inline-flex items-center justify-center gap-1.5 bg-[var(--accent)] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[var(--accent-2)] ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
         >
-          <Github className="w-3.5 h-3.5" /> GitHub 仓库
+          <Github className="w-3.5 h-3.5" /> {appUpdate?.releaseURL ? "查看更新" : "GitHub 仓库"}
         </button>
         <button
           type="button"

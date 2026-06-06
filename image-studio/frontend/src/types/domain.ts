@@ -284,6 +284,17 @@ export interface Toast {
   action?: { label: string; onClick: () => void };
 }
 
+export interface AppUpdateInfo {
+  currentVersion: string;
+  latestVersion: string;
+  releaseTag: string;
+  releaseName?: string;
+  releaseURL: string;
+  publishedAt?: string;
+  body?: string;
+  hasUpdate: boolean;
+}
+
 export type AnnotationKind = "rect" | "arrow" | "text" | "freehand";
 
 export interface Annotation {

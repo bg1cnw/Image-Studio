@@ -14,12 +14,14 @@ import {
   RegisterImportedImageAsset,
   SetKeepLogsEnabled,
   SetOutputDir,
+  CheckForAppUpdate,
   probeCurrentUpstream,
   setKernelRuntimeMode,
 } from "../platform/runtime/host";
 import type { backend } from "../../wailsjs/go/models";
 import {
   APIMode,
+  AppUpdateInfo,
   BackgroundValue,
   HistoryItem,
   ImageStyleValue,
@@ -54,7 +56,9 @@ import {
 import {
   compatibilityExportFingerprint,
   importCompatibilityStateIfNewer,
+  readIgnoredReleaseTag,
   scheduleCompatibilityExport,
+  writeIgnoredReleaseTag,
 } from "../lib/compatState";
 import {
   normalizeCompletionSoundConfig,
@@ -273,6 +277,27 @@ function writeKeepLogs(value: boolean): void {
   } catch {
     // localStorage can be unavailable in tests/previews.
   }
+}
+
+function normalizeAppUpdate(raw: unknown): AppUpdateInfo | null {
+  if (!raw || typeof raw !== "object") return null;
+  const source = raw as Record<string, unknown>;
+  const currentVersion = typeof source.currentVersion === "string" ? source.currentVersion.trim() : "";
+  const latestVersion = typeof source.latestVersion === "string" ? source.latestVersion.trim() : "";
+  const releaseTag = typeof source.releaseTag === "string" ? source.releaseTag.trim() : "";
+  const releaseURL = typeof source.releaseURL === "string" ? source.releaseURL.trim() : "";
+  const hasUpdate = source.hasUpdate === true;
+  if (!currentVersion || !latestVersion || !releaseTag || !releaseURL) return null;
+  return {
+    currentVersion,
+    latestVersion,
+    releaseTag,
+    releaseURL,
+    hasUpdate,
+    releaseName: typeof source.releaseName === "string" ? source.releaseName.trim() : "",
+    publishedAt: typeof source.publishedAt === "string" ? source.publishedAt.trim() : "",
+    body: typeof source.body === "string" ? source.body.trim() : "",
+  };
 }
 
 function normalizeBackgroundValue(value: unknown): BackgroundValue {
@@ -508,6 +533,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   savePromptSuppressed: readSavePromptSuppressed(),
   keepLogs: readKeepLogs(),
   completionSound: readCompletionSoundConfig(),
+  ignoredReleaseTag: readIgnoredReleaseTag(),
+  appUpdate: null,
+  appUpdateModalOpen: false,
   promptHistory: [],
   batchCount: 1,
   loopGeneration: defaultLoopGenerationConfig(),
@@ -618,6 +646,18 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     writeKeepLogs(value);
     set({ keepLogs: value });
     await SetKeepLogsEnabled(value).catch(() => undefined);
+  },
+  ignoreAppUpdate: (releaseTag) => {
+    const trimmed = releaseTag.trim();
+    writeIgnoredReleaseTag(trimmed);
+    set((state) => ({
+      ignoredReleaseTag: trimmed,
+      appUpdate: state.appUpdate?.releaseTag === trimmed ? null : state.appUpdate,
+      appUpdateModalOpen: false,
+    }));
+  },
+  dismissAppUpdateModal: () => {
+    set({ appUpdateModalOpen: false });
   },
   setCompletionSoundEnabled: (value) => {
     const next = normalizeCompletionSoundConfig({ ...get().completionSound, enabled: value });
@@ -1144,6 +1184,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         savePromptSuppressed: readSavePromptSuppressed(),
         keepLogs: readKeepLogs(),
         completionSound: readCompletionSoundConfig(),
+        ignoredReleaseTag: readIgnoredReleaseTag(),
+        appUpdate: null,
+        appUpdateModalOpen: false,
       });
       return;
     }
@@ -1184,6 +1227,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     } catch {}
     const keepLogs = readKeepLogs();
     const completionSound = readCompletionSoundConfig();
+    const ignoredReleaseTag = readIgnoredReleaseTag();
+    const updateInfo = normalizeAppUpdate(await CheckForAppUpdate().catch(() => null));
+    const shouldShowUpdate = !!updateInfo?.hasUpdate && updateInfo.releaseTag !== ignoredReleaseTag;
     const noPromptRevision = true;
     const proxyConfig = loadProxyConfig();
     let outputFormat: OutputFormatValue = "png";
@@ -1415,6 +1461,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       savePromptSuppressed: readSavePromptSuppressed(),
       keepLogs,
       completionSound,
+      ignoredReleaseTag,
+      appUpdate: shouldShowUpdate ? updateInfo : null,
+      appUpdateModalOpen: shouldShowUpdate,
     });
     enableCompatibilityExport();
     void backfillHistoryPreviewRefs(items);

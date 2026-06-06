@@ -59,6 +59,7 @@ export type CompatibilityState = {
     trustedOutputRoots?: string[];
     savePromptSuppressed?: boolean;
     keepLogs?: boolean;
+    ignoredReleaseTag?: string;
     completionSound?: CompletionSoundConfig;
   };
   profiles: UpstreamProfile[];
@@ -88,6 +89,7 @@ export type CompatibilityExportInput = {
   customAspectRatios: CustomAspectRatio[];
   kernelRuntimeMode: KernelRuntimeMode;
   keepLogs: boolean;
+  ignoredReleaseTag: string;
   completionSound: CompletionSoundConfig;
 };
 
@@ -142,6 +144,7 @@ export function compatibilityExportFingerprint(input: CompatibilityExportInput):
     customAspectRatios: input.customAspectRatios,
     kernelRuntimeMode: input.kernelRuntimeMode,
     keepLogs: input.keepLogs,
+    ignoredReleaseTag: input.ignoredReleaseTag,
     completionSound: input.completionSound,
     outputDir: readLocalStorageString("gptcodex.outputDir"),
     trustedOutputRoots: loadTrustedOutputRoots(),
@@ -177,6 +180,7 @@ function buildCompatibilityState(input: CompatibilityExportInput): Compatibility
       trustedOutputRoots: loadTrustedOutputRoots(),
       savePromptSuppressed: readLocalStorageString("gptcodex.savePromptSuppressed") === "1",
       keepLogs: input.keepLogs === true,
+      ignoredReleaseTag: readLocalStorageString("gptcodex.ignoredReleaseTag"),
       completionSound: normalizeCompletionSoundConfig(input.completionSound),
     },
     profiles: normalizeProfiles(input.profiles),
@@ -217,6 +221,11 @@ function applyCompatibilityLocalStorage(state: CompatibilityState): void {
   else removeLocalStorage("gptcodex.savePromptSuppressed");
   if (settings.keepLogs) writeLocalStorageString("gptcodex.keepLogs", "1");
   else removeLocalStorage("gptcodex.keepLogs");
+  if (typeof settings.ignoredReleaseTag === "string" && settings.ignoredReleaseTag.trim()) {
+    writeLocalStorageString("gptcodex.ignoredReleaseTag", settings.ignoredReleaseTag.trim());
+  } else {
+    removeLocalStorage("gptcodex.ignoredReleaseTag");
+  }
   persistCompletionSoundConfig(normalizeCompletionSoundConfig(settings.completionSound));
 }
 
@@ -278,6 +287,7 @@ function normalizeSettings(raw: unknown): CompatibilityState["settings"] {
     trustedOutputRoots: cleanStringList(source.trustedOutputRoots ?? [], 100),
     savePromptSuppressed: source.savePromptSuppressed === true,
     keepLogs: source.keepLogs === true,
+    ignoredReleaseTag: typeof source.ignoredReleaseTag === "string" ? source.ignoredReleaseTag.trim() : "",
     completionSound: normalizeCompletionSoundConfig(source.completionSound),
   };
 }
@@ -378,8 +388,19 @@ function cloneExportInput(input: CompatibilityExportInput): CompatibilityExportI
     customAspectRatios: input.customAspectRatios.map((ratio) => ({ ...ratio })),
     kernelRuntimeMode: input.kernelRuntimeMode,
     keepLogs: input.keepLogs,
+    ignoredReleaseTag: input.ignoredReleaseTag,
     completionSound: normalizeCompletionSoundConfig(input.completionSound),
   };
+}
+
+export function readIgnoredReleaseTag(): string {
+  return readLocalStorageString("gptcodex.ignoredReleaseTag");
+}
+
+export function writeIgnoredReleaseTag(value: string): void {
+  const trimmed = value.trim();
+  if (trimmed) writeLocalStorageString("gptcodex.ignoredReleaseTag", trimmed);
+  else removeLocalStorage("gptcodex.ignoredReleaseTag");
 }
 
 function normalizePresets(raw: unknown): Preset[] {

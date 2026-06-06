@@ -42,6 +42,7 @@ type Settings struct {
 	TrustedOutputRoots   []string                 `json:"trustedOutputRoots,omitempty"`
 	SavePromptSuppressed bool                     `json:"savePromptSuppressed,omitempty"`
 	KeepLogs             bool                     `json:"keepLogs,omitempty"`
+	IgnoredReleaseTag    string                   `json:"ignoredReleaseTag,omitempty"`
 	CompletionSound      *CompletionSoundSettings `json:"completionSound,omitempty"`
 }
 
