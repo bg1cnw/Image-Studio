@@ -299,6 +299,42 @@ export function describeAPIError(error) {
   return parts.length > 0 ? `接口返回错误:${parts.join(" ")}` : "接口返回错误";
 }
 
+function extractOutputTextFromContent(content) {
+  if (!Array.isArray(content)) return "";
+  for (const part of content) {
+    if (part?.type === "output_text" && typeof part?.text === "string" && part.text.trim()) {
+      return part.text.trim();
+    }
+  }
+  return "";
+}
+
+function extractStructuredMessage(value) {
+  if (!value || typeof value !== "object") return "";
+
+  if (Array.isArray(value)) {
+    for (const child of value) {
+      const text = extractStructuredMessage(child);
+      if (text) return text;
+    }
+    return "";
+  }
+
+  if ((value.type === "output_text" || value.type === "response.output_text.done") && typeof value.text === "string" && value.text.trim()) {
+    return value.text.trim();
+  }
+
+  const directContentText = extractOutputTextFromContent(value.content);
+  if (directContentText) return directContentText;
+
+  for (const key of ["part", "item", "response", "output"]) {
+    const text = extractStructuredMessage(value[key]);
+    if (text) return text;
+  }
+
+  return "";
+}
+
 export function describeProblem(raw) {
   const text = String(raw || "").trim();
   if (!text) return "接口返回为空。";
@@ -317,6 +353,8 @@ export function describeProblem(raw) {
     if (data?.status && [502, 503, 504, 524].includes(Number(data.status))) {
       return `接口返回 ${data.status}:上游服务超时。`;
     }
+    const structuredMessage = extractStructuredMessage(data);
+    if (structuredMessage) return structuredMessage;
   } catch {
     // ignore
   }
@@ -329,6 +367,8 @@ export function describeProblem(raw) {
       const event = JSON.parse(payload);
       if (event?.error && typeof event.error === "object") return describeAPIError(event.error);
       if (event?.response?.error && typeof event.response.error === "object") return describeAPIError(event.response.error);
+      const structuredMessage = extractStructuredMessage(event);
+      if (structuredMessage) return structuredMessage;
     } catch {
       // ignore
     }

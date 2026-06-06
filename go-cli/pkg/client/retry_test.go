@@ -44,3 +44,13 @@ func TestDescribeProblemEmpty(t *testing.T) {
 		t.Errorf("empty body description wrong")
 	}
 }
+
+func TestDescribeProblemExtractsRefusalTextFromResponsesSSE(t *testing.T) {
+	raw := strings.Join([]string{
+		`data: {"type":"response.output_item.done","item":{"type":"message","status":"completed","content":[{"type":"output_text","text":"抱歉，这个请求包含成人裸露，我无法生成这类真实照片风格图片。"}]}}`,
+		`data: {"type":"response.completed","response":{"status":"completed","output":[{"type":"image_generation_call","status":"failed"}]}}`,
+	}, "\n")
+	if got := DescribeProblem(raw); got != "抱歉，这个请求包含成人裸露，我无法生成这类真实照片风格图片。" {
+		t.Fatalf("DescribeProblem refusal text = %q", got)
+	}
+}
