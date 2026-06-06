@@ -243,10 +243,16 @@ jobs:
         working-directory: image-studio/build/windows/installer
         shell: pwsh
         run: |
-          makensis `
-            /DARG_WAILS_AMD64_BINARY=..\..\bin\image-studio-amd64.exe `
-            /DARG_WAILS_ARM64_BINARY=..\..\bin\image-studio-arm64.exe `
-            project.nsi
+          $defines = @(
+            "/DINFO_PROJECTNAME=image-studio"
+            "/DINFO_COMPANYNAME=YuanHua"
+            "/DINFO_PRODUCTNAME=Image Studio"
+            "/DINFO_PRODUCTVERSION=${{ needs.prepare-version.outputs.product_version }}"
+            "/DINFO_COPYRIGHT=Copyright (c) 2026"
+            "/DARG_WAILS_AMD64_BINARY=..\..\bin\image-studio-amd64.exe"
+            "/DARG_WAILS_ARM64_BINARY=..\..\bin\image-studio-arm64.exe"
+          )
+          & makensis @defines project.nsi
 
       - name: Stage installer artifact
         id: package
