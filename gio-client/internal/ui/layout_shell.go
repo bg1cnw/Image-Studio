@@ -18,7 +18,7 @@ import (
 
 const repoURL = "https://github.com/RoseKhlifa/Image-Studio"
 const issuesURL = "https://github.com/RoseKhlifa/Image-Studio/issues"
-const licenseURL = "https://opensource.org/licenses/MIT"
+const licenseURL = "https://www.gnu.org/licenses/agpl-3.0.html"
 
 func (a *App) layout(gtx layout.Context) layout.Dimensions {
 	defer a.recordLayoutTiming(layoutTimingShell, time.Now())

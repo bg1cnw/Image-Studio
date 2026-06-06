@@ -233,7 +233,7 @@ func (s *Service) OpenOutputDir() error {
 }
 
 // OpenExternalURL launches a URL in the default browser. Used for GitHub /
-// MIT license / Issues links in the About dialog and Footer.
+// license / Issues links in the About dialog and Footer.
 func (s *Service) OpenExternalURL(rawURL string) error {
 	if rawURL == "" {
 		return errors.New("url is empty")
