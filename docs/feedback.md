@@ -2,9 +2,30 @@
 
 如果你在使用 Image Studio 时遇到问题，或希望讨论新功能、使用方式与兼容性，可以通过下面的渠道反馈。
 
+提 Issue 前请先看 [docs/troubleshooting.md](./troubleshooting.md)。
+
+很多看起来像“软件故障”的问题，实际来自:
+
+- `BASE_URL` 填写错误或上游接口实现不完整
+- `API Key` 权限、余额、白名单或模型开通状态
+- Cloudflare / Nginx / relay 导致的 `524/504/5xx`
+- Android 系统相册 / `MediaStore` 与桌面文件目录行为差异
+
+如果这些因素还没有排除，先不要提交 Bug Issue。
+
 ## GitHub Issues
 
-适合提交可复现的问题、功能建议、构建失败、平台兼容性和文档修正。
+适合提交:
+
+- 已经完成自查后，仍可稳定复现的软件问题
+- 明确的功能建议或交互改进建议
+- 构建失败、平台兼容性回归、文档修正
+
+不适合提交:
+
+- 上游服务商自身故障、限流、封禁、白名单或余额问题
+- 模型未开通、接口不兼容、relay 静默忽略字段
+- 只有截图没有 raw 响应、无法描述复现步骤的模糊报错
 
 - Issues 地址: [https://github.com/RoseKhlifa/Image-Studio/issues](https://github.com/RoseKhlifa/Image-Studio/issues)
 - 建议附上系统平台、应用版本、API 形态、上游 BASE_URL 类型、错误日志或截图。
