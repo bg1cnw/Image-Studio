@@ -148,6 +148,9 @@ RequestExecutionLevel "${REQUEST_EXECUTION_LEVEL}"
     !ifndef WAILS_INSTALL_WEBVIEW_DETAILPRINT
         !define WAILS_INSTALL_WEBVIEW_DETAILPRINT "Installing: WebView2 Runtime"
     !endif
+    !ifndef WAILS_SKIP_WEBVIEW2_DETAILPRINT
+        !define WAILS_SKIP_WEBVIEW2_DETAILPRINT "Skipping bundled WebView2 bootstrapper: tmp\\MicrosoftEdgeWebview2Setup.exe not found."
+    !endif
 
     SetRegView 64
 	# If the admin key exists and is not empty then webview2 is already installed
@@ -168,11 +171,17 @@ RequestExecutionLevel "${REQUEST_EXECUTION_LEVEL}"
     DetailPrint "${WAILS_INSTALL_WEBVIEW_DETAILPRINT}"
     SetDetailsPrint listonly
 
+    !if /FileExists "tmp\MicrosoftEdgeWebview2Setup.exe"
     InitPluginsDir
     CreateDirectory "$pluginsdir\webview2bootstrapper"
     SetOutPath "$pluginsdir\webview2bootstrapper"
     File "tmp\MicrosoftEdgeWebview2Setup.exe"
     ExecWait '"$pluginsdir\webview2bootstrapper\MicrosoftEdgeWebview2Setup.exe" /silent /install'
+    !else
+    SetDetailsPrint both
+    DetailPrint "${WAILS_SKIP_WEBVIEW2_DETAILPRINT}"
+    SetDetailsPrint listonly
+    !endif
 
     SetDetailsPrint both
     ok:
