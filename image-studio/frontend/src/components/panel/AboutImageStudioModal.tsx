@@ -10,14 +10,14 @@ import { useStudioStore } from "../../state/studioStore";
 import { openExternalURLForPlatform } from "../../platform/android/bridge";
 
 export function AboutImageStudioModal({
-  mitURL,
+  licenseLabel,
   open,
   onClose,
   onOpenFeedback,
   onOpenLicense,
   onOpenRepo,
 }: {
-  mitURL: string;
+  licenseLabel: string;
   open: boolean;
   onClose: () => void;
   onOpenFeedback: () => void;
@@ -47,13 +47,16 @@ export function AboutImageStudioModal({
         </div>
         <div className={`${androidTarget.isAndroid ? "text-[17px]" : "text-lg"} font-bold`}>Image Studio</div>
         <div className="text-[10px] text-zinc-500 mt-0.5">
-          v{appVersion} · <span onClick={onOpenLicense} className="cursor-pointer text-[var(--accent)] hover:opacity-80">{mitURL.includes("opensource.org") ? "MIT License" : "License"}</span>
+          v{appVersion} · <span onClick={onOpenLicense} className="cursor-pointer text-[var(--accent)] hover:opacity-80">{licenseLabel}</span>
         </div>
       </div>
       {androidTarget.isAndroid ? (
         <>
           <p className="text-[11px] leading-relaxed text-zinc-700 dark:text-zinc-300">
             开源的图片生成 / 编辑客户端。数据都保存在本地机器，不上传任何服务器，API Key 走系统安全存储。
+          </p>
+          <p className="mt-2 text-[10px] leading-relaxed text-zinc-500">
+            Copyright © 2026 RoseKhlifa · 本程序按 GNU AGPL v3.0 发布，不提供任何担保。
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
             <SettingsFact label="数据" value="本地保存" />
@@ -68,6 +71,9 @@ export function AboutImageStudioModal({
           <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
             一个开源的图片生成 / 编辑客户端,基于 Wails(Go + React/TS)。
             数据(API Key、历史记录、生成图)都保存在本地机器,不上传任何服务器。API Key 走系统安全存储,不再保存在 localStorage。
+          </p>
+          <p className="mt-2 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+            Copyright © 2026 RoseKhlifa · 本程序按 GNU AGPL v3.0 发布，不提供任何担保。
           </p>
           <div className="mt-3 text-[10px] text-zinc-500 leading-relaxed space-y-0.5">
             <div><strong className="text-zinc-700 dark:text-zinc-300">技术栈:</strong></div>

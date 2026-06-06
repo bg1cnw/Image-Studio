@@ -22,7 +22,7 @@ import { importCompletionSoundFile } from "../../lib/completionSound";
 const REPO_URL = "https://github.com/RoseKhlifa/Image-Studio";
 const RELEASES_URL = "https://github.com/RoseKhlifa/Image-Studio/releases";
 const ISSUES_URL = "https://github.com/RoseKhlifa/Image-Studio/issues";
-const MIT_URL = "https://opensource.org/licenses/MIT";
+const LICENSE_URL = "https://www.gnu.org/licenses/agpl-3.0.html";
 
 export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const {
@@ -497,9 +497,9 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
         open={aboutOpen}
         onClose={() => setAboutOpen(false)}
         onOpenFeedback={() => openExternal(REPO_URL + "/issues")}
-        onOpenLicense={() => openExternal(MIT_URL)}
+        onOpenLicense={() => openExternal(LICENSE_URL)}
         onOpenRepo={() => openExternal(REPO_URL)}
-        mitURL={MIT_URL}
+        licenseLabel="GNU AGPL v3.0"
       />
     </>
   );
