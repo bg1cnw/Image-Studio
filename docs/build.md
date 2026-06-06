@@ -217,6 +217,28 @@ node scripts/live-verify.mjs
 - 单独构建一个 Android release APK。
 - tag 为 `v*` 时将所有产物附加到 GitHub Release。
 
+### Windows 签名
+
+Windows 11 的 Smart App Control / SmartScreen 会重点拦截无法验证发布者的 `exe`。仓库里的 release workflow 现在约定：
+
+- 如果配置了 Windows 签名证书，workflow 会自动对 Windows `exe` 做 Authenticode 签名并校验。
+- 如果没有配置签名证书，workflow 仍然继续产出 Windows artifact，但会在日志里明确警告这些 `exe` 可能被 Win11 拦截。
+
+需要配置的 GitHub Actions secrets：
+
+| 变量 | 用途 |
+|---|---|
+| `IMAGE_STUDIO_WINDOWS_CERT_BASE64` | Base64 编码后的 `.pfx` 证书内容。 |
+| `IMAGE_STUDIO_WINDOWS_CERT_PASSWORD` | `.pfx` 密码。 |
+
+可选 GitHub Actions variable：
+
+| 变量 | 用途 |
+|---|---|
+| `IMAGE_STUDIO_WINDOWS_TIMESTAMP_URL` | RFC 3161 时间戳地址；默认 `http://timestamp.acs.microsoft.com`。 |
+
+签名步骤由 `scripts/sign-windows-binary.ps1` 执行，内部会调用 `signtool sign`、`signtool verify /pa /all` 和 `Get-AuthenticodeSignature` 做校验。
+
 平台内核验证 workflow：
 
 - `.github/workflows/verify-platform-kernel.yml`

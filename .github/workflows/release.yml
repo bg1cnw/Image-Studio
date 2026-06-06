@@ -169,6 +169,22 @@ jobs:
             echo "artifact_path=${artifact_path}"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Sign Windows artifact
+        if: matrix.goos == 'windows' && secrets.IMAGE_STUDIO_WINDOWS_CERT_BASE64 != '' && secrets.IMAGE_STUDIO_WINDOWS_CERT_PASSWORD != ''
+        shell: pwsh
+        env:
+          IMAGE_STUDIO_WINDOWS_CERT_BASE64: ${{ secrets.IMAGE_STUDIO_WINDOWS_CERT_BASE64 }}
+          IMAGE_STUDIO_WINDOWS_CERT_PASSWORD: ${{ secrets.IMAGE_STUDIO_WINDOWS_CERT_PASSWORD }}
+          IMAGE_STUDIO_WINDOWS_TIMESTAMP_URL: ${{ vars.IMAGE_STUDIO_WINDOWS_TIMESTAMP_URL }}
+        run: |
+          ./scripts/sign-windows-binary.ps1 -Path "${{ steps.package.outputs.artifact_path }}"
+
+      - name: Warn on unsigned Windows artifacts
+        if: matrix.goos == 'windows' && (secrets.IMAGE_STUDIO_WINDOWS_CERT_BASE64 == '' || secrets.IMAGE_STUDIO_WINDOWS_CERT_PASSWORD == '')
+        shell: bash
+        run: |
+          echo "::warning::Windows artifact is unsigned. Windows 11 Smart App Control / SmartScreen may block it."
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -344,6 +360,22 @@ jobs:
             echo "artifact_name=${artifact_name}"
             echo "artifact_path=${artifact_path}"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Sign Gio Windows artifact
+        if: matrix.goos == 'windows' && secrets.IMAGE_STUDIO_WINDOWS_CERT_BASE64 != '' && secrets.IMAGE_STUDIO_WINDOWS_CERT_PASSWORD != ''
+        shell: pwsh
+        env:
+          IMAGE_STUDIO_WINDOWS_CERT_BASE64: ${{ secrets.IMAGE_STUDIO_WINDOWS_CERT_BASE64 }}
+          IMAGE_STUDIO_WINDOWS_CERT_PASSWORD: ${{ secrets.IMAGE_STUDIO_WINDOWS_CERT_PASSWORD }}
+          IMAGE_STUDIO_WINDOWS_TIMESTAMP_URL: ${{ vars.IMAGE_STUDIO_WINDOWS_TIMESTAMP_URL }}
+        run: |
+          ./scripts/sign-windows-binary.ps1 -Path "${{ steps.package.outputs.artifact_path }}"
+
+      - name: Warn on unsigned Gio Windows artifacts
+        if: matrix.goos == 'windows' && (secrets.IMAGE_STUDIO_WINDOWS_CERT_BASE64 == '' || secrets.IMAGE_STUDIO_WINDOWS_CERT_PASSWORD == '')
+        shell: bash
+        run: |
+          echo "::warning::Windows artifact is unsigned. Windows 11 Smart App Control / SmartScreen may block it."
 
       - name: Upload Gio artifact
         uses: actions/upload-artifact@v4

@@ -14,6 +14,8 @@
 
 这类构建通常会更快包含当前开发分支上的改动，但稳定性和回归覆盖不如正式 release，建议只在测试环境使用。
 
+Windows 用户需要额外注意：Actions 里的 CI artifact 如果没有经过 Authenticode 签名，在 Windows 11 上很容易被 Smart App Control 或 SmartScreen 直接拦截，提示“无法确认其编写人”或“可能不安全的应用”。这类包不应作为对外分发的正式安装包。
+
 ## 安装包命名规则
 
 当前 release workflow 会产出带版本号前缀的安装包，格式大致如下：
@@ -44,6 +46,7 @@
 
 - Wails 桌面版依赖 WebView2 Runtime；Windows 10+ 通常已预装。
 - ARM64 设备优先下载 `windows-arm64`，避免 x64 仿真带来的额外开销。
+- 对外分发请优先使用带有效 Authenticode 签名的正式 release；未签名的 CI `exe` 在 Windows 11 上可能被智能应用控制直接阻止运行。
 
 ### macOS
 
