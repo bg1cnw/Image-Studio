@@ -74,24 +74,12 @@ jobs:
             artifact_suffix: windows-amd64.exe
             wails_args: -platform windows/amd64 -clean
             package_cmd: cp image-studio/build/bin/image-studio.exe "$artifact_path"
-          - id: windows-amd64-installer
-            runner: windows-latest
-            goos: windows
-            artifact_suffix: windows-amd64-installer.exe
-            wails_args: -platform windows/amd64 -clean -nsis
-            package_cmd: cp image-studio/build/bin/image-studio-amd64-installer.exe "$artifact_path"
           - id: windows-arm64
             runner: windows-11-arm
             goos: windows
             artifact_suffix: windows-arm64.exe
             wails_args: -platform windows/arm64 -clean
             package_cmd: cp image-studio/build/bin/image-studio.exe "$artifact_path"
-          - id: windows-arm64-installer
-            runner: windows-11-arm
-            goos: windows
-            artifact_suffix: windows-arm64-installer.exe
-            wails_args: -platform windows/arm64 -clean -nsis
-            package_cmd: cp image-studio/build/bin/image-studio-arm64-installer.exe "$artifact_path"
           - id: macos-universal
             runner: macos-latest
             goos: darwin
@@ -198,6 +186,75 @@ jobs:
           echo "::warning::Windows artifact is unsigned. Windows 11 Smart App Control / SmartScreen may block it."
 
       - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: ${{ steps.package.outputs.artifact_path }}
+          retention-days: 14
+
+  build-windows-installer:
+    name: Build windows universal installer
+    runs-on: windows-latest
+    needs:
+      - prepare-version
+      - build-desktop
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Windows desktop artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-*.exe
+
+      - name: Prepare installer inputs
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path image-studio/build/bin | Out-Null
+          Copy-Item "dist/image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-amd64.exe/image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-amd64.exe" "image-studio/build/bin/image-studio-amd64.exe"
+          Copy-Item "dist/image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-arm64.exe/image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-arm64.exe" "image-studio/build/bin/image-studio-arm64.exe"
+
+      - name: Build NSIS installer
+        working-directory: image-studio/build/windows/installer
+        shell: pwsh
+        run: |
+          makensis `
+            /DARG_WAILS_AMD64_BINARY=..\..\bin\image-studio-amd64.exe `
+            /DARG_WAILS_ARM64_BINARY=..\..\bin\image-studio-arm64.exe `
+            project.nsi
+
+      - name: Stage installer artifact
+        id: package
+        shell: bash
+        run: |
+          mkdir -p dist/out
+          artifact_name="image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-installer.exe"
+          artifact_path="dist/out/${artifact_name}"
+          cp image-studio/build/bin/image-studio-amd64_arm64-installer.exe "$artifact_path"
+          ls -la dist/out/
+          {
+            echo "artifact_name=${artifact_name}"
+            echo "artifact_path=${artifact_path}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Sign Windows installer
+        if: secrets.IMAGE_STUDIO_WINDOWS_CERT_BASE64 != '' && secrets.IMAGE_STUDIO_WINDOWS_CERT_PASSWORD != ''
+        shell: pwsh
+        env:
+          IMAGE_STUDIO_WINDOWS_CERT_BASE64: ${{ secrets.IMAGE_STUDIO_WINDOWS_CERT_BASE64 }}
+          IMAGE_STUDIO_WINDOWS_CERT_PASSWORD: ${{ secrets.IMAGE_STUDIO_WINDOWS_CERT_PASSWORD }}
+          IMAGE_STUDIO_WINDOWS_TIMESTAMP_URL: ${{ vars.IMAGE_STUDIO_WINDOWS_TIMESTAMP_URL }}
+        run: |
+          ./scripts/sign-windows-binary.ps1 -Path "${{ steps.package.outputs.artifact_path }}"
+
+      - name: Warn on unsigned Windows installer
+        if: secrets.IMAGE_STUDIO_WINDOWS_CERT_BASE64 == '' || secrets.IMAGE_STUDIO_WINDOWS_CERT_PASSWORD == ''
+        shell: bash
+        run: |
+          echo "::warning::Windows installer is unsigned. Windows 11 Smart App Control / SmartScreen may block it."
+
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.package.outputs.artifact_name }}
@@ -402,6 +459,7 @@ jobs:
     needs:
       - prepare-version
       - build-desktop
+      - build-windows-installer
       - build-android-apk
       - build-gio-desktop
     if: startsWith(github.ref, 'refs/tags/v')
