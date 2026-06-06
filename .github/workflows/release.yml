@@ -229,6 +229,16 @@ jobs:
           Copy-Item "dist/image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-amd64.exe/image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-amd64.exe" "image-studio/build/bin/image-studio-amd64.exe"
           Copy-Item "dist/image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-arm64.exe/image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-arm64.exe" "image-studio/build/bin/image-studio-arm64.exe"
 
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          choco install nsis --no-progress -y
+          $nsisBin = Join-Path ${env:ProgramFiles(x86)} "NSIS"
+          if (-not (Test-Path (Join-Path $nsisBin "makensis.exe"))) {
+            throw "makensis.exe not found after NSIS install."
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $nsisBin
+
       - name: Build NSIS installer
         working-directory: image-studio/build/windows/installer
         shell: pwsh
