@@ -209,7 +209,7 @@ export function AndroidAspectGrid({
 }: {
   items: AspectPresetOption[];
   onManageCustom?: () => void;
-  value: AspectPreset;
+  value: AspectPreset | null;
   onChange: (value: AspectPreset) => void;
 }) {
   return (
@@ -258,6 +258,7 @@ export function AndroidAspectGrid({
 }
 
 export function AndroidDiscreteSlider<T extends AndroidSliderValue>({
+  displayValue,
   label,
   note,
   onChange,
@@ -265,14 +266,17 @@ export function AndroidDiscreteSlider<T extends AndroidSliderValue>({
   value,
   valueSuffix = "",
 }: {
+  displayValue?: string;
   label: string;
   note?: string;
   onChange: (value: T) => void;
   options: Array<{ value: T; label: string }>;
-  value: T;
+  value: T | null;
   valueSuffix?: string;
 }) {
-  const activeIndex = Math.max(0, options.findIndex((item) => item.value === value));
+  const matchedIndex = options.findIndex((item) => item.value === value);
+  const hasActiveValue = matchedIndex >= 0;
+  const activeIndex = hasActiveValue ? matchedIndex : 0;
   const denominator = Math.max(1, options.length - 1);
   const progress = `${(activeIndex / denominator) * 100}%`;
   const activeOption = options[activeIndex] ?? options[0];
@@ -289,7 +293,7 @@ export function AndroidDiscreteSlider<T extends AndroidSliderValue>({
     <AndroidParameterBlock title={label}>
       <div className="android-parameter-slider-head">
         <output className="font-mono-token android-parameter-slider-value">
-          {activeOption?.label}{valueSuffix}
+          {displayValue ?? activeOption?.label}{valueSuffix}
         </output>
       </div>
       <div
@@ -304,7 +308,7 @@ export function AndroidDiscreteSlider<T extends AndroidSliderValue>({
           value={activeIndex}
           disabled={disabled}
           aria-label={label}
-          aria-valuetext={`${activeOption?.label ?? ""}${valueSuffix}`}
+          aria-valuetext={`${displayValue ?? activeOption?.label ?? ""}${valueSuffix}`}
           onChange={(event) => commit(Number(event.currentTarget.value))}
         />
       </div>
@@ -316,9 +320,9 @@ export function AndroidDiscreteSlider<T extends AndroidSliderValue>({
           <button
             key={`${item.value}`}
             type="button"
-            aria-pressed={index === activeIndex}
+            aria-pressed={hasActiveValue && index === activeIndex}
             onClick={() => commit(index)}
-            className={index === activeIndex ? "active" : ""}
+            className={hasActiveValue && index === activeIndex ? "active" : ""}
           >
             {item.label}
           </button>

@@ -17,8 +17,10 @@ export function MacComposePanel({
   aspectOptions,
   activeResolution,
   activeResolutionLabel,
+  exactSizeLabel,
   activeQualityLabel,
   allowCustomAspectRatios,
+  allowPreciseSizeControl,
   availableResolutions,
   batchCount,
   mode,
@@ -31,6 +33,7 @@ export function MacComposePanel({
   handleAspectSelect,
   handleResolutionSelect,
   onOpenCustomAspectRatioModal,
+  onOpenCustomSizeModal,
   selectSourceImage,
   clearSources,
   viewSourceOnCanvas,
@@ -43,13 +46,15 @@ export function MacComposePanel({
   setMacComposeOpen: React.Dispatch<React.SetStateAction<boolean>>;
   styleTag: string;
   activeStyleLabel: string;
-  activeAspect: AspectPreset;
+  activeAspect: AspectPreset | null;
   activeAspectLabel: string;
   aspectOptions: AspectPresetOption[];
-  activeResolution: ResolutionPreset;
+  activeResolution: ResolutionPreset | null;
   activeResolutionLabel: string;
+  exactSizeLabel?: string | null;
   activeQualityLabel: string;
   allowCustomAspectRatios: boolean;
+  allowPreciseSizeControl: boolean;
   availableResolutions: ResolutionPreset[];
   batchCount: number;
   mode: string;
@@ -62,6 +67,7 @@ export function MacComposePanel({
   handleAspectSelect: (aspect: AspectPreset) => void;
   handleResolutionSelect: (resolution: ResolutionPreset) => void;
   onOpenCustomAspectRatioModal: () => void;
+  onOpenCustomSizeModal: () => void;
   selectSourceImage: () => void;
   clearSources: () => void;
   viewSourceOnCanvas: (index: number) => void;
@@ -91,7 +97,9 @@ export function MacComposePanel({
             activeAspect={activeAspect}
             aspectOptions={aspectOptions}
             activeResolution={activeResolution}
+            exactSizeLabel={exactSizeLabel}
             allowCustomAspectRatios={allowCustomAspectRatios}
+            allowPreciseSizeControl={allowPreciseSizeControl}
             apiMode={apiMode}
             availableResolutions={availableResolutions}
             batchCount={batchCount}
@@ -99,6 +107,7 @@ export function MacComposePanel({
             handleResolutionSelect={handleResolutionSelect}
             imageModelID={imageModelID}
             onOpenCustomAspectRatioModal={onOpenCustomAspectRatioModal}
+            onOpenCustomSizeModal={onOpenCustomSizeModal}
             quality={quality}
             qualityOptions={qualityOptions}
             requestPolicy={requestPolicy}

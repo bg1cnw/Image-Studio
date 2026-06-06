@@ -25,9 +25,11 @@ export function AndroidParameterEditor({
   aspectOptions,
   activeResolution,
   activeResolutionLabel,
+  exactSizeLabel,
   activeQualityLabel,
   activeStyleLabel,
   allowCustomAspectRatios,
+  allowPreciseSizeControl,
   availableResolutions,
   apiMode,
   batchCount,
@@ -35,19 +37,22 @@ export function AndroidParameterEditor({
   handleResolutionSelect,
   imageModelID,
   onOpenCustomAspectRatioModal,
+  onOpenCustomSizeModal,
   quality,
   requestPolicy,
   setField,
   styleTag,
 }: {
-  activeAspect: AspectPreset;
+  activeAspect: AspectPreset | null;
   activeAspectLabel: string;
   aspectOptions: AspectPresetOption[];
-  activeResolution: ResolutionPreset;
+  activeResolution: ResolutionPreset | null;
   activeResolutionLabel: string;
+  exactSizeLabel?: string | null;
   activeQualityLabel: string;
   activeStyleLabel: string;
   allowCustomAspectRatios: boolean;
+  allowPreciseSizeControl: boolean;
   availableResolutions: ResolutionPreset[];
   apiMode: "responses" | "images";
   batchCount: number;
@@ -55,6 +60,7 @@ export function AndroidParameterEditor({
   handleResolutionSelect: (resolution: ResolutionPreset) => void;
   imageModelID: string;
   onOpenCustomAspectRatioModal: () => void;
+  onOpenCustomSizeModal: () => void;
   quality: string;
   requestPolicy: "openai" | "compat";
   setField: (key: "quality" | "styleTag" | "batchCount", value: any) => void;
@@ -102,10 +108,28 @@ export function AndroidParameterEditor({
       <AndroidDiscreteSlider
         label="分辨率"
         value={activeResolution}
+        displayValue={exactSizeLabel ?? undefined}
         options={RESOLUTION_PRESETS.filter((item) => availableResolutions.includes(item.value))}
         onChange={handleResolutionSelect}
         note={resolutionHint}
       />
+
+      {allowPreciseSizeControl ? (
+        <AndroidParameterBlock
+          title="精确尺寸"
+          trailing={(
+            <button type="button" onClick={onOpenCustomSizeModal}>
+              {exactSizeLabel ? "修改" : "设置"}
+            </button>
+          )}
+        >
+          <p className="android-parameter-note">
+            {exactSizeLabel
+              ? `当前精确尺寸 ${exactSizeLabel}。点击比例或分辨率预设后会切回预设档位。`
+              : "需要精确像素时可直接输入宽高，自定义 size 会原样下发给上游。"}
+          </p>
+        </AndroidParameterBlock>
+      ) : null}
 
       <AndroidParameterBlock title="画面质量">
         <AndroidSegmentedChoices

@@ -18,9 +18,11 @@ export function AndroidPhoneParameterSection({
   aspectOptions,
   activeResolution,
   activeResolutionLabel,
+  exactSizeLabel,
   activeQualityLabel,
   activeStyleLabel,
   allowCustomAspectRatios,
+  allowPreciseSizeControl,
   availableResolutions,
   apiMode,
   batchCount,
@@ -28,6 +30,7 @@ export function AndroidPhoneParameterSection({
   handleResolutionSelect,
   imageModelID,
   onOpenCustomAspectRatioModal,
+  onOpenCustomSizeModal,
   parametersOpen,
   quality,
   requestPolicy,
@@ -35,14 +38,16 @@ export function AndroidPhoneParameterSection({
   setParametersOpen,
   styleTag,
 }: {
-  activeAspect: AspectPreset;
+  activeAspect: AspectPreset | null;
   activeAspectLabel: string;
   aspectOptions: AspectPresetOption[];
-  activeResolution: ResolutionPreset;
+  activeResolution: ResolutionPreset | null;
   activeResolutionLabel: string;
+  exactSizeLabel?: string | null;
   activeQualityLabel: string;
   activeStyleLabel: string;
   allowCustomAspectRatios: boolean;
+  allowPreciseSizeControl: boolean;
   availableResolutions: ResolutionPreset[];
   apiMode: "responses" | "images";
   batchCount: number;
@@ -50,6 +55,7 @@ export function AndroidPhoneParameterSection({
   handleResolutionSelect: (resolution: ResolutionPreset) => void;
   imageModelID: string;
   onOpenCustomAspectRatioModal: () => void;
+  onOpenCustomSizeModal: () => void;
   parametersOpen: boolean;
   quality: string;
   requestPolicy: "openai" | "compat";
@@ -90,9 +96,11 @@ export function AndroidPhoneParameterSection({
           aspectOptions={aspectOptions}
           activeResolution={activeResolution}
           activeResolutionLabel={activeResolutionLabel}
+          exactSizeLabel={exactSizeLabel}
           activeQualityLabel={activeQualityLabel}
           activeStyleLabel={activeStyleLabel}
           allowCustomAspectRatios={allowCustomAspectRatios}
+          allowPreciseSizeControl={allowPreciseSizeControl}
           availableResolutions={availableResolutions}
           apiMode={apiMode}
           batchCount={batchCount}
@@ -100,6 +108,7 @@ export function AndroidPhoneParameterSection({
           handleResolutionSelect={handleResolutionSelect}
           imageModelID={imageModelID}
           onOpenCustomAspectRatioModal={onOpenCustomAspectRatioModal}
+          onOpenCustomSizeModal={onOpenCustomSizeModal}
           quality={quality}
           requestPolicy={requestPolicy}
           setField={setField}

@@ -13,8 +13,10 @@ export function WindowsComposePanel({
   aspectOptions,
   activeResolution,
   activeResolutionLabel,
+  exactSizeLabel,
   activeQualityLabel,
   allowCustomAspectRatios,
+  allowPreciseSizeControl,
   availableResolutions,
   batchCount,
   clearSources,
@@ -23,6 +25,7 @@ export function WindowsComposePanel({
   handleResolutionSelect,
   imageModelID,
   onOpenCustomAspectRatioModal,
+  onOpenCustomSizeModal,
   mode,
   onPreviewSource,
   onRemoveSource,
@@ -39,13 +42,15 @@ export function WindowsComposePanel({
   setComposeOpen: React.Dispatch<React.SetStateAction<boolean>>;
   styleTag: string;
   activeStyleLabel: string;
-  activeAspect: AspectPreset;
+  activeAspect: AspectPreset | null;
   activeAspectLabel: string;
   aspectOptions: AspectPresetOption[];
-  activeResolution: ResolutionPreset;
+  activeResolution: ResolutionPreset | null;
   activeResolutionLabel: string;
+  exactSizeLabel?: string | null;
   activeQualityLabel: string;
   allowCustomAspectRatios: boolean;
+  allowPreciseSizeControl: boolean;
   availableResolutions: ResolutionPreset[];
   batchCount: number;
   clearSources: () => void;
@@ -54,6 +59,7 @@ export function WindowsComposePanel({
   handleResolutionSelect: (resolution: ResolutionPreset) => void;
   imageModelID: string;
   onOpenCustomAspectRatioModal: () => void;
+  onOpenCustomSizeModal: () => void;
   mode: Mode;
   onPreviewSource: (index: number) => void;
   onRemoveSource: (index: number) => void;
@@ -105,7 +111,9 @@ export function WindowsComposePanel({
             activeAspect={activeAspect}
             aspectOptions={aspectOptions}
             activeResolution={activeResolution}
+            exactSizeLabel={exactSizeLabel}
             allowCustomAspectRatios={allowCustomAspectRatios}
+            allowPreciseSizeControl={allowPreciseSizeControl}
             apiMode={apiMode}
             availableResolutions={availableResolutions}
             batchCount={batchCount}
@@ -115,6 +123,7 @@ export function WindowsComposePanel({
             handleResolutionSelect={handleResolutionSelect}
             imageModelID={imageModelID}
             onOpenCustomAspectRatioModal={onOpenCustomAspectRatioModal}
+            onOpenCustomSizeModal={onOpenCustomSizeModal}
             mode={mode}
             onPreviewSource={onPreviewSource}
             onRemoveSource={onRemoveSource}

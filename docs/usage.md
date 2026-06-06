@@ -80,6 +80,7 @@
 2. 输入 prompt。
 3. 选择比例、质量、输出格式、风格。
    - 内置比例不够时，可以打开「自定义比例」弹窗，新增并保存常用宽高比。
+   - 如果想理解“为什么比例切到 Auto 后，分辨率也不能再单独锁定”，见 [size-auto.md](./size-auto.md)。
 4. 根据需要设置 seed 或 negative prompt。
 5. 点击「生成」，或使用 `Cmd+Enter` / `Ctrl+Enter`。
 

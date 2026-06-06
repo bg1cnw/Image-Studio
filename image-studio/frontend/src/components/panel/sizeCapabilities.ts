@@ -8,6 +8,12 @@ import type { APIMode, CustomAspectRatio, RequestPolicy, SizeValue } from "../..
 export type BuiltinAspectPreset = "auto" | "1:1" | "3:2" | "2:3" | "16:9" | "9:16" | "7:4" | "4:7";
 export type AspectPreset = BuiltinAspectPreset | `custom:${string}`;
 export type ResolutionPreset = "auto" | "256" | "512" | "1k" | "2k" | "4k";
+export type ExactSizeSelection = {
+  value: SizeValue;
+  width: number;
+  height: number;
+  label: string;
+};
 
 export interface AspectPresetOption {
   value: AspectPreset;
@@ -147,6 +153,8 @@ const CUSTOM_RESOLUTION_REFERENCES: Record<"1k" | "2k" | "4k", { area: number; m
 };
 const CUSTOM_ASPECT_TOLERANCE = 0.035;
 const BUILTIN_ASPECT_TOLERANCE = 0.08;
+export const MIN_EXACT_SIZE = 64;
+export const MAX_EXACT_SIZE = 8192;
 
 function modelFamily(input: { imageModelID?: string }): ReturnType<typeof classifyImageModel> {
   return classifyImageModel(input.imageModelID || "");
@@ -172,6 +180,10 @@ export function supportsAutomaticSizing(input: SizeCapabilityInput): boolean {
 
 export function supportsCustomAspectRatios(input: SizeCapabilityInput): boolean {
   return isFlexibleGPTImageModel(input) || (modelFamily(input) === "other" && input.requestPolicy === "compat");
+}
+
+export function supportsPreciseSizeControl(input: SizeCapabilityInput): boolean {
+  return supportsCustomAspectRatios(input);
 }
 
 export function supportsExplicitLargeSizes(input: SizeCapabilityInput): boolean {
@@ -259,6 +271,37 @@ export function deriveResolutionPreset(size: SizeValue): ResolutionPreset {
   return best;
 }
 
+export function formatSizeValue(size: SizeValue): string {
+  if (size === "auto") return "Auto";
+  const parsed = parseSizeValue(size);
+  return parsed ? `${parsed.width}×${parsed.height}` : size;
+}
+
+export function buildExactSizeValue(width: number, height: number): SizeValue | null {
+  const safeWidth = normalizeExactSizeDimension(width);
+  const safeHeight = normalizeExactSizeDimension(height);
+  if (!safeWidth || !safeHeight) return null;
+  return `${safeWidth}x${safeHeight}` as SizeValue;
+}
+
+export function deriveExactSizeSelection(
+  size: SizeValue,
+  input: SizeCapabilityInput,
+  customRatios: CustomAspectRatio[] = [],
+): ExactSizeSelection | null {
+  if (size === "auto" || !supportsPreciseSizeControl(input)) return null;
+  const parsed = parseSizeValue(size);
+  if (!parsed) return null;
+  const canonical = sizeValueFromDimensions(parsed.width, parsed.height);
+  if (!isExactSizeValue(canonical, input, customRatios)) return null;
+  return {
+    value: canonical,
+    width: parsed.width,
+    height: parsed.height,
+    label: formatSizeValue(canonical),
+  };
+}
+
 export function buildSizeSelection(
   aspect: AspectPreset,
   resolution: ResolutionPreset,
@@ -334,8 +377,14 @@ export function normalizeSizeSelection(
   if (size === "auto") {
     return supportsAutomaticSizing(input) ? "auto" : defaultModelSize(input);
   }
-  const aspect = deriveAspectPreset(size, customRatios);
-  const resolution = deriveResolutionPreset(size);
+  const parsed = parseSizeValue(size);
+  if (!parsed) return defaultModelSize(input);
+  const canonical = sizeValueFromDimensions(parsed.width, parsed.height);
+  if (supportsPreciseSizeControl(input) && isExactSizeValue(canonical, input, customRatios)) {
+    return canonical;
+  }
+  const aspect = deriveAspectPreset(canonical, customRatios);
+  const resolution = deriveResolutionPreset(canonical);
   return buildSizeSelection(aspect, resolution, input, customRatios);
 }
 
@@ -382,7 +431,7 @@ function aspectShapeFromRatio(width: number, height: number): { w: number; h: nu
   };
 }
 
-function parseSizeValue(size: SizeValue): { width: number; height: number } | null {
+export function parseSizeValue(size: SizeValue): { width: number; height: number } | null {
   const match = /^(\d+)x(\d+)$/.exec(size);
   if (!match) return null;
   const width = Number(match[1]);
@@ -430,6 +479,28 @@ function aspectRatioDistance(width: number, height: number, targetWidth: number,
 
 function roundDimension(value: number): number {
   return Math.max(64, Math.round(value / 8) * 8);
+}
+
+function normalizeExactSizeDimension(value: unknown): number {
+  const num = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(num)) return 0;
+  const rounded = Math.floor(num);
+  if (rounded < MIN_EXACT_SIZE || rounded > MAX_EXACT_SIZE) return 0;
+  return rounded;
+}
+
+function sizeValueFromDimensions(width: number, height: number): SizeValue {
+  return `${width}x${height}` as SizeValue;
+}
+
+function isExactSizeValue(
+  size: SizeValue,
+  input: SizeCapabilityInput,
+  customRatios: CustomAspectRatio[],
+): boolean {
+  const aspect = deriveAspectPreset(size, customRatios);
+  const resolution = deriveResolutionPreset(size);
+  return buildSizeSelection(aspect, resolution, input, customRatios) !== size;
 }
 
 export function builtInAspectId(width: number, height: number): string {

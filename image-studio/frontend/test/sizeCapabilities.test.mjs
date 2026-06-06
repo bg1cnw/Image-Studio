@@ -96,6 +96,21 @@ test("non-gpt-image openai-standard paths stay on base resolution presets", () =
   }), "1536x864");
 });
 
+test("precise custom sizes stay untouched when the active model path supports them", () => {
+  const input = {
+    apiMode: "responses",
+    requestPolicy: "openai",
+    imageModelID: "gpt-image-2",
+  };
+  assert.equal(caps.normalizeSizeSelection("2000x1000", input), "2000x1000");
+  assert.deepEqual(caps.deriveExactSizeSelection("2000x1000", input), {
+    value: "2000x1000",
+    width: 2000,
+    height: 1000,
+    label: "2000×1000",
+  });
+});
+
 test("compat mode can keep large resolution presets available for compatible relays", () => {
   const values = caps.availableResolutionPresets({
     apiMode: "responses",
@@ -171,4 +186,6 @@ test("custom aspect ratios can build sizes and round-trip back to the active cus
   assert.equal(size, "1496x1864");
   assert.equal(caps.deriveAspectPreset(size, customRatios), value);
   assert.equal(caps.deriveResolutionPreset(size), "2k");
+  assert.equal(caps.normalizeSizeSelection(size, input, customRatios), size);
+  assert.equal(caps.deriveExactSizeSelection(size, input, customRatios), null);
 });

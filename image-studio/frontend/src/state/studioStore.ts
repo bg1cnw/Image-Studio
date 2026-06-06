@@ -103,11 +103,14 @@ import {
 } from "./workspaceRuntime";
 import {
   buildAspectSizeSelection,
+  buildExactSizeValue,
   buildCustomAspectValue,
   deriveAspectPreset,
   deriveResolutionPreset,
+  formatSizeValue,
   isBuiltInAspectRatio,
   normalizeSizeSelection,
+  supportsPreciseSizeControl,
 } from "../components/panel/sizeCapabilities";
 import { normalizeQualitySelection } from "../components/panel/panelOptions";
 import { buildMacWorkspacePreview, readPreviewScenario } from "../app/dev/previewData";
@@ -594,6 +597,28 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     set(patch);
     get().pushToast(`已删除比例 ${removed.label}`, "success");
   },
+  customSizeModalOpen: false,
+  openCustomSizeModal: () => set({ customSizeModalOpen: true }),
+  closeCustomSizeModal: () => set({ customSizeModalOpen: false }),
+  applyCustomSize: (width, height) => {
+    const state = get();
+    if (!supportsPreciseSizeControl({
+      apiMode: state.apiMode,
+      requestPolicy: state.requestPolicy,
+      imageModelID: state.imageModelID,
+    })) {
+      state.pushToast("当前模型链路不支持精确尺寸自定义", "warn");
+      return false;
+    }
+    const nextSize = buildExactSizeValue(width, height);
+    if (!nextSize) {
+      state.pushToast("请输入 64 到 8192 之间的整数尺寸", "warn");
+      return false;
+    }
+    set({ size: nextSize, customSizeModalOpen: false });
+    get().pushToast(`已应用精确尺寸 ${formatSizeValue(nextSize)}`, "success");
+    return true;
+  },
   settingsOpen: false,
   openSettings: () => set({ settingsOpen: true, upstreamModalOpen: false }),
   closeSettings: () => set({ settingsOpen: false }),
@@ -958,7 +983,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       apiMode: s.apiMode,
       requestPolicy: s.requestPolicy,
       imageModelID: s.imageModelID,
-    });
+    }, s.customAspectRatios);
     const resolvedQuality = normalizeQualitySelection(s.quality, s.imageModelID);
 
     const basePayload: backend.GenerateOptions = {
@@ -1175,6 +1200,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         isTestingKey: false,
         isOptimizingPrompt: false,
         customAspectRatioModalOpen: false,
+        customSizeModalOpen: false,
         upstreamModalOpen: false,
         upstreamReturnTarget: "app",
         starPromptOpen: false,
@@ -1454,6 +1480,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       // Android 走首页 hero 引导，不用启动即弹设置；桌面仍保留首次引导。
       settingsOpen: shouldAutoOpenSettings,
       customAspectRatioModalOpen: false,
+      customSizeModalOpen: false,
       upstreamModalOpen: false,
       upstreamReturnTarget: shouldAutoOpenSettings ? "settings" : "app",
       savePromptItem: null,

@@ -13,7 +13,9 @@ export function MacComposeStyleAndSize({
   activeAspect,
   aspectOptions,
   activeResolution,
+  exactSizeLabel,
   allowCustomAspectRatios,
+  allowPreciseSizeControl,
   apiMode,
   availableResolutions,
   batchCount,
@@ -21,6 +23,7 @@ export function MacComposeStyleAndSize({
   handleResolutionSelect,
   imageModelID,
   onOpenCustomAspectRatioModal,
+  onOpenCustomSizeModal,
   quality,
   qualityOptions,
   requestPolicy,
@@ -29,10 +32,12 @@ export function MacComposeStyleAndSize({
   Seg,
   SegItem,
 }: {
-  activeAspect: AspectPreset;
+  activeAspect: AspectPreset | null;
   aspectOptions: AspectPresetOption[];
-  activeResolution: ResolutionPreset;
+  activeResolution: ResolutionPreset | null;
+  exactSizeLabel?: string | null;
   allowCustomAspectRatios: boolean;
+  allowPreciseSizeControl: boolean;
   apiMode: APIMode;
   availableResolutions: ResolutionPreset[];
   batchCount: number;
@@ -40,6 +45,7 @@ export function MacComposeStyleAndSize({
   handleResolutionSelect: (resolution: ResolutionPreset) => void;
   imageModelID: string;
   onOpenCustomAspectRatioModal: () => void;
+  onOpenCustomSizeModal: () => void;
   quality: QualityValue;
   qualityOptions: Array<{ value: QualityValue; label: string }>;
   requestPolicy: RequestPolicy;
@@ -116,7 +122,18 @@ export function MacComposeStyleAndSize({
       </div>
 
       <div>
-        <div className="mb-2 text-[12px] text-zinc-500">分辨率</div>
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-[12px] text-zinc-500">分辨率</span>
+          {allowPreciseSizeControl ? (
+            <button
+              type="button"
+              onClick={onOpenCustomSizeModal}
+              className="text-[12px] text-[var(--accent)] transition-opacity hover:opacity-80"
+            >
+              {exactSizeLabel ? "修改精确尺寸" : "精确尺寸"}
+            </button>
+          ) : null}
+        </div>
         <Seg>
           {RESOLUTION_PRESETS.filter((item) => availableResolutions.includes(item.value)).map((item) => (
             <SegItem
@@ -128,6 +145,11 @@ export function MacComposeStyleAndSize({
             </SegItem>
           ))}
         </Seg>
+        {exactSizeLabel ? (
+          <p className="mt-1.5 text-[10px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+            当前精确尺寸 {exactSizeLabel}。点击比例或分辨率预设后会切回预设档位。
+          </p>
+        ) : null}
         {sizeCapabilityHint({ apiMode, requestPolicy, imageModelID }) ? (
           <p className="mt-1.5 text-[10px] leading-relaxed text-zinc-500 dark:text-zinc-400">
             {sizeCapabilityHint({ apiMode, requestPolicy, imageModelID })}

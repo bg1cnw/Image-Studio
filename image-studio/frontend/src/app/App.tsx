@@ -8,6 +8,7 @@ import { DropImportOverlay } from "./components/DropImportOverlay";
 import { PlatformWorkspace } from "./components/PlatformWorkspace";
 import { HistoryTimelineModal } from "../components/history/HistoryTimelineModal";
 import { CustomAspectRatioGate } from "./gates/CustomAspectRatioGate";
+import { CustomSizeGate } from "./gates/CustomSizeGate";
 import { ResultDetailGate } from "./gates/ResultDetailGate";
 import { SavePromptGate } from "./gates/SavePromptGate";
 import { SettingsPanelGate } from "./gates/SettingsPanelGate";
@@ -48,6 +49,7 @@ export default function App() {
       {dragHover ? <DropImportOverlay /> : null}
       <FooterBar />
       <CustomAspectRatioGate />
+      <CustomSizeGate />
       <UpstreamConfigGate />
       <SettingsPanelGate open={settingsOpen} onClose={closeSettings} />
       <HistoryTimelineModal />

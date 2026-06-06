@@ -21,11 +21,13 @@ import {
   availableResolutionPresets,
   buildAspectSizeSelection,
   buildResolutionSizeSelection,
+  deriveExactSizeSelection,
   deriveAspectPreset,
   deriveResolutionPreset,
   listAspectPresetOptions,
   normalizeSizeSelection,
   supportsCustomAspectRatios,
+  supportsPreciseSizeControl,
 } from "./sizeCapabilities";
 
 export function ControlPanel({
@@ -44,6 +46,7 @@ export function ControlPanel({
     setField, clearError, pushToast,
     selectSourceImage, removeSource, clearSources, viewSourceOnCanvas,
     openCustomAspectRatioModal,
+    openCustomSizeModal,
     openUpstreamConfig,
     submit, cancel, retryLast, optimizePrompt,
   } = useStudioStore();
@@ -73,12 +76,18 @@ export function ControlPanel({
   const normalizedQuality = normalizeQualitySelection(quality, imageModelID);
   const qualityOptions = availableQualityOptions(imageModelID);
   const allowCustomAspectRatios = supportsCustomAspectRatios(capabilityInput);
+  const allowPreciseSizeControl = supportsPreciseSizeControl(capabilityInput);
   const activeStyleLabel = STYLE_CHIPS.find((item) => item.id === styleTag)?.label ?? styleTag;
   const aspectOptions = listAspectPresetOptions(capabilityInput, customAspectRatios);
-  const activeAspect = deriveAspectPreset(normalizedSize, customAspectRatios);
-  const activeResolution = deriveResolutionPreset(normalizedSize);
-  const activeAspectLabel = aspectPresetLabel(activeAspect, customAspectRatios);
-  const activeResolutionLabel = RESOLUTION_PRESETS.find((item) => item.value === activeResolution)?.label ?? activeResolution;
+  const exactSize = deriveExactSizeSelection(normalizedSize, capabilityInput, customAspectRatios);
+  const derivedAspect = deriveAspectPreset(normalizedSize, customAspectRatios);
+  const derivedResolution = deriveResolutionPreset(normalizedSize);
+  const activeAspect = exactSize ? null : derivedAspect;
+  const activeResolution = exactSize ? null : derivedResolution;
+  const activeAspectLabel = exactSize ? "精确尺寸" : aspectPresetLabel(derivedAspect, customAspectRatios);
+  const activeResolutionLabel = exactSize
+    ? exactSize.label
+    : (RESOLUTION_PRESETS.find((item) => item.value === derivedResolution)?.label ?? derivedResolution);
   const activeQualityLabel = qualityOptions.find((item) => item.value === normalizedQuality)?.label ?? normalizedQuality;
   const availableResolutions = availableResolutionPresets(capabilityInput);
   const optimizeReady = !!(
@@ -104,8 +113,8 @@ export function ControlPanel({
 
   function handleAspectSelect(aspect: typeof activeAspect) {
     setField("size", buildAspectSizeSelection(
-      aspect,
-      activeResolution,
+      aspect ?? derivedAspect,
+      derivedResolution,
       capabilityInput,
       customAspectRatios,
     ));
@@ -113,8 +122,8 @@ export function ControlPanel({
 
   function handleResolutionSelect(resolution: typeof activeResolution) {
     setField("size", buildResolutionSizeSelection(
-      activeAspect,
-      resolution,
+      derivedAspect,
+      resolution ?? derivedResolution,
       capabilityInput,
       customAspectRatios,
     ));
@@ -205,6 +214,7 @@ export function ControlPanel({
           activeAspect={activeAspect}
           aspectOptions={aspectOptions}
           activeResolution={activeResolution}
+          exactSizeLabel={exactSize?.label ?? null}
           apiMode={apiMode}
           availableResolutions={availableResolutions}
           batchCount={batchCount}
@@ -214,7 +224,9 @@ export function ControlPanel({
           handleResolutionSelect={handleResolutionSelect}
           imageModelID={imageModelID}
           allowCustomAspectRatios={allowCustomAspectRatios}
+          allowPreciseSizeControl={allowPreciseSizeControl}
           onOpenCustomAspectRatioModal={openCustomAspectRatioModal}
+          onOpenCustomSizeModal={openCustomSizeModal}
           usesFluentUI={usesFluentUI}
           mode={mode}
           onPreviewSource={(index) => void viewSourceOnCanvas(index)}
@@ -241,6 +253,7 @@ export function ControlPanel({
           aspectOptions={aspectOptions}
           activeResolution={activeResolution}
           activeResolutionLabel={activeResolutionLabel}
+          exactSizeLabel={exactSize?.label ?? null}
           activeQualityLabel={activeQualityLabel}
           availableResolutions={availableResolutions}
           batchCount={batchCount}
@@ -250,7 +263,9 @@ export function ControlPanel({
           handleResolutionSelect={handleResolutionSelect}
           imageModelID={imageModelID}
           allowCustomAspectRatios={allowCustomAspectRatios}
+          allowPreciseSizeControl={allowPreciseSizeControl}
           onOpenCustomAspectRatioModal={openCustomAspectRatioModal}
+          onOpenCustomSizeModal={openCustomSizeModal}
           mode={mode}
           onPreviewSource={(index) => void viewSourceOnCanvas(index)}
           onRemoveSource={removeSource}
@@ -276,6 +291,7 @@ export function ControlPanel({
           aspectOptions={aspectOptions}
           activeResolution={activeResolution}
           activeResolutionLabel={activeResolutionLabel}
+          exactSizeLabel={exactSize?.label ?? null}
           activeQualityLabel={activeQualityLabel}
           availableResolutions={availableResolutions}
           batchCount={batchCount}
@@ -289,7 +305,9 @@ export function ControlPanel({
           handleAspectSelect={handleAspectSelect}
           handleResolutionSelect={handleResolutionSelect}
           allowCustomAspectRatios={allowCustomAspectRatios}
+          allowPreciseSizeControl={allowPreciseSizeControl}
           onOpenCustomAspectRatioModal={openCustomAspectRatioModal}
+          onOpenCustomSizeModal={openCustomSizeModal}
           selectSourceImage={selectSourceImage}
           clearSources={clearSources}
           viewSourceOnCanvas={(index) => void viewSourceOnCanvas(index)}

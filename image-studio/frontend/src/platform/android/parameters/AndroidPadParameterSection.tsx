@@ -19,9 +19,11 @@ export function AndroidPadParameterSection({
   aspectOptions,
   activeResolution,
   activeResolutionLabel,
+  exactSizeLabel,
   activeQualityLabel,
   activeStyleLabel,
   allowCustomAspectRatios,
+  allowPreciseSizeControl,
   availableResolutions,
   apiMode,
   batchCount,
@@ -31,20 +33,23 @@ export function AndroidPadParameterSection({
   isMediumPad,
   needsUpstreamSetup,
   onOpenCustomAspectRatioModal,
+  onOpenCustomSizeModal,
   onOpenUpstream,
   quality,
   requestPolicy,
   setField,
   styleTag,
 }: {
-  activeAspect: AspectPreset;
+  activeAspect: AspectPreset | null;
   activeAspectLabel: string;
   aspectOptions: AspectPresetOption[];
-  activeResolution: ResolutionPreset;
+  activeResolution: ResolutionPreset | null;
   activeResolutionLabel: string;
+  exactSizeLabel?: string | null;
   activeQualityLabel: string;
   activeStyleLabel: string;
   allowCustomAspectRatios: boolean;
+  allowPreciseSizeControl: boolean;
   availableResolutions: ResolutionPreset[];
   apiMode: "responses" | "images";
   batchCount: number;
@@ -54,6 +59,7 @@ export function AndroidPadParameterSection({
   isMediumPad: boolean;
   needsUpstreamSetup: boolean;
   onOpenCustomAspectRatioModal: () => void;
+  onOpenCustomSizeModal: () => void;
   onOpenUpstream: () => void;
   quality: string;
   requestPolicy: "openai" | "compat";
@@ -114,9 +120,11 @@ export function AndroidPadParameterSection({
           aspectOptions={aspectOptions}
           activeResolution={activeResolution}
           activeResolutionLabel={activeResolutionLabel}
+          exactSizeLabel={exactSizeLabel}
           activeQualityLabel={activeQualityLabel}
           activeStyleLabel={activeStyleLabel}
           allowCustomAspectRatios={allowCustomAspectRatios}
+          allowPreciseSizeControl={allowPreciseSizeControl}
           availableResolutions={availableResolutions}
           apiMode={apiMode}
           batchCount={batchCount}
@@ -124,6 +132,7 @@ export function AndroidPadParameterSection({
           handleResolutionSelect={handleResolutionSelect}
           imageModelID={imageModelID}
           onOpenCustomAspectRatioModal={onOpenCustomAspectRatioModal}
+          onOpenCustomSizeModal={onOpenCustomSizeModal}
           quality={quality}
           requestPolicy={requestPolicy}
           setField={setField}

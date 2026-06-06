@@ -87,6 +87,7 @@ export function applyMacWorkspacePreviewToStore(workspaceId = "preview-workspace
     isTestingKey: false,
     isOptimizingPrompt: false,
     customAspectRatioModalOpen: false,
+    customSizeModalOpen: false,
     upstreamModalOpen: false,
     upstreamReturnTarget: "app",
     starPromptOpen: false,

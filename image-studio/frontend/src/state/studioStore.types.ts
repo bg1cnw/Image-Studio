@@ -238,6 +238,10 @@ export interface StudioState {
   closeCustomAspectRatioModal: () => void;
   addCustomAspectRatio: (width: number, height: number) => boolean;
   deleteCustomAspectRatio: (id: string) => void;
+  customSizeModalOpen: boolean;
+  openCustomSizeModal: () => void;
+  closeCustomSizeModal: () => void;
+  applyCustomSize: (width: number, height: number) => boolean;
   settingsOpen: boolean;
   openSettings: () => void;
   closeSettings: () => void;
