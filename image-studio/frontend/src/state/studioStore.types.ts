@@ -1,13 +1,19 @@
 import type { backend } from "../../wailsjs/go/models";
 import type {
   Annotation,
+  AppUpdateInfo,
   APIMode,
+  BackgroundValue,
   HistoryItem,
+  ImageStyleValue,
+  InputFidelityValue,
   KernelRuntimeMode,
   LoopGenerationConfig,
+  ModerationValue,
   Mode,
   OutputFormatValue,
   CustomAspectRatio,
+  CompletionSoundConfig,
   Preset,
   ProgressInfo,
   ProxyMode,
@@ -65,12 +71,20 @@ export interface StudioState {
   quality: QualityValue;
   outputFormat: OutputFormatValue;
   seed: number;
+  background: BackgroundValue;
+  outputCompression: number;
+  inputFidelity: InputFidelityValue;
+  imageStyle: ImageStyleValue;
+  moderation: ModerationValue;
+  userIdentifier: string;
+  partialImages: number;
   kernelRuntimeMode: KernelRuntimeMode;
   baseURL: string;
   textModelID: string;
   proxyMode: ProxyMode;
   proxyURL: string;
   imageModelID: string;
+  reasoningEffort: import("../types/domain").ReasoningEffortValue;
   apiMode: APIMode;
   requestPolicy: RequestPolicy;
   imagesNewAPICompat: boolean;
@@ -86,6 +100,7 @@ export interface StudioState {
   streamPreviews: StreamPreviewMap;
   lastLogLine: string;
   errorMessage: string | null;
+  errorCanRetry: boolean;
   errorRawPath: string | null;
   isRunning: boolean;
   lastPayload: backend.GenerateOptions | null;
@@ -140,6 +155,7 @@ export interface StudioState {
     imagesNewAPICompat?: boolean;
     textModelID?: string;
     imageModelID?: string;
+    reasoningEffort?: import("../types/domain").ReasoningEffortValue;
     concurrencyLimit?: number;
     apiKey?: string;
     setActive?: boolean;
@@ -149,6 +165,7 @@ export interface StudioState {
   duplicateProfile: (id: string) => Promise<string | null>;
   setActiveProfile: (id: string) => Promise<void>;
   selectSourceImage: () => Promise<void>;
+  viewSourceOnCanvas: (index: number) => Promise<void>;
   removeSource: (index: number) => void;
   clearSources: () => void;
   reorderSources: (from: number, to: number) => void;
@@ -183,9 +200,22 @@ export interface StudioState {
   savePromptItem: HistoryItem | null;
   savePromptQueue: HistoryItem[];
   savePromptSuppressed: boolean;
+  keepLogs: boolean;
+  completionSound: CompletionSoundConfig;
+  ignoredReleaseTag: string;
+  appUpdate: AppUpdateInfo | null;
+  appUpdateModalOpen: boolean;
   enqueueSavePrompt: (item: HistoryItem) => void;
   closeSavePrompt: () => void;
   setSavePromptSuppressed: (value: boolean) => void;
+  setKeepLogs: (value: boolean) => Promise<void>;
+  ignoreAppUpdate: (releaseTag: string) => void;
+  dismissAppUpdateModal: () => void;
+  setCompletionSoundEnabled: (value: boolean) => void;
+  setCompletionSoundMode: (value: CompletionSoundConfig["mode"]) => void;
+  setCompletionSoundCustom: (input: { name: string; dataURL: string }) => void;
+  resetCompletionSoundCustom: () => void;
+  previewCompletionSound: () => Promise<void>;
   materializeCurrentImage: (item: HistoryItem) => Promise<HistoryItem>;
   retryLast: () => Promise<void>;
   setHistoryRailCollapsed: (collapsed: boolean) => void;
@@ -193,7 +223,9 @@ export interface StudioState {
   openHistoryTimeline: () => void;
   closeHistoryTimeline: () => void;
   pruneHistoryOlderThanDays: (days: number) => Promise<number>;
-  savePreset: (name: string) => void;
+  savePreset: (name: string) => string | null;
+  overwritePreset: (id: string) => boolean;
+  updatePreset: (id: string, patch: Partial<Omit<Preset, "id">>) => boolean;
   applyPreset: (id: string) => void;
   deletePreset: (id: string) => void;
   exportHistory: () => Promise<void>;

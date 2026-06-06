@@ -173,10 +173,12 @@ html[data-platform="android"] .android-upstream-create-grid {
 html[data-platform="android"] .android-upstream-create-grid button,
 html[data-platform="android"] .android-upstream-profile-item,
 html[data-platform="android"] .android-upstream-option-grid button,
+html[data-platform="android"] .android-upstream-model-suggestions button,
 html[data-platform="android"] .android-upstream-actions button,
 html[data-platform="android"] .android-upstream-icon-actions button,
 html[data-platform="android"] .android-upstream-stepper button,
-html[data-platform="android"] .android-upstream-secret button {
+html[data-platform="android"] .android-upstream-secret button,
+html[data-platform="android"] .android-upstream-load-models {
   transition:
     border-color 140ms ease,
     background-color 140ms ease,
@@ -225,6 +227,48 @@ html[data-platform="android"] .android-upstream-option-grid strong {
   font-weight: 800;
   line-height: 1.25;
   white-space: normal;
+}
+
+html[data-platform="android"] .android-upstream-load-models {
+  display: inline-flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgb(15 23 42 / 0.08);
+  border-radius: 18px;
+  background: rgb(248 250 249 / 0.9);
+  padding: 11px 14px;
+  color: rgb(24 24 27);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+html[data-platform="android"] .android-upstream-load-models:disabled {
+  opacity: 0.6;
+}
+
+html[data-platform="android"] .android-upstream-model-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+html[data-platform="android"] .android-upstream-model-suggestions button {
+  max-width: 100%;
+  border: 1px solid rgb(15 23 42 / 0.08);
+  border-radius: 999px;
+  background: rgb(15 23 42 / 0.04);
+  padding: 8px 12px;
+  text-align: left;
+  color: rgb(63 63 70);
+}
+
+html[data-platform="android"] .android-upstream-model-suggestions button.active {
+  border-color: rgb(0 106 96 / 0.34);
+  background: rgb(0 106 96 / 0.12);
+  color: var(--accent);
 }
 
 html[data-platform="android"] .android-upstream-create-grid small,

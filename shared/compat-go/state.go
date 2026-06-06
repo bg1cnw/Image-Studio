@@ -22,31 +22,50 @@ type State struct {
 }
 
 type Settings struct {
-	ProxyMode            string   `json:"proxyMode,omitempty"`
-	ProxyURL             string   `json:"proxyURL,omitempty"`
-	Theme                string   `json:"theme,omitempty"`
-	FontScale            float64  `json:"fontScale,omitempty"`
-	OutputFormat         string   `json:"outputFormat,omitempty"`
-	OutputDir            string   `json:"outputDir,omitempty"`
-	PromptHistory        []string `json:"promptHistory,omitempty"`
-	Presets              []Preset `json:"presets,omitempty"`
-	KernelRuntimeMode    string   `json:"kernelRuntimeMode,omitempty"`
-	TrustedOutputRoots   []string `json:"trustedOutputRoots,omitempty"`
-	SavePromptSuppressed bool     `json:"savePromptSuppressed,omitempty"`
+	ProxyMode            string                   `json:"proxyMode,omitempty"`
+	ProxyURL             string                   `json:"proxyURL,omitempty"`
+	Theme                string                   `json:"theme,omitempty"`
+	FontScale            float64                  `json:"fontScale,omitempty"`
+	OutputFormat         string                   `json:"outputFormat,omitempty"`
+	Background           string                   `json:"background,omitempty"`
+	OutputCompression    *int                     `json:"outputCompression,omitempty"`
+	InputFidelity        string                   `json:"inputFidelity,omitempty"`
+	ImageStyle           string                   `json:"imageStyle,omitempty"`
+	Moderation           string                   `json:"moderation,omitempty"`
+	UserIdentifier       string                   `json:"userIdentifier,omitempty"`
+	PartialImages        *int                     `json:"partialImages,omitempty"`
+	OutputDir            string                   `json:"outputDir,omitempty"`
+	PromptHistory        []string                 `json:"promptHistory,omitempty"`
+	Presets              []Preset                 `json:"presets,omitempty"`
+	KernelRuntimeMode    string                   `json:"kernelRuntimeMode,omitempty"`
+	ReducedEffects       bool                     `json:"reducedEffects,omitempty"`
+	TrustedOutputRoots   []string                 `json:"trustedOutputRoots,omitempty"`
+	SavePromptSuppressed bool                     `json:"savePromptSuppressed,omitempty"`
+	KeepLogs             bool                     `json:"keepLogs,omitempty"`
+	IgnoredReleaseTag    string                   `json:"ignoredReleaseTag,omitempty"`
+	CompletionSound      *CompletionSoundSettings `json:"completionSound,omitempty"`
+}
+
+type CompletionSoundSettings struct {
+	Enabled    bool   `json:"enabled,omitempty"`
+	Mode       string `json:"mode,omitempty"`
+	CustomName string `json:"customName,omitempty"`
+	CustomData string `json:"customDataURL,omitempty"`
 }
 
 type UpstreamProfile struct {
-	ID               string `json:"id"`
-	Name             string `json:"name"`
-	APIMode          string `json:"apiMode"`
-	RequestPolicy    string `json:"requestPolicy"`
+	ID                 string `json:"id"`
+	Name               string `json:"name"`
+	APIMode            string `json:"apiMode"`
+	RequestPolicy      string `json:"requestPolicy"`
 	ImagesNewAPICompat bool   `json:"imagesNewAPICompat,omitempty"`
-	BaseURL          string `json:"baseURL"`
-	TextModelID      string `json:"textModelID"`
-	ImageModelID     string `json:"imageModelID"`
-	ConcurrencyLimit int    `json:"concurrencyLimit"`
-	CreatedAt        int64  `json:"createdAt"`
-	LastUsedAt       int64  `json:"lastUsedAt,omitempty"`
+	BaseURL            string `json:"baseURL"`
+	TextModelID        string `json:"textModelID"`
+	ImageModelID       string `json:"imageModelID"`
+	ReasoningEffort    string `json:"reasoningEffort"`
+	ConcurrencyLimit   int    `json:"concurrencyLimit"`
+	CreatedAt          int64  `json:"createdAt"`
+	LastUsedAt         int64  `json:"lastUsedAt,omitempty"`
 }
 
 type Preset struct {
@@ -56,35 +75,47 @@ type Preset struct {
 	Quality           string `json:"quality"`
 	OutputFormat      string `json:"outputFormat,omitempty"`
 	NegativePrompt    string `json:"negativePrompt"`
+	Background        string `json:"background,omitempty"`
+	OutputCompression *int   `json:"outputCompression,omitempty"`
+	InputFidelity     string `json:"inputFidelity,omitempty"`
+	ImageStyle        string `json:"imageStyle,omitempty"`
+	Moderation        string `json:"moderation,omitempty"`
 	KernelRuntimeMode string `json:"kernelRuntimeMode,omitempty"`
 	BatchCount        int    `json:"batchCount"`
 }
 
 type HistoryItem struct {
-	ID             string  `json:"id"`
-	ImageID        string  `json:"imageId,omitempty"`
-	PreviewURL     string  `json:"previewUrl,omitempty"`
-	FullURL        string  `json:"fullUrl,omitempty"`
-	ThumbPath      string  `json:"thumbPath,omitempty"`
-	PreviewWidth   int     `json:"previewWidth,omitempty"`
-	PreviewHeight  int     `json:"previewHeight,omitempty"`
-	ImageB64       string  `json:"imageB64,omitempty"`
-	PreviewOnly    bool    `json:"previewOnly,omitempty"`
-	Prompt         string  `json:"prompt"`
-	RevisedPrompt  string  `json:"revisedPrompt,omitempty"`
-	Mode           string  `json:"mode"`
-	Size           string  `json:"size"`
-	Quality        string  `json:"quality"`
-	OutputFormat   string  `json:"outputFormat,omitempty"`
-	ParentID       string  `json:"parentId,omitempty"`
-	CreatedAt      int64   `json:"createdAt"`
-	Seed           int64   `json:"seed,omitempty"`
-	NegativePrompt string  `json:"negativePrompt,omitempty"`
-	StyleTag       string  `json:"styleTag,omitempty"`
-	BatchIndex     int     `json:"batchIndex,omitempty"`
-	ElapsedSec     float64 `json:"elapsedSec,omitempty"`
-	SavedPath      string  `json:"savedPath,omitempty"`
-	RawPath        string  `json:"rawPath,omitempty"`
+	ID                string   `json:"id"`
+	ImageID           string   `json:"imageId,omitempty"`
+	PreviewURL        string   `json:"previewUrl,omitempty"`
+	FullURL           string   `json:"fullUrl,omitempty"`
+	PreviewPath       string   `json:"previewPath,omitempty"`
+	ThumbPath         string   `json:"thumbPath,omitempty"`
+	PreviewWidth      int      `json:"previewWidth,omitempty"`
+	PreviewHeight     int      `json:"previewHeight,omitempty"`
+	ImageB64          string   `json:"imageB64,omitempty"`
+	PreviewOnly       bool     `json:"previewOnly,omitempty"`
+	Prompt            string   `json:"prompt"`
+	RevisedPrompt     string   `json:"revisedPrompt,omitempty"`
+	Mode              string   `json:"mode"`
+	Size              string   `json:"size"`
+	Quality           string   `json:"quality"`
+	OutputFormat      string   `json:"outputFormat,omitempty"`
+	ParentID          string   `json:"parentId,omitempty"`
+	CreatedAt         int64    `json:"createdAt"`
+	Seed              int64    `json:"seed,omitempty"`
+	NegativePrompt    string   `json:"negativePrompt,omitempty"`
+	Background        string   `json:"background,omitempty"`
+	OutputCompression *int     `json:"outputCompression,omitempty"`
+	InputFidelity     string   `json:"inputFidelity,omitempty"`
+	ImageStyle        string   `json:"imageStyle,omitempty"`
+	Moderation        string   `json:"moderation,omitempty"`
+	StyleTag          string   `json:"styleTag,omitempty"`
+	BatchIndex        int      `json:"batchIndex,omitempty"`
+	ElapsedSec        float64  `json:"elapsedSec,omitempty"`
+	SourcePaths       []string `json:"sourcePaths,omitempty"`
+	SavedPath         string   `json:"savedPath,omitempty"`
+	RawPath           string   `json:"rawPath,omitempty"`
 }
 
 type HistoryFullItem struct {
@@ -167,6 +198,11 @@ func Normalize(state State) State {
 	}
 	if state.Profiles == nil {
 		state.Profiles = []UpstreamProfile{}
+	}
+	for i := range state.Profiles {
+		if state.Profiles[i].ReasoningEffort == "" {
+			state.Profiles[i].ReasoningEffort = "xhigh"
+		}
 	}
 	if state.History == nil {
 		state.History = []HistoryItem{}

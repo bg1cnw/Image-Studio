@@ -1,13 +1,13 @@
-import { classifyImageModel } from "../../../../../shared/kernel/requestModel.js";
+import { classifyImageModel, normalizeImageModel } from "../../../../../shared/kernel/requestModel.js";
 import {
   buildCustomAspectRatioId,
   reduceAspectRatio,
 } from "../../lib/customAspectRatios.ts";
 import type { APIMode, CustomAspectRatio, RequestPolicy, SizeValue } from "../../types/domain";
 
-export type BuiltinAspectPreset = "auto" | "1:1" | "3:2" | "2:3" | "16:9" | "9:16";
+export type BuiltinAspectPreset = "auto" | "1:1" | "3:2" | "2:3" | "16:9" | "9:16" | "7:4" | "4:7";
 export type AspectPreset = BuiltinAspectPreset | `custom:${string}`;
-export type ResolutionPreset = "auto" | "1k" | "2k" | "4k";
+export type ResolutionPreset = "auto" | "256" | "512" | "1k" | "2k" | "4k";
 
 export interface AspectPresetOption {
   value: AspectPreset;
@@ -18,6 +18,12 @@ export interface AspectPresetOption {
   custom?: boolean;
 }
 
+type SizeCapabilityInput = {
+  apiMode: APIMode;
+  requestPolicy: RequestPolicy;
+  imageModelID?: string;
+};
+
 export const ASPECT_PRESETS: AspectPresetOption[] = [
   { value: "auto", label: "Auto", w: 18, h: 18, auto: true },
   { value: "1:1", label: "1:1", w: 18, h: 18 },
@@ -25,10 +31,14 @@ export const ASPECT_PRESETS: AspectPresetOption[] = [
   { value: "2:3", label: "2:3", w: 14, h: 20 },
   { value: "16:9", label: "16:9", w: 24, h: 13 },
   { value: "9:16", label: "9:16", w: 12, h: 22 },
+  { value: "7:4", label: "7:4", w: 24, h: 14 },
+  { value: "4:7", label: "4:7", w: 14, h: 24 },
 ];
 
 export const RESOLUTION_PRESETS: Array<{ value: ResolutionPreset; label: string }> = [
   { value: "auto", label: "自动" },
+  { value: "256", label: "256" },
+  { value: "512", label: "512" },
   { value: "1k", label: "1K" },
   { value: "2k", label: "2K" },
   { value: "4k", label: "4K" },
@@ -40,10 +50,14 @@ const BUILTIN_ASPECT_DIMENSIONS: Record<Exclude<BuiltinAspectPreset, "auto">, { 
   "2:3": { width: 2, height: 3 },
   "16:9": { width: 16, height: 9 },
   "9:16": { width: 9, height: 16 },
+  "7:4": { width: 7, height: 4 },
+  "4:7": { width: 4, height: 7 },
 };
 
-const SIZE_MATRIX: Record<Exclude<BuiltinAspectPreset, "auto">, Record<Exclude<ResolutionPreset, "auto">, SizeValue>> = {
+const SIZE_MATRIX: Record<Exclude<BuiltinAspectPreset, "auto">, Partial<Record<Exclude<ResolutionPreset, "auto">, SizeValue>>> = {
   "1:1": {
+    "256": "256x256",
+    "512": "512x512",
     "1k": "1024x1024",
     "2k": "2048x2048",
     "4k": "2880x2880",
@@ -68,10 +82,18 @@ const SIZE_MATRIX: Record<Exclude<BuiltinAspectPreset, "auto">, Record<Exclude<R
     "2k": "1152x2048",
     "4k": "2160x3840",
   },
+  "7:4": {
+    "1k": "1792x1024",
+  },
+  "4:7": {
+    "1k": "1024x1792",
+  },
 };
 
 const SIZE_TO_ASPECT: Record<string, BuiltinAspectPreset> = {
   auto: "auto",
+  "256x256": "1:1",
+  "512x512": "1:1",
   "1024x1024": "1:1",
   "2048x2048": "1:1",
   "2880x2880": "1:1",
@@ -87,15 +109,21 @@ const SIZE_TO_ASPECT: Record<string, BuiltinAspectPreset> = {
   "864x1536": "9:16",
   "1152x2048": "9:16",
   "2160x3840": "9:16",
+  "1792x1024": "7:4",
+  "1024x1792": "4:7",
 };
 
 const SIZE_TO_RESOLUTION: Record<string, ResolutionPreset> = {
   auto: "auto",
+  "256x256": "256",
+  "512x512": "512",
   "1024x1024": "1k",
   "1536x1024": "1k",
   "1024x1536": "1k",
   "1536x864": "1k",
   "864x1536": "1k",
+  "1792x1024": "1k",
+  "1024x1792": "1k",
   "2048x2048": "2k",
   "2048x1360": "2k",
   "1360x2048": "2k",
@@ -108,10 +136,11 @@ const SIZE_TO_RESOLUTION: Record<string, ResolutionPreset> = {
   "2160x3840": "4k",
 };
 
+const FLEXIBLE_RESOLUTION_PRESETS: ResolutionPreset[] = ["auto", "1k", "2k", "4k"];
 const LARGE_RESOLUTION_PRESETS = new Set<ResolutionPreset>(["2k", "4k"]);
 const DEFAULT_ASPECT_FROM_AUTO: Exclude<BuiltinAspectPreset, "auto"> = "1:1";
 const DEFAULT_RESOLUTION_FROM_AUTO: Exclude<ResolutionPreset, "auto"> = "1k";
-const CUSTOM_RESOLUTION_REFERENCES: Record<Exclude<ResolutionPreset, "auto">, { area: number; maxSide: number }> = {
+const CUSTOM_RESOLUTION_REFERENCES: Record<"1k" | "2k" | "4k", { area: number; maxSide: number }> = {
   "1k": { area: 1536 * 1024, maxSide: 1536 },
   "2k": { area: 2048 * 1360, maxSide: 2048 },
   "4k": { area: 3840 * 2160, maxSide: 3840 },
@@ -119,35 +148,44 @@ const CUSTOM_RESOLUTION_REFERENCES: Record<Exclude<ResolutionPreset, "auto">, { 
 const CUSTOM_ASPECT_TOLERANCE = 0.035;
 const BUILTIN_ASPECT_TOLERANCE = 0.08;
 
-export function supportsExplicitLargeSizes({
-  apiMode,
-  requestPolicy,
-  imageModelID,
-}: {
-  apiMode: APIMode;
-  requestPolicy: RequestPolicy;
-  imageModelID?: string;
-}): boolean {
-  const family = classifyImageModel(imageModelID || "");
-  if (apiMode === "images") {
-    return family === "gpt-image" || family === "dalle3";
-  }
-  if (family === "gpt-image") {
-    return true;
-  }
-  return requestPolicy === "compat";
+function modelFamily(input: { imageModelID?: string }): ReturnType<typeof classifyImageModel> {
+  return classifyImageModel(input.imageModelID || "");
 }
 
-export function availableResolutionPresets(input: {
-  apiMode: APIMode;
-  requestPolicy: RequestPolicy;
-  imageModelID?: string;
-}): ResolutionPreset[] {
-  const all: ResolutionPreset[] = ["auto", "1k", "2k", "4k"];
-  if (supportsExplicitLargeSizes(input)) {
-    return all;
-  }
-  return all.filter((value) => !LARGE_RESOLUTION_PRESETS.has(value));
+function normalizedImageModelID(input: { imageModelID?: string }): string {
+  return normalizeImageModel(input.imageModelID || "").toLowerCase();
+}
+
+function isFlexibleGPTImageModel(input: { imageModelID?: string }): boolean {
+  return normalizedImageModelID(input).startsWith("gpt-image-2");
+}
+
+function isLegacyGPTImageModel(input: { imageModelID?: string }): boolean {
+  const normalized = normalizedImageModelID(input);
+  if (normalized.startsWith("gpt-image-2")) return false;
+  return normalized.startsWith("gpt-image-1") || normalized.startsWith("chatgpt-image-latest");
+}
+
+export function supportsAutomaticSizing(input: SizeCapabilityInput): boolean {
+  return isFlexibleGPTImageModel(input) || isLegacyGPTImageModel(input);
+}
+
+export function supportsCustomAspectRatios(input: SizeCapabilityInput): boolean {
+  return isFlexibleGPTImageModel(input) || (modelFamily(input) === "other" && input.requestPolicy === "compat");
+}
+
+export function supportsExplicitLargeSizes(input: SizeCapabilityInput): boolean {
+  if (isFlexibleGPTImageModel(input)) return true;
+  return modelFamily(input) === "other" && input.requestPolicy === "compat";
+}
+
+export function availableResolutionPresets(input: SizeCapabilityInput): ResolutionPreset[] {
+  const family = modelFamily(input);
+  if (family === "dalle2") return ["256", "512", "1k"];
+  if (family === "dalle3") return ["1k"];
+  if (isLegacyGPTImageModel(input)) return ["auto", "1k"];
+  if (supportsExplicitLargeSizes(input)) return FLEXIBLE_RESOLUTION_PRESETS;
+  return FLEXIBLE_RESOLUTION_PRESETS.filter((value) => !LARGE_RESOLUTION_PRESETS.has(value));
 }
 
 export function buildCustomAspectValue(id: string): AspectPreset {
@@ -167,9 +205,16 @@ export function aspectPresetLabel(aspect: AspectPreset, customRatios: CustomAspe
   return ASPECT_PRESETS.find((item) => item.value === aspect)?.label ?? aspect;
 }
 
-export function listAspectPresetOptions(customRatios: CustomAspectRatio[] = []): AspectPresetOption[] {
+export function listAspectPresetOptions(input: SizeCapabilityInput, customRatios: CustomAspectRatio[] = []): AspectPresetOption[] {
+  const allowed = new Set<AspectPreset>(allowedBuiltinAspectPresets(input));
+  const base = ASPECT_PRESETS.filter((item) => allowed.has(item.value));
+
+  if (!supportsCustomAspectRatios(input)) {
+    return base;
+  }
+
   return [
-    ...ASPECT_PRESETS,
+    ...base,
     ...customRatios.map((ratio) => {
       const shape = aspectShapeFromRatio(ratio.width, ratio.height);
       return {
@@ -204,7 +249,7 @@ export function deriveResolutionPreset(size: SizeValue): ResolutionPreset {
   const area = parsed.width * parsed.height;
   let best: ResolutionPreset = DEFAULT_RESOLUTION_FROM_AUTO;
   let bestDistance = Number.POSITIVE_INFINITY;
-  for (const [resolution, reference] of Object.entries(CUSTOM_RESOLUTION_REFERENCES) as Array<[Exclude<ResolutionPreset, "auto">, { area: number }]>) {
+  for (const [resolution, reference] of Object.entries(CUSTOM_RESOLUTION_REFERENCES) as Array<["1k" | "2k" | "4k", { area: number }]>) {
     const distance = Math.abs(area - reference.area);
     if (distance < bestDistance) {
       bestDistance = distance;
@@ -217,39 +262,38 @@ export function deriveResolutionPreset(size: SizeValue): ResolutionPreset {
 export function buildSizeSelection(
   aspect: AspectPreset,
   resolution: ResolutionPreset,
-  input: {
-    apiMode: APIMode;
-    requestPolicy: RequestPolicy;
-    imageModelID?: string;
-  },
+  input: SizeCapabilityInput,
   customRatios: CustomAspectRatio[] = [],
 ): SizeValue {
   if (aspect === "auto" || resolution === "auto") {
-    return "auto";
+    return supportsAutomaticSizing(input) ? "auto" : defaultModelSize(input);
   }
   const normalizedResolution = normalizeResolutionSelection(resolution, input);
   if (normalizedResolution === "auto") {
-    return "auto";
+    return supportsAutomaticSizing(input) ? "auto" : defaultModelSize(input);
   }
   const custom = customAspectIdFromValue(aspect);
   if (custom) {
+    if (!supportsCustomAspectRatios(input)) return defaultModelSize(input);
     const ratio = customRatios.find((item) => item.id === custom);
-    return ratio ? buildCustomSizeSelection(ratio, normalizedResolution) : SIZE_MATRIX[DEFAULT_ASPECT_FROM_AUTO][normalizedResolution];
+    return ratio ? buildCustomSizeSelection(ratio, normalizedResolution) : (SIZE_MATRIX[DEFAULT_ASPECT_FROM_AUTO][normalizedResolution] ?? defaultModelSize(input));
   }
-  return SIZE_MATRIX[aspect as Exclude<BuiltinAspectPreset, "auto">][normalizedResolution];
+  if (!allowedBuiltinAspectPresets(input).includes(aspect as BuiltinAspectPreset)) {
+    return defaultModelSize(input);
+  }
+  const size = SIZE_MATRIX[aspect as Exclude<BuiltinAspectPreset, "auto">]?.[normalizedResolution];
+  return size ?? defaultModelSize(input);
 }
 
 export function buildAspectSizeSelection(
   aspect: AspectPreset,
   currentResolution: ResolutionPreset,
-  input: {
-    apiMode: APIMode;
-    requestPolicy: RequestPolicy;
-    imageModelID?: string;
-  },
+  input: SizeCapabilityInput,
   customRatios: CustomAspectRatio[] = [],
 ): SizeValue {
-  if (aspect === "auto") return "auto";
+  if (aspect === "auto") {
+    return supportsAutomaticSizing(input) ? "auto" : defaultModelSize(input);
+  }
   const normalizedResolution = normalizeResolutionSelection(currentResolution, input);
   return buildSizeSelection(
     aspect,
@@ -262,14 +306,12 @@ export function buildAspectSizeSelection(
 export function buildResolutionSizeSelection(
   currentAspect: AspectPreset,
   resolution: ResolutionPreset,
-  input: {
-    apiMode: APIMode;
-    requestPolicy: RequestPolicy;
-    imageModelID?: string;
-  },
+  input: SizeCapabilityInput,
   customRatios: CustomAspectRatio[] = [],
 ): SizeValue {
-  if (resolution === "auto") return "auto";
+  if (resolution === "auto") {
+    return supportsAutomaticSizing(input) ? "auto" : defaultModelSize(input);
+  }
   return buildSizeSelection(
     currentAspect === "auto" ? DEFAULT_ASPECT_FROM_AUTO : currentAspect,
     normalizeResolutionSelection(resolution, input),
@@ -278,37 +320,33 @@ export function buildResolutionSizeSelection(
   );
 }
 
-export function normalizeResolutionSelection(
-  resolution: ResolutionPreset,
-  input: {
-    apiMode: APIMode;
-    requestPolicy: RequestPolicy;
-    imageModelID?: string;
-  },
-): ResolutionPreset {
-  const allowed = new Set(availableResolutionPresets(input));
-  return allowed.has(resolution) ? resolution : DEFAULT_RESOLUTION_FROM_AUTO;
+export function normalizeResolutionSelection(resolution: ResolutionPreset, input: SizeCapabilityInput): ResolutionPreset {
+  const allowed = availableResolutionPresets(input);
+  if (allowed.includes(resolution)) return resolution;
+  return allowed.find((value) => value !== "auto") ?? allowed[0] ?? DEFAULT_RESOLUTION_FROM_AUTO;
 }
 
 export function normalizeSizeSelection(
   size: SizeValue,
-  input: {
-    apiMode: APIMode;
-    requestPolicy: RequestPolicy;
-    imageModelID?: string;
-  },
+  input: SizeCapabilityInput,
   customRatios: CustomAspectRatio[] = [],
 ): SizeValue {
+  if (size === "auto") {
+    return supportsAutomaticSizing(input) ? "auto" : defaultModelSize(input);
+  }
   const aspect = deriveAspectPreset(size, customRatios);
   const resolution = deriveResolutionPreset(size);
   return buildSizeSelection(aspect, resolution, input, customRatios);
 }
 
-export function sizeCapabilityHint(input: {
-  apiMode: APIMode;
-  requestPolicy: RequestPolicy;
-  imageModelID?: string;
-}): string {
+export function sizeCapabilityHint(input: SizeCapabilityInput): string {
+  const family = modelFamily(input);
+  if (family === "dalle2") {
+    return "当前模型仅支持 256 / 512 / 1024 的正方形尺寸。";
+  }
+  if (family === "dalle3") {
+    return "当前模型仅支持 1024×1024、1792×1024、1024×1792。";
+  }
   if (supportsExplicitLargeSizes(input)) {
     return "";
   }
@@ -319,7 +357,7 @@ function buildCustomSizeSelection(
   ratio: CustomAspectRatio,
   resolution: Exclude<ResolutionPreset, "auto">,
 ): SizeValue {
-  const reference = CUSTOM_RESOLUTION_REFERENCES[resolution];
+  const reference = CUSTOM_RESOLUTION_REFERENCES[resolution as "1k" | "2k" | "4k"] ?? CUSTOM_RESOLUTION_REFERENCES["1k"];
   const aspect = ratio.width / ratio.height;
   let width = Math.sqrt(reference.area * aspect);
   let height = Math.sqrt(reference.area / aspect);
@@ -355,11 +393,7 @@ function parseSizeValue(size: SizeValue): { width: number; height: number } | nu
   return { width, height };
 }
 
-function findMatchingCustomAspect(
-  width: number,
-  height: number,
-  customRatios: CustomAspectRatio[],
-): CustomAspectRatio | null {
+function findMatchingCustomAspect(width: number, height: number, customRatios: CustomAspectRatio[]): CustomAspectRatio | null {
   let best: CustomAspectRatio | null = null;
   let bestDistance = Number.POSITIVE_INFINITY;
   for (const ratio of customRatios) {
@@ -404,10 +438,25 @@ export function builtInAspectId(width: number, height: number): string {
 
 export function isBuiltInAspectRatio(width: number, height: number): boolean {
   const id = buildCustomAspectRatioId(width, height);
-  return id === "1:1" || id === "3:2" || id === "2:3" || id === "16:9" || id === "9:16";
+  return id === "1:1" || id === "3:2" || id === "2:3" || id === "16:9" || id === "9:16" || id === "7:4" || id === "4:7";
 }
 
 export function reduceAspectRatioLabel(width: number, height: number): string {
   const reduced = reduceAspectRatio(width, height);
   return reduced.width > 0 && reduced.height > 0 ? `${reduced.width}:${reduced.height}` : "";
+}
+
+function defaultModelSize(input: SizeCapabilityInput): SizeValue {
+  const family = modelFamily(input);
+  if (family === "dalle2" || family === "dalle3") return "1024x1024";
+  if (isLegacyGPTImageModel(input)) return "1024x1024";
+  return "1024x1024";
+}
+
+function allowedBuiltinAspectPresets(input: SizeCapabilityInput): BuiltinAspectPreset[] {
+  const family = modelFamily(input);
+  if (family === "dalle2") return ["1:1"];
+  if (family === "dalle3") return ["1:1", "7:4", "4:7"];
+  if (isLegacyGPTImageModel(input)) return ["auto", "1:1", "3:2", "2:3"];
+  return ["auto", "1:1", "3:2", "2:3", "16:9", "9:16"];
 }

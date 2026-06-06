@@ -4,8 +4,20 @@ import {
 } from "../../../lib/images.ts";
 import {
   buildResponsesPayload as buildSharedResponsesPayload,
+  normalizeBackground,
+  normalizeImageStyle,
+  normalizeInputFidelity,
+  normalizeOutputCompression,
   normalizePartialImages,
+  normalizeModeration,
+  normalizeReasoningEffort,
+  normalizeUserIdentifier,
   shouldSendExtendedImageParameters,
+  supportsImageBackground,
+  supportsImageStyle,
+  supportsInputFidelity,
+  supportsImageModeration,
+  supportsOutputCompression,
   shouldUseImagesNewAPICompat,
   supportsImagesResponseFormat,
 } from "../../../../../../shared/kernel/requestModel.js";
@@ -19,7 +31,10 @@ export function buildResponsesPayload(
   const maskMimeType = payload.maskB64
     ? (detectImageMimeTypeFromBase64(payload.maskB64) || "image/png")
     : "image/png";
-  return buildSharedResponsesPayload(payload, sourceDataURLs, { maskMimeType });
+  return buildSharedResponsesPayload({
+    ...payload,
+    reasoningEffort: normalizeReasoningEffort(payload.reasoningEffort || ""),
+  }, sourceDataURLs, { maskMimeType });
 }
 
 export async function buildImagesRequestBody(
@@ -32,6 +47,12 @@ export async function buildImagesRequestBody(
   const size = request.payload.size || "1024x1024";
   const quality = request.payload.quality || "auto";
   const outputFormat = request.payload.outputFormat || "png";
+  const background = normalizeBackground(request.payload.background);
+  const imageStyle = normalizeImageStyle(request.payload.imageStyle);
+  const inputFidelity = normalizeInputFidelity(request.payload.inputFidelity);
+  const outputCompression = normalizeOutputCompression(request.payload.outputCompression);
+  const moderation = normalizeModeration(request.payload.moderation);
+  const userIdentifier = normalizeUserIdentifier(request.payload.userIdentifier || "");
   const includeExtended = shouldSendExtendedImageParameters(request.payload.requestPolicy);
   const partialImages = request.payload.disablePreview ? 0 : normalizePartialImages(request.payload.partialImages);
   const useNewAPICompat = shouldUseImagesNewAPICompat(request.payload);
@@ -59,6 +80,21 @@ export async function buildImagesRequestBody(
     form.append("size", size);
     form.append("quality", quality);
     form.append("output_format", outputFormat);
+    if (supportsImageBackground(imageModel)) {
+      form.append("background", background);
+    }
+    if (supportsOutputCompression(imageModel, outputFormat)) {
+      form.append("output_compression", String(outputCompression));
+    }
+    if (supportsInputFidelity(imageModel) && inputFidelity !== "auto") {
+      form.append("input_fidelity", inputFidelity);
+    }
+    if (supportsImageModeration(imageModel)) {
+      form.append("moderation", moderation);
+    }
+    if (userIdentifier) {
+      form.append("user", userIdentifier);
+    }
     if (useNewAPICompat || supportsImagesResponseFormat(imageModel, mode)) {
       form.append("response_format", "b64_json");
     }
@@ -79,6 +115,21 @@ export async function buildImagesRequestBody(
     quality,
     output_format: outputFormat,
   };
+  if (supportsImageBackground(imageModel)) {
+    payload.background = background;
+  }
+  if (supportsOutputCompression(imageModel, outputFormat)) {
+    payload.output_compression = outputCompression;
+  }
+  if (supportsImageStyle(imageModel) && imageStyle !== "default") {
+    payload.style = imageStyle;
+  }
+  if (supportsImageModeration(imageModel)) {
+    payload.moderation = moderation;
+  }
+  if (userIdentifier) {
+    payload.user = userIdentifier;
+  }
   if (useNewAPICompat || supportsImagesResponseFormat(imageModel, mode)) {
     payload.response_format = "b64_json";
   }

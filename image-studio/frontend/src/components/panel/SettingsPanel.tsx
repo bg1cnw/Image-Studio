@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  Download, Folder, FolderEdit, Github, Info, KeyRound,
+  Bell, Download, Folder, FolderEdit, Github, Info, KeyRound,
   MessageSquare, Monitor, Moon, Network, RotateCw, Save, Sun, Trash2, Upload,
 } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
@@ -16,10 +16,11 @@ import { androidSaveHint, androidTarget, openExternalURLForPlatform, openOutputL
 import { AndroidSettingsPanel } from "../../platform/android/settings/AndroidSettingsPanel";
 import { usePlatform } from "../../platform/context";
 import { AboutImageStudioModal } from "./AboutImageStudioModal";
-import { SettingsPresetsRow } from "./SettingsPresetsRow";
 import { SettingsRow, SettingsSegButton } from "./settingsPrimitives";
+import { importCompletionSoundFile } from "../../lib/completionSound";
 
 const REPO_URL = "https://github.com/RoseKhlifa/Image-Studio";
+const RELEASES_URL = "https://github.com/RoseKhlifa/Image-Studio/releases";
 const ISSUES_URL = "https://github.com/RoseKhlifa/Image-Studio/issues";
 const MIT_URL = "https://opensource.org/licenses/MIT";
 
@@ -39,6 +40,13 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
     profiles, activeProfileId, setActiveProfile,
     openUpstreamConfig, testAPIKey, isTestingKey,
     savePromptSuppressed, setSavePromptSuppressed,
+    keepLogs, setKeepLogs,
+    completionSound,
+    setCompletionSoundEnabled,
+    setCompletionSoundMode,
+    setCompletionSoundCustom,
+    resetCompletionSoundCustom,
+    previewCompletionSound,
   } = useStudioStore();
 
   const [outputDir, setOutputDir] = useState("");
@@ -89,6 +97,36 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
     pushToast(value ? "已关闭生成后保存提示" : "已开启生成后保存提示", "success");
   }
 
+  async function updateKeepLogs(value: boolean) {
+    await setKeepLogs(value);
+    pushToast(value ? "已开启日志保留" : "已关闭日志保留，退出应用后会自动清理 log", "success");
+  }
+
+  async function chooseCompletionSoundFile() {
+    if (typeof document === "undefined") return;
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "audio/*,.mp3,.wav,.ogg,.m4a,.aac,.webm";
+    input.style.position = "fixed";
+    input.style.left = "-9999px";
+    document.body.appendChild(input);
+    input.addEventListener("change", () => {
+      const file = input.files?.[0];
+      input.remove();
+      if (!file) return;
+      void (async () => {
+        try {
+          const imported = await importCompletionSoundFile(file);
+          setCompletionSoundCustom(imported);
+          pushToast(`已设置自定义提示音: ${imported.name}`, "success");
+        } catch (e: any) {
+          pushToast(e?.message ?? "导入提示音失败", "error", 5000);
+        }
+      })();
+    }, { once: true });
+    input.click();
+  }
+
   function closeSettings() {
     setAboutOpen(false);
     onClose();
@@ -115,14 +153,29 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
       onOpenFeedback={() => openExternal(ISSUES_URL)}
       onOpenRepo={() => openExternal(REPO_URL)}
       onOpenUpstream={() => openUpstreamConfig("settings")}
+      onPreviewCompletionSound={() => void previewCompletionSound()}
+      onResetCompletionSound={() => {
+        resetCompletionSoundCustom();
+        pushToast("已恢复默认提示音", "success");
+      }}
+      onSelectCompletionSound={() => void chooseCompletionSoundFile()}
       onSetActiveProfile={(id) => {
         if (id) void setActiveProfile(id);
+      }}
+      onSetCompletionSoundEnabled={(value) => {
+        setCompletionSoundEnabled(value);
+        pushToast(value ? "已开启完成提示音" : "已关闭完成提示音", "success");
+      }}
+      onSetCompletionSoundMode={(value) => {
+        setCompletionSoundMode(value);
+        pushToast(value === "custom" ? "已切换到自定义提示音" : "已切换到默认提示音", "success");
       }}
       onSetFontScale={setFontScale}
       onSetKernelRuntimeMode={(value) => setField("kernelRuntimeMode", value)}
       onSetProxyConfig={setProxyConfig}
       onSetSavePromptSuppressed={updateSavePromptSuppressed}
       onSetTheme={setTheme}
+      completionSound={completionSound}
       openOutputLocation={openOutputLocation}
       outputLabel={outputLabel}
       profiles={profiles}
@@ -264,6 +317,81 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
             </p>
           </SettingsRow>
 
+          <SettingsRow label="日志保留">
+            <div className={`platform-seg flex flex-wrap gap-1 bg-black/[0.04] p-0.5 ring-1 ring-black/[0.05] dark:bg-white/[0.06] dark:ring-white/[0.06] ${usesFluentUI ? "rounded-[10px]" : "rounded-[18px]"}`}>
+              <SettingsSegButton active={!keepLogs} onClick={() => void updateKeepLogs(false)}>
+                关闭
+              </SettingsSegButton>
+              <SettingsSegButton active={keepLogs} onClick={() => void updateKeepLogs(true)}>
+                开启
+              </SettingsSegButton>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-300">
+              默认关闭。关闭时当前会话仍可查看原始响应，退出应用后会自动清理输出目录中的 log。
+            </p>
+          </SettingsRow>
+
+          <SettingsRow label="完成提示音">
+            <div className={`platform-seg flex flex-wrap gap-1 bg-black/[0.04] p-0.5 ring-1 ring-black/[0.05] dark:bg-white/[0.06] dark:ring-white/[0.06] ${usesFluentUI ? "rounded-[10px]" : "rounded-[18px]"}`}>
+              <SettingsSegButton active={completionSound.enabled} onClick={() => {
+                setCompletionSoundEnabled(true);
+                pushToast("已开启完成提示音", "success");
+              }}>
+                <Bell className="w-3 h-3" /> 开启
+              </SettingsSegButton>
+              <SettingsSegButton active={!completionSound.enabled} onClick={() => {
+                setCompletionSoundEnabled(false);
+                pushToast("已关闭完成提示音", "success");
+              }}>
+                关闭
+              </SettingsSegButton>
+            </div>
+            <div className={`mt-2 platform-seg flex flex-wrap gap-1 bg-black/[0.04] p-0.5 ring-1 ring-black/[0.05] dark:bg-white/[0.06] dark:ring-white/[0.06] ${usesFluentUI ? "rounded-[10px]" : "rounded-[18px]"}`}>
+              <SettingsSegButton active={completionSound.mode === "default"} onClick={() => {
+                setCompletionSoundMode("default");
+                pushToast("已切换到默认提示音", "success");
+              }}>
+                默认音
+              </SettingsSegButton>
+              <SettingsSegButton active={completionSound.mode === "custom"} onClick={() => {
+                if (!completionSound.customDataURL) {
+                  void chooseCompletionSoundFile();
+                  return;
+                }
+                setCompletionSoundMode("custom");
+                pushToast("已切换到自定义提示音", "success");
+              }}>
+                自定义
+              </SettingsSegButton>
+            </div>
+            <div className="mt-2 flex gap-1.5">
+              <button
+                onClick={() => void previewCompletionSound()}
+                className={`flex-1 inline-flex min-h-[34px] items-center justify-center gap-1.5 border border-black/[0.08] px-3 ${isMac ? "py-2.5 text-[13px]" : "py-2 text-[12px]"} font-medium text-zinc-700 transition-colors hover:border-[color:var(--accent)]/35 hover:text-[var(--accent)] dark:border-white/[0.08] dark:text-zinc-300 ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
+              >
+                试听
+              </button>
+              <button
+                onClick={() => void chooseCompletionSoundFile()}
+                className={`flex-1 inline-flex min-h-[34px] items-center justify-center gap-1.5 border border-black/[0.08] px-3 ${isMac ? "py-2.5 text-[13px]" : "py-2 text-[12px]"} font-medium text-zinc-700 transition-colors hover:border-[color:var(--accent)]/35 hover:text-[var(--accent)] dark:border-white/[0.08] dark:text-zinc-300 ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
+              >
+                导入音频
+              </button>
+              <button
+                onClick={() => {
+                  resetCompletionSoundCustom();
+                  pushToast("已恢复默认提示音", "success");
+                }}
+                className={`inline-flex min-h-[34px] items-center gap-1 border border-black/[0.08] px-3 ${isMac ? "py-2.5 text-[13px]" : "py-2 text-[12px]"} font-medium text-zinc-500 transition-colors hover:border-[color:var(--accent)]/35 hover:text-[var(--accent)] dark:border-white/[0.08] dark:text-zinc-300 ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
+              >
+                默认
+              </button>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-300">
+              整批生成全部完成后只播放一次。当前 {completionSound.mode === "custom" && completionSound.customName ? `使用 ${completionSound.customName}` : "使用内置默认音"}。
+            </p>
+          </SettingsRow>
+
           <SettingsRow label="主题">
             <div className={`platform-seg flex flex-wrap gap-1 bg-black/[0.04] p-0.5 ring-1 ring-black/[0.05] dark:bg-white/[0.06] dark:ring-white/[0.06] ${usesFluentUI ? "rounded-[10px]" : "rounded-[18px]"}`}>
               <SettingsSegButton active={theme === "system"} onClick={() => setTheme("system")}>
@@ -286,10 +414,6 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
                 </SettingsSegButton>
               ))}
             </div>
-          </SettingsRow>
-
-          <SettingsRow label="参数预设">
-            <SettingsPresetsRow />
           </SettingsRow>
 
           {/* 历史 import / export */}
@@ -351,10 +475,10 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
           <SettingsRow label="支持与反馈">
             <div className="flex gap-1.5">
               <button
-                onClick={() => openExternal(REPO_URL)}
+                onClick={() => openExternal(RELEASES_URL)}
                 className={`flex-1 inline-flex items-center justify-center gap-1.5 border border-black/[0.08] px-3 py-2 text-[12px] text-zinc-700 transition-colors hover:border-[color:var(--accent)]/35 hover:text-[var(--accent)] dark:border-white/[0.08] dark:text-zinc-300 ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
               >
-                <Github className="w-3 h-3" /> GitHub
+                <Github className="w-3 h-3" /> 更新
               </button>
               <button
                 onClick={() => openExternal(ISSUES_URL)}

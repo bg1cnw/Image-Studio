@@ -57,6 +57,12 @@ Thumbs.db
 .npm-cache/
 .sandbox-home/
 .tmp/
+.tmp-*
+.tmp-*/
+.tmp-home/
+.tmp-npm-cache/
+image-studio-gio
+gio-client/image-studio-gio
 
 # Frontend (wails-generated hash files)
 package-lock.json.md5

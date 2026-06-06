@@ -169,6 +169,7 @@ test("runRemoteImageJob retries retryable responses and returns parsed SSE image
           maskB64: "",
           seed: 0,
           negativePrompt: "",
+          userIdentifier: "user-hash-123",
           baseURL: "https://upstream.example",
           textModelID: "gpt-5.5",
           imageModelID: "gpt-image-2",
@@ -214,6 +215,7 @@ test("runRemoteImageJob emits Responses API partial image previews", async () =>
           maskB64: "",
           seed: 0,
           negativePrompt: "",
+          userIdentifier: "user-hash-123",
           baseURL: "https://upstream.example",
           textModelID: "gpt-5.5",
           imageModelID: "gpt-image-2",
@@ -229,6 +231,7 @@ test("runRemoteImageJob emits Responses API partial image previews", async () =>
       },
     );
     assert.equal(capturedBody.tools[0].partial_images, 2);
+    assert.equal(capturedBody.safety_identifier, "user-hash-123");
     assert.equal(result.imageB64, "ZmluYWw=");
     assert.deepEqual(partials, [
       {
@@ -271,6 +274,7 @@ test("runRemoteImageJob parses Images API JSON mode", async () => {
           maskB64: "",
           seed: 0,
           negativePrompt: "",
+          userIdentifier: "user-hash-123",
           baseURL: "https://upstream.example",
           textModelID: "",
           imageModelID: "gpt-image-2",
@@ -283,6 +287,7 @@ test("runRemoteImageJob parses Images API JSON mode", async () => {
     );
     assert.equal(captured.url, "https://upstream.example/v1/images/generations");
     assert.equal(captured.body.prompt, "bird");
+    assert.equal(captured.body.user, "user-hash-123");
     assert.equal(result.imageB64, "img-data");
     assert.equal(result.revisedPrompt, "img-rev");
     assert.equal(result.sourceEvent, "images_api");
@@ -320,6 +325,7 @@ test("runRemoteImageJob emits Images API stream partial image previews", async (
           maskB64: "",
           seed: 0,
           negativePrompt: "",
+          userIdentifier: "user-hash-123",
           baseURL: "https://upstream.example",
           textModelID: "",
           imageModelID: "gpt-image-2",
@@ -472,6 +478,7 @@ test("runRemoteImageJob sends Images API edit mask with image MIME type", async 
           maskB64: "iVBORw0KGgpmYWtl",
           seed: 0,
           negativePrompt: "",
+          userIdentifier: "user-hash-123",
           baseURL: "https://upstream.example",
           textModelID: "",
           imageModelID: "gpt-image-2",
@@ -487,6 +494,7 @@ test("runRemoteImageJob sends Images API edit mask with image MIME type", async 
     );
     assert.equal(captured.url, "https://upstream.example/v1/images/edits");
     assert.ok(captured.body instanceof FormData);
+    assert.equal(captured.body.get("user"), "user-hash-123");
     const mask = captured.body.get("mask");
     assert.ok(mask instanceof Blob);
     assert.equal(mask.type, "image/png");
@@ -559,6 +567,99 @@ test("runRemoteImageJob omits relay-only fields by default and includes them in 
     assert.equal(capturedBodies[1].tools[0].seed, 123);
     assert.equal(capturedBodies[1].tools[0].negative_prompt, "avoid blur");
     assert.ok(capturedBodies[1].instructions.includes("VERBATIM"));
+  });
+});
+
+test("runRemoteImageJob sends input_fidelity for supported Responses edit models", async () => {
+  const capturedBodies = [];
+  await withPatchedGlobals(async () => {
+    globalThis.fetch = async (_url, init) => {
+      capturedBodies.push(JSON.parse(init.body));
+      return new Response(
+        'data: {"type":"response.output_item.done","item":{"type":"image_generation_call","result":"YWJj","revised_prompt":"rev"}}\n',
+        { status: 200, headers: { "content-type": "text/event-stream" } },
+      );
+    };
+  }, async () => {
+    const kernel = await loadRemoteKernel();
+    await kernel.runRemoteImageJob(
+      {
+        payload: {
+          apiKey: "key",
+          mode: "edit",
+          prompt: "cat",
+          size: "1024x1024",
+          quality: "low",
+          outputFormat: "png",
+          imagePaths: [],
+          imagePath: "",
+          maskB64: "",
+          seed: 0,
+          negativePrompt: "",
+          background: "auto",
+          outputCompression: 100,
+          inputFidelity: "high",
+          imageStyle: "default",
+          moderation: "low",
+          baseURL: "https://upstream.example",
+          textModelID: "gpt-5.5",
+          imageModelID: "gpt-image-1.5",
+          apiMode: "responses",
+          requestPolicy: "openai",
+          noPromptRevision: false,
+        },
+        sourceImages: [
+          { imageB64: "iVBORw0KGgpzb3VyY2U=", name: "source.png", mimeType: "image/png" },
+        ],
+      },
+      { signal: new AbortController().signal },
+    );
+    assert.equal(capturedBodies[0].tools[0].input_fidelity, "high");
+  });
+});
+
+test("runRemoteImageJob sends style for dall-e-3 Images API generation", async () => {
+  const capturedBodies = [];
+  await withPatchedGlobals(async () => {
+    globalThis.fetch = async (_url, init) => {
+      capturedBodies.push(JSON.parse(init.body));
+      return new Response(
+        '{"data":[{"b64_json":"YWJj","revised_prompt":"rev"}]}',
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    };
+  }, async () => {
+    const kernel = await loadRemoteKernel();
+    await kernel.runRemoteImageJob(
+      {
+        payload: {
+          apiKey: "key",
+          mode: "generate",
+          prompt: "cat",
+          size: "1024x1024",
+          quality: "low",
+          outputFormat: "png",
+          imagePaths: [],
+          imagePath: "",
+          maskB64: "",
+          seed: 0,
+          negativePrompt: "",
+          background: "auto",
+          outputCompression: 100,
+          inputFidelity: "auto",
+          imageStyle: "natural",
+          moderation: "low",
+          baseURL: "https://upstream.example",
+          textModelID: "",
+          imageModelID: "dall-e-3",
+          apiMode: "images",
+          requestPolicy: "openai",
+          noPromptRevision: false,
+        },
+      },
+      { signal: new AbortController().signal },
+    );
+    assert.equal(capturedBodies[0].style, "natural");
   });
 });
 

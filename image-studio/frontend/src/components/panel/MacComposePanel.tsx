@@ -1,4 +1,4 @@
-import type { APIMode, QualityValue, RequestPolicy } from "../../types/domain";
+import type { APIMode, QualityValue, RequestPolicy, SourceImage } from "../../types/domain";
 import {
   type AspectPreset,
   type AspectPresetOption,
@@ -18,6 +18,7 @@ export function MacComposePanel({
   activeResolution,
   activeResolutionLabel,
   activeQualityLabel,
+  allowCustomAspectRatios,
   availableResolutions,
   batchCount,
   mode,
@@ -32,7 +33,9 @@ export function MacComposePanel({
   onOpenCustomAspectRatioModal,
   selectSourceImage,
   clearSources,
+  viewSourceOnCanvas,
   quality,
+  qualityOptions,
   Seg,
   SegItem,
 }: {
@@ -46,10 +49,11 @@ export function MacComposePanel({
   activeResolution: ResolutionPreset;
   activeResolutionLabel: string;
   activeQualityLabel: string;
+  allowCustomAspectRatios: boolean;
   availableResolutions: ResolutionPreset[];
   batchCount: number;
   mode: string;
-  sources: Array<{ path: string }>;
+  sources: SourceImage[];
   currentImage: { savedPath?: string } | null;
   apiMode: APIMode;
   requestPolicy: RequestPolicy;
@@ -60,7 +64,9 @@ export function MacComposePanel({
   onOpenCustomAspectRatioModal: () => void;
   selectSourceImage: () => void;
   clearSources: () => void;
+  viewSourceOnCanvas: (index: number) => void;
   quality: QualityValue;
+  qualityOptions: Array<{ value: QualityValue; label: string }>;
   Seg: (props: { children: React.ReactNode }) => React.ReactNode;
   SegItem: (props: { active: boolean; onClick: () => void; children: React.ReactNode }) => React.ReactNode;
 }) {
@@ -85,6 +91,7 @@ export function MacComposePanel({
             activeAspect={activeAspect}
             aspectOptions={aspectOptions}
             activeResolution={activeResolution}
+            allowCustomAspectRatios={allowCustomAspectRatios}
             apiMode={apiMode}
             availableResolutions={availableResolutions}
             batchCount={batchCount}
@@ -93,6 +100,7 @@ export function MacComposePanel({
             imageModelID={imageModelID}
             onOpenCustomAspectRatioModal={onOpenCustomAspectRatioModal}
             quality={quality}
+            qualityOptions={qualityOptions}
             requestPolicy={requestPolicy}
             setField={setField}
             styleTag={styleTag}
@@ -105,6 +113,7 @@ export function MacComposePanel({
               clearSources={clearSources}
               currentImageSavedPath={currentImage?.savedPath ?? null}
               selectSourceImage={selectSourceImage}
+              viewSourceOnCanvas={viewSourceOnCanvas}
               sources={sources}
             />
           )}

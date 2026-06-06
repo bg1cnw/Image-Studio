@@ -17,7 +17,14 @@ const probeUpstreamTimeout = 20 * time.Second
 const probeUpstreamMaxBody = 1 << 20
 
 type modelsListProbeResponse struct {
-	Data []json.RawMessage `json:"data"`
+	Data []upstreamModelDescriptorJSON `json:"data"`
+}
+
+type upstreamModelDescriptorJSON struct {
+	ID          string `json:"id"`
+	Object      string `json:"object"`
+	OwnedBy     string `json:"owned_by"`
+	DisplayName string `json:"name"`
 }
 
 func (s *Service) ProbeUpstream(opts ProbeUpstreamOptions) (ProbeUpstreamResult, error) {
@@ -80,7 +87,20 @@ func probeUpstream(parent context.Context, opts ProbeUpstreamOptions) (ProbeUpst
 	if parsed.Data == nil {
 		return ProbeUpstreamResult{}, fmt.Errorf("上游 /v1/models 响应缺少 data 数组")
 	}
-	return ProbeUpstreamResult{ModelCount: len(parsed.Data)}, nil
+	models := make([]UpstreamModelDescriptor, 0, len(parsed.Data))
+	for _, item := range parsed.Data {
+		id := strings.TrimSpace(item.ID)
+		if id == "" {
+			continue
+		}
+		models = append(models, UpstreamModelDescriptor{
+			ID:          id,
+			Object:      strings.TrimSpace(item.Object),
+			OwnedBy:     strings.TrimSpace(item.OwnedBy),
+			DisplayName: strings.TrimSpace(item.DisplayName),
+		})
+	}
+	return ProbeUpstreamResult{ModelCount: len(parsed.Data), Models: models}, nil
 }
 
 func summarizeProbeBody(body []byte) string {

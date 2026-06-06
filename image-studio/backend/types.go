@@ -28,19 +28,26 @@ type GenerateOptions struct {
 	// frontend builds. Folded into ImagePaths when present.
 	ImagePath string `json:"imagePath"`
 
-	MaskB64        string `json:"maskB64"`        // optional, phase 3 reservation
-	Seed           int64  `json:"seed"`           // 0 = random
-	NegativePrompt string `json:"negativePrompt"` // optional
-	BaseURL        string `json:"baseURL"`        // overrides the default upstream URL
-	TextModelID    string `json:"textModelID"`    // overrides the default text model
-	ImageModelID   string `json:"imageModelID"`   // overrides the default image model
-	APIMode        string `json:"apiMode"`        // "responses" (default) | "images"
-	RequestPolicy  string `json:"requestPolicy"`  // "openai" (default) | "compat"
+	MaskB64           string `json:"maskB64"`        // optional, phase 3 reservation
+	Seed              int64  `json:"seed"`           // 0 = random
+	NegativePrompt    string `json:"negativePrompt"` // optional
+	Background        string `json:"background"`     // "auto" | "opaque" | "transparent"
+	OutputCompression int    `json:"outputCompression"`
+	InputFidelity     string `json:"inputFidelity"` // "auto" | "low" | "high"
+	ImageStyle        string `json:"imageStyle"`    // "default" | "vivid" | "natural"
+	Moderation        string `json:"moderation"`    // "low" | "auto"
+	UserIdentifier    string `json:"userIdentifier"`
+	BaseURL           string `json:"baseURL"`      // overrides the default upstream URL
+	TextModelID       string `json:"textModelID"`  // overrides the default text model
+	ImageModelID      string `json:"imageModelID"` // overrides the default image model
+	ReasoningEffort   string `json:"reasoningEffort"`
+	APIMode           string `json:"apiMode"`       // "responses" (default) | "images"
+	RequestPolicy     string `json:"requestPolicy"` // "openai" (default) | "compat"
 	// ImagesNewAPICompat 开启后仅影响 Images API 请求:
 	// 强制使用 b64_json,并关闭 stream/partial_images,用于兼容部分 NewAPI 中转。
-	ImagesNewAPICompat bool `json:"imagesNewAPICompat,omitempty"`
-	ProxyMode      string `json:"proxyMode"`      // "none" | "system" (default) | "custom"
-	ProxyURL       string `json:"proxyURL"`       // http(s) proxy URL when ProxyMode == "custom"
+	ImagesNewAPICompat bool   `json:"imagesNewAPICompat,omitempty"`
+	ProxyMode          string `json:"proxyMode"` // "none" | "system" (default) | "custom"
+	ProxyURL           string `json:"proxyURL"`  // http(s) proxy URL when ProxyMode == "custom"
 	// NoPromptRevision is kept for backward compatibility; Responses API
 	// requests now always ask the text model to keep the prompt verbatim.
 	NoPromptRevision bool `json:"noPromptRevision"`
@@ -78,6 +85,23 @@ type ProbeUpstreamOptions struct {
 
 type ProbeUpstreamResult struct {
 	ModelCount int `json:"modelCount"`
+	Models     []UpstreamModelDescriptor `json:"models,omitempty"`
+}
+
+type UpstreamModelDescriptor struct {
+	ID          string `json:"id"`
+	Object      string `json:"object,omitempty"`
+	OwnedBy     string `json:"ownedBy,omitempty"`
+	DisplayName string `json:"displayName,omitempty"`
+}
+
+// CodexAPIConfig is loaded from the local Codex desktop config/auth files so
+// the frontend can import the same upstream into Image Studio.
+type CodexAPIConfig struct {
+	Provider string `json:"provider"`
+	BaseURL  string `json:"baseURL"`
+	APIKey   string `json:"apiKey"`
+	WireAPI  string `json:"wireAPI"`
 }
 
 func (o PromptOptimizeOptions) collectPaths() []string {

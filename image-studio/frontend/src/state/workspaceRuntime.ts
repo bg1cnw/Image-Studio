@@ -29,6 +29,7 @@ export interface WorkspaceRuntimeState {
   streamPreviews?: StreamPreviewMap;
   lastLogLine: string;
   errorMessage: string | null;
+  errorCanRetry: boolean;
   errorRawPath: string | null;
   lastPayload: backend.GenerateOptions | null;
   workspaces: Workspace[];
@@ -43,6 +44,7 @@ export interface WorkspaceRuntimeMirror {
   streamPreviews: StreamPreviewMap;
   lastLogLine: string;
   errorMessage: string | null;
+  errorCanRetry: boolean;
   errorRawPath: string | null;
   lastPayload: backend.GenerateOptions | null;
   isRunning: boolean;
@@ -127,6 +129,7 @@ export function patchWorkspaceRuntime(workspaces: Workspace[], workspaceId: stri
     if (patch.streamPreviews !== undefined) next.streamPreviews = patch.streamPreviews;
     if (patch.lastLogLine !== undefined) next.lastLogLine = patch.lastLogLine;
     if (patch.errorMessage !== undefined) next.errorMessage = patch.errorMessage;
+    if (patch.errorCanRetry !== undefined) next.errorCanRetry = patch.errorCanRetry;
     if (patch.errorRawPath !== undefined) next.errorRawPath = patch.errorRawPath;
     if (patch.lastPayload !== undefined) next.lastPayload = patch.lastPayload;
     return next;
@@ -147,6 +150,7 @@ export function workspaceRuntimeFromState(
       streamPreviews: s.streamPreviews ?? {},
       lastLogLine: s.lastLogLine,
       errorMessage: s.errorMessage,
+      errorCanRetry: s.errorCanRetry,
       errorRawPath: s.errorRawPath,
       lastPayload: s.lastPayload,
       isRunning: s.runningJobs.length > 0,
@@ -163,6 +167,7 @@ export function workspaceRuntimeFromState(
     streamPreviews: w?.streamPreviews ?? {},
     lastLogLine: w?.lastLogLine ?? "",
     errorMessage: w?.errorMessage ?? null,
+    errorCanRetry: w?.errorCanRetry ?? false,
     errorRawPath: w?.errorRawPath ?? null,
     lastPayload: w?.lastPayload ?? null,
     isRunning: runningJobs.length > 0,
@@ -186,6 +191,7 @@ export function activeRuntimePatch(patch: WorkspacePatch): Partial<WorkspaceRunt
   if (patch.streamPreviews !== undefined) out.streamPreviews = patch.streamPreviews;
   if (patch.lastLogLine !== undefined) out.lastLogLine = patch.lastLogLine;
   if (patch.errorMessage !== undefined) out.errorMessage = patch.errorMessage;
+  if (patch.errorCanRetry !== undefined) out.errorCanRetry = patch.errorCanRetry;
   if (patch.errorRawPath !== undefined) out.errorRawPath = patch.errorRawPath;
   if (patch.lastPayload !== undefined) out.lastPayload = patch.lastPayload;
   return out;

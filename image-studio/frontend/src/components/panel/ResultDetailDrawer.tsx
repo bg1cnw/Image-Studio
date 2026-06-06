@@ -73,8 +73,13 @@ export function ResultDetailDrawer() {
             <Kv label="模式" value={detail.mode === "edit" ? "图生图" : "文生图"} />
             <Kv label="尺寸" value={sizeLabel(detail.size)} />
             <Kv label="质量" value={qualityLabel(detail.quality)} />
+            {detail.background ? <Kv label="背景" value={detail.background} mono /> : null}
+            {typeof detail.outputCompression === "number" && detail.outputFormat && detail.outputFormat !== "png" ? <Kv label="压缩" value={String(detail.outputCompression)} mono /> : null}
+            {detail.inputFidelity && detail.inputFidelity !== "auto" ? <Kv label="输入保真" value={detail.inputFidelity} mono /> : null}
+            {detail.imageStyle && detail.imageStyle !== "default" ? <Kv label="图像风格" value={detail.imageStyle} mono /> : null}
+            {detail.moderation ? <Kv label="审核" value={detail.moderation} mono /> : null}
             {detail.seed ? <Kv label="种子" value={String(detail.seed)} mono /> : null}
-            {detail.styleTag ? <Kv label="风格" value={`#${detail.styleTag}`} /> : null}
+            {detail.styleTag ? <Kv label="提示风格" value={`#${detail.styleTag}`} /> : null}
             {typeof detail.elapsedSec === "number" ? <Kv label="耗时" value={`${detail.elapsedSec.toFixed(1)}s`} /> : null}
             <Kv label="创建时间" value={created} />
           </Section>

@@ -35,6 +35,7 @@ func TestRequestImagesAPIWithPartialStreamsPreviews(t *testing.T) {
 		BaseURL:       srv.URL,
 		APIMode:       APIModeImages,
 		PartialImages: 2,
+		UserIdentifier: "user-hash-123",
 	}, &bytes.Buffer{}, nil, func(partial PartialImage) {
 		partials = append(partials, partial)
 	})
@@ -43,6 +44,15 @@ func TestRequestImagesAPIWithPartialStreamsPreviews(t *testing.T) {
 	}
 	if !strings.Contains(string(requestBody), `"stream":true`) {
 		t.Fatalf("request body missing stream=true: %s", requestBody)
+	}
+	if !strings.Contains(string(requestBody), `"background":"auto"`) {
+		t.Fatalf("request body missing background=auto: %s", requestBody)
+	}
+	if !strings.Contains(string(requestBody), `"moderation":"low"`) {
+		t.Fatalf("request body missing moderation=low: %s", requestBody)
+	}
+	if !strings.Contains(string(requestBody), `"user":"user-hash-123"`) {
+		t.Fatalf("request body missing user=user-hash-123: %s", requestBody)
 	}
 	if !strings.Contains(string(requestBody), `"partial_images":2`) {
 		t.Fatalf("request body missing partial_images=2: %s", requestBody)
@@ -70,6 +80,11 @@ func TestBuildEditsMultipartSetsMaskMimeType(t *testing.T) {
 		"1024x1024",
 		"auto",
 		"png",
+		"auto",
+		100,
+		"auto",
+		"low",
+		"user-hash-123",
 		"",
 		0,
 		RequestPolicyOpenAI,
@@ -86,6 +101,10 @@ func TestBuildEditsMultipartSetsMaskMimeType(t *testing.T) {
 	}
 	reader := multipart.NewReader(buf, params["boundary"])
 	foundMask := false
+	foundBackground := false
+	foundInputFidelity := false
+	foundModeration := false
+	foundUser := false
 	for {
 		part, err := reader.NextPart()
 		if err == io.EOF {
@@ -100,10 +119,34 @@ func TestBuildEditsMultipartSetsMaskMimeType(t *testing.T) {
 				t.Fatalf("mask content-type = %q, want image/png", got)
 			}
 		}
+		if part.FormName() == "moderation" {
+			foundModeration = true
+		}
+		if part.FormName() == "background" {
+			foundBackground = true
+		}
+		if part.FormName() == "user" {
+			foundUser = true
+		}
+		if part.FormName() == "input_fidelity" {
+			foundInputFidelity = true
+		}
 		_, _ = io.Copy(io.Discard, part)
 	}
 	if !foundMask {
 		t.Fatal("expected mask part in multipart body")
+	}
+	if !foundBackground {
+		t.Fatal("expected background field in multipart body")
+	}
+	if foundInputFidelity {
+		t.Fatal("gpt-image-2 multipart body should omit input_fidelity")
+	}
+	if !foundModeration {
+		t.Fatal("expected moderation field in multipart body")
+	}
+	if !foundUser {
+		t.Fatal("expected user field in multipart body")
 	}
 }
 
@@ -122,6 +165,11 @@ func TestBuildEditsMultipartOmitsMaskWhenEmpty(t *testing.T) {
 		"1024x1024",
 		"auto",
 		"png",
+		"auto",
+		100,
+		"auto",
+		"low",
+		"",
 		"",
 		0,
 		RequestPolicyOpenAI,
@@ -133,5 +181,98 @@ func TestBuildEditsMultipartOmitsMaskWhenEmpty(t *testing.T) {
 	}
 	if strings.Contains(buf.String(), `name="mask"`) {
 		t.Fatal("multipart body should omit mask part when mask is empty")
+	}
+}
+
+func TestBuildEditsMultipartIncludesOutputCompressionForWebP(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "source.png")
+	if err := os.WriteFile(src, fakePNG, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	buf, _, err := buildEditsMultipart(
+		[]string{src},
+		"",
+		"edit this",
+		"gpt-image-2",
+		"1024x1024",
+		"auto",
+		"webp",
+		"opaque",
+		42,
+		"auto",
+		"low",
+		"",
+		"",
+		0,
+		RequestPolicyOpenAI,
+		DefaultPartialImages,
+		false,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), `name="output_compression"`) {
+		t.Fatal("multipart body should include output_compression for webp")
+	}
+}
+
+func TestBuildEditsMultipartIncludesInputFidelityForSupportedModels(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "source.png")
+	if err := os.WriteFile(src, fakePNG, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	buf, _, err := buildEditsMultipart(
+		[]string{src},
+		"",
+		"edit this",
+		"gpt-image-1.5",
+		"1024x1024",
+		"auto",
+		"png",
+		"auto",
+		100,
+		"high",
+		"low",
+		"",
+		"",
+		0,
+		RequestPolicyOpenAI,
+		DefaultPartialImages,
+		false,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), `name="input_fidelity"`) {
+		t.Fatal("multipart body should include input_fidelity for supported models")
+	}
+}
+
+func TestRequestImagesAPISendsDalle3Style(t *testing.T) {
+	var requestBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestBody, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"data":[{"b64_json":"ZmluYWw="}]}`)
+	}))
+	defer srv.Close()
+
+	_, err := RequestImagesAPIWithPartial(context.Background(), Options{
+		APIKey:       "sk-test",
+		Prompt:       "cat",
+		BaseURL:      srv.URL,
+		APIMode:      APIModeImages,
+		ImageModelID: "dall-e-3",
+		ImageStyle:   "natural",
+	}, &bytes.Buffer{}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(requestBody), `"style":"natural"`) {
+		t.Fatalf("request body missing style=natural: %s", requestBody)
 	}
 }

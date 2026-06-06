@@ -44,7 +44,11 @@ export function AndroidUpstreamConfigModal({
                 draft={upstream.draft}
                 draftKey={upstream.draftKey}
                 isTestingKey={upstream.isTestingKey}
+                loadingModels={upstream.loadingModels}
+                modelCatalog={upstream.modelCatalog}
+                modelCatalogError={upstream.modelCatalogError}
                 onChangeDraftKey={upstream.setDraftKey}
+                onLoadModels={upstream.handleLoadModels}
                 onPatchDraft={upstream.patchDraft}
                 onSave={async () => {
                   const saved = await upstream.handleSave();

@@ -1,6 +1,6 @@
 import type { APIMode, QualityValue, RequestPolicy } from "../../types/domain";
 import { Check } from "lucide-react";
-import { QUALITY_TIERS, STYLE_CHIPS } from "./panelOptions";
+import { STYLE_CHIPS } from "./panelOptions";
 import {
   type AspectPreset,
   type AspectPresetOption,
@@ -13,6 +13,7 @@ export function MacComposeStyleAndSize({
   activeAspect,
   aspectOptions,
   activeResolution,
+  allowCustomAspectRatios,
   apiMode,
   availableResolutions,
   batchCount,
@@ -21,6 +22,7 @@ export function MacComposeStyleAndSize({
   imageModelID,
   onOpenCustomAspectRatioModal,
   quality,
+  qualityOptions,
   requestPolicy,
   setField,
   styleTag,
@@ -30,6 +32,7 @@ export function MacComposeStyleAndSize({
   activeAspect: AspectPreset;
   aspectOptions: AspectPresetOption[];
   activeResolution: ResolutionPreset;
+  allowCustomAspectRatios: boolean;
   apiMode: APIMode;
   availableResolutions: ResolutionPreset[];
   batchCount: number;
@@ -38,6 +41,7 @@ export function MacComposeStyleAndSize({
   imageModelID: string;
   onOpenCustomAspectRatioModal: () => void;
   quality: QualityValue;
+  qualityOptions: Array<{ value: QualityValue; label: string }>;
   requestPolicy: RequestPolicy;
   setField: (key: string, value: any) => void;
   styleTag: string;
@@ -74,13 +78,15 @@ export function MacComposeStyleAndSize({
       <div>
         <div className="mb-2 flex items-center justify-between">
           <span className="text-[12px] text-zinc-500">比例</span>
-          <button
-            type="button"
-            onClick={onOpenCustomAspectRatioModal}
-            className="text-[12px] text-[var(--accent)] transition-opacity hover:opacity-80"
-          >
-            自定义比例
-          </button>
+          {allowCustomAspectRatios ? (
+            <button
+              type="button"
+              onClick={onOpenCustomAspectRatioModal}
+              className="text-[12px] text-[var(--accent)] transition-opacity hover:opacity-80"
+            >
+              自定义比例
+            </button>
+          ) : null}
         </div>
         <div className="grid grid-cols-3 gap-2.5">
           {aspectOptions.map((aspect) => {
@@ -132,7 +138,7 @@ export function MacComposeStyleAndSize({
       <div>
         <div className="mb-2 text-[12px] text-zinc-500">质量</div>
         <Seg>
-          {QUALITY_TIERS.map((tier) => (
+          {qualityOptions.map((tier) => (
             <SegItem
               key={tier.value}
               active={quality === tier.value}

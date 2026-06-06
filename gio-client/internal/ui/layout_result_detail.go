@@ -2,8 +2,10 @@ package ui
 
 import (
 	"fmt"
+	"image"
 	"io"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	sharedCompat "image-studio/shared/compat"
@@ -14,11 +16,10 @@ import (
 	"gioui.org/unit"
 )
 
-func (a *App) layoutResultDetailModal(gtx layout.Context) layout.Dimensions {
+func (a *App) layoutResultDetailModal(gtx layout.Context, snap snapshot) layout.Dimensions {
 	for a.closeResultDetailButton.Clicked(gtx) {
 		a.closeResultDetail()
 	}
-	snap := a.readSnapshot()
 	item := snap.ActiveResultDetail
 	if item.ID == "" && strings.TrimSpace(item.SavedPath) == "" {
 		return layout.Dimensions{}
@@ -83,14 +84,14 @@ func (a *App) layoutResultDetailModal(gtx layout.Context) layout.Dimensions {
 }
 
 func (a *App) layoutResultDetailPreview(gtx layout.Context, item sharedCompat.HistoryItem) layout.Dimensions {
-	img, _ := a.imageForHistoryItem(item)
-	return a.borderedSurface(gtx, fluent.surface, fluentCardRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {
+	img, imgOp := a.displayHistoryThumb(item, gtx.Dp(unit.Dp(248)))
+	return a.elevatedBorderedSurface(gtx, fluent.surfaceElevated, fluentCardRadius, fluent.border, image.Pt(0, 1), func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(10))}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return a.borderedSurface(gtx, fluent.surface2, fluentCardRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {
 						return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return a.imageThumb(gtx, img, unit.Dp(248), unit.Dp(248), unit.Dp(8))
+							return a.imageThumbWithOp(gtx, img, imgOp, unit.Dp(248), unit.Dp(248), unit.Dp(8))
 						})
 					})
 				}),
@@ -140,7 +141,7 @@ func (a *App) layoutResultDetailSections(gtx layout.Context, item sharedCompat.H
 }
 
 func (a *App) layoutResultDetailMeta(gtx layout.Context, item sharedCompat.HistoryItem) layout.Dimensions {
-	return a.borderedSurface(gtx, fluent.surface, fluentCardRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {
+	return a.elevatedBorderedSurface(gtx, fluent.surfaceElevated, fluentCardRadius, fluent.border, image.Pt(0, 1), func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			rows := []layout.Widget{
 				func(gtx layout.Context) layout.Dimensions {
@@ -198,7 +199,7 @@ func (a *App) layoutResultDetailTextSection(gtx layout.Context, title string, te
 		actionAccent = true
 	}
 	muted := strings.Contains(title, "负向")
-	return a.borderedSurface(gtx, fluent.surface, fluentCardRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {
+	return a.elevatedBorderedSurface(gtx, fluent.surfaceElevated, fluentCardRadius, fluent.border, image.Pt(0, 1), func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -235,7 +236,7 @@ func (a *App) layoutResultDetailTextSection(gtx layout.Context, title string, te
 }
 
 func (a *App) layoutResultDetailFileSection(gtx layout.Context, item sharedCompat.HistoryItem) layout.Dimensions {
-	return a.borderedSurface(gtx, fluent.surface, fluentCardRadius, fluent.border, func(gtx layout.Context) layout.Dimensions {
+	return a.elevatedBorderedSurface(gtx, fluent.surfaceElevated, fluentCardRadius, fluent.border, image.Pt(0, 1), func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(12)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical, Gap: gtx.Dp(unit.Dp(8))}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -349,5 +350,36 @@ func chooseModeLabel(mode string) string {
 }
 
 func detailValue[T any](value T) string {
-	return strings.TrimSpace(fmt.Sprint(value))
+	switch v := any(value).(type) {
+	case string:
+		return strings.TrimSpace(v)
+	case fmt.Stringer:
+		return strings.TrimSpace(v.String())
+	case int:
+		return strconv.Itoa(v)
+	case int8:
+		return strconv.FormatInt(int64(v), 10)
+	case int16:
+		return strconv.FormatInt(int64(v), 10)
+	case int32:
+		return strconv.FormatInt(int64(v), 10)
+	case int64:
+		return strconv.FormatInt(v, 10)
+	case uint:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint8:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint16:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint32:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint64:
+		return strconv.FormatUint(v, 10)
+	case float32:
+		return strconv.FormatFloat(float64(v), 'f', -1, 32)
+	case float64:
+		return strconv.FormatFloat(v, 'f', -1, 64)
+	default:
+		return strings.TrimSpace(fmt.Sprint(value))
+	}
 }

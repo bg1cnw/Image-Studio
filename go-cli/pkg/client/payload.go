@@ -34,6 +34,12 @@ func BuildPayload(opts Options) ([]byte, error) {
 	if outputFormat == "" {
 		outputFormat = OutputFormat
 	}
+	background := normalizeBackground(opts.Background)
+	outputCompression := normalizeOutputCompression(opts.OutputCompression)
+	inputFidelity := normalizeInputFidelity(opts.InputFidelity)
+	moderation := normalizeModeration(opts.Moderation)
+	reasoningEffort := normalizeReasoningEffort(opts.ReasoningEffort)
+	userIdentifier := normalizeUserIdentifier(opts.UserIdentifier)
 	includeExtended := shouldSendExtendedImageParameters(opts.RequestPolicy)
 
 	content := []map[string]any{
@@ -62,8 +68,19 @@ func BuildPayload(opts Options) ([]byte, error) {
 		"size":           size,
 		"quality":        quality,
 		"output_format":  outputFormat,
-		"moderation":     "low",
 		"partial_images": 0,
+	}
+	if supportsImageBackground(imgModel) {
+		tool["background"] = background
+	}
+	if supportsOutputCompression(imgModel, outputFormat) {
+		tool["output_compression"] = outputCompression
+	}
+	if supportsInputFidelity(imgModel) && len(imageURLs) > 0 && inputFidelity != DefaultInputFidelity {
+		tool["input_fidelity"] = inputFidelity
+	}
+	if supportsImageModeration(imgModel) {
+		tool["moderation"] = moderation
 	}
 	if opts.MaskB64 != "" {
 		tool["input_image_mask"] = map[string]any{
@@ -77,6 +94,9 @@ func BuildPayload(opts Options) ([]byte, error) {
 		tool["negative_prompt"] = opts.NegativePrompt
 	}
 	tool["partial_images"] = normalizePartialImages(opts.PartialImages)
+	if opts.DisablePreview {
+		tool["partial_images"] = 0
+	}
 
 	textModel := opts.TextModelID
 	if textModel == "" {
@@ -89,13 +109,16 @@ func BuildPayload(opts Options) ([]byte, error) {
 		},
 		"tools":       []map[string]any{tool},
 		"tool_choice": map[string]any{"type": "image_generation"},
-		"reasoning":   map[string]any{"effort": "xhigh"},
+		"reasoning":   map[string]any{"effort": reasoningEffort},
 		"store":       false,
 		"stream":      true,
 	}
 	// 实测此条 instructions 能让 gpt-5.5 把用户 prompt 字字传给 image_generation,
 	// 而不是惯常的「改写润色再生」流程。改 wording 可能失效 —— 经验值。
 	payload["instructions"] = "You are a tool runner. Pass the user prompt to image_generation VERBATIM. DO NOT rewrite, expand, polish, or revise it in any way. Use the exact text the user gave."
+	if userIdentifier != "" {
+		payload["safety_identifier"] = userIdentifier
+	}
 
 	// Use a non-escaping encoder so 中文 prompts don't get \uXXXX-mangled.
 	var buf strings.Builder
@@ -117,6 +140,72 @@ func normalizePartialImages(value int) int {
 		return 3
 	}
 	return value
+}
+
+func normalizeUserIdentifier(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	runes := []rune(trimmed)
+	if len(runes) > 64 {
+		return string(runes[:64])
+	}
+	return trimmed
+}
+
+func normalizeModeration(value string) string {
+	if strings.EqualFold(strings.TrimSpace(value), "auto") {
+		return "auto"
+	}
+	return DefaultModeration
+}
+
+func normalizeReasoningEffort(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "low":
+		return "low"
+	case "medium":
+		return "medium"
+	case "high":
+		return "high"
+	case "xhigh":
+		return "xhigh"
+	default:
+		return DefaultReasoningEffort
+	}
+}
+
+func normalizeBackground(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "opaque":
+		return "opaque"
+	case "transparent":
+		return "transparent"
+	default:
+		return DefaultBackground
+	}
+}
+
+func normalizeOutputCompression(value int) int {
+	if value < 0 {
+		return 0
+	}
+	if value > 100 {
+		return 100
+	}
+	return value
+}
+
+func normalizeInputFidelity(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "low":
+		return "low"
+	case "high":
+		return "high"
+	default:
+		return DefaultInputFidelity
+	}
 }
 
 var slugRe = regexp.MustCompile(`-{2,}`)

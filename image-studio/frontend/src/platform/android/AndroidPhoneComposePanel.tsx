@@ -5,19 +5,22 @@ import {
 import { useStudioStore } from "../../state/studioStore";
 import { OpenFile } from "../runtime/host";
 import { Mode } from "../../types/domain";
-import { QUALITY_TIERS, STYLE_CHIPS } from "../../components/panel/panelOptions";
+import { availableQualityOptions, normalizeQualitySelection, STYLE_CHIPS } from "../../components/panel/panelOptions";
 import {
   aspectPresetLabel,
   availableResolutionPresets,
   deriveAspectPreset,
   deriveResolutionPreset,
   listAspectPresetOptions,
+  normalizeSizeSelection,
+  supportsCustomAspectRatios,
 } from "../../components/panel/sizeCapabilities";
 import { AndroidModeSwitch } from "./AndroidModeSwitch";
 import { AndroidPhoneAdvancedSection } from "./AndroidPhoneAdvancedSection";
 import { AndroidPhoneParameterSection } from "./AndroidPhoneParameterSection";
 import { AndroidPhoneSourceSection } from "./AndroidPhoneSourceSection";
 import { AndroidPromptTemplateModal } from "./AndroidPromptTemplateModal";
+import { ParameterPresetsSection } from "../../components/panel/ParameterPresetsSection";
 import {
   buildAndroidAspectSizeSelection,
   buildAndroidResolutionSizeSelection,
@@ -31,12 +34,13 @@ export function AndroidPhoneComposePanel({
   onSubmitStart?: () => void;
 } = {}) {
   const {
-    apiKey, mode, prompt, negativePrompt, size, quality, seed, styleTag,
-    outputFormat, batchCount, loopGeneration, sources, currentImage, errorMessage, errorRawPath,
+    apiKey, mode, prompt, background, imageStyle, inputFidelity, moderation, negativePrompt, outputCompression, size, quality, seed, styleTag,
+    userIdentifier, partialImages,
+    outputFormat, batchCount, loopGeneration, sources, currentImage, errorMessage, errorCanRetry, errorRawPath,
     isRunning, lastPayload, isOptimizingPrompt, apiMode, requestPolicy, baseURL, profiles, imageModelID,
     customAspectRatios,
     setField, clearError, pushToast, selectSourceImage,
-    removeSource, clearSources, openCustomAspectRatioModal, openUpstreamConfig, submit, cancel, retryLast, optimizePrompt,
+    removeSource, clearSources, viewSourceOnCanvas, openCustomAspectRatioModal, openUpstreamConfig, submit, cancel, retryLast, optimizePrompt,
   } = useStudioStore();
   const [templateOpen, setTemplateOpen] = useState(false);
   const [parametersOpen, setParametersOpen] = useState(false);
@@ -49,14 +53,19 @@ export function AndroidPhoneComposePanel({
   const optimizeReady = !!(
     prompt.trim() && (hasUsableResponsesProfile || (apiKey.trim() && baseURL.trim()))
   );
+  const capabilityInput = { apiMode, requestPolicy, imageModelID };
+  const normalizedSize = normalizeSizeSelection(size, capabilityInput, customAspectRatios);
+  const normalizedQuality = normalizeQualitySelection(quality, imageModelID);
+  const qualityOptions = availableQualityOptions(imageModelID);
+  const allowCustomAspectRatios = supportsCustomAspectRatios(capabilityInput);
   const activeStyleLabel = STYLE_CHIPS.find((item) => item.id === styleTag)?.label ?? "默认风格";
-  const aspectOptions = listAspectPresetOptions(customAspectRatios);
-  const activeAspect = deriveAspectPreset(size, customAspectRatios);
-  const activeResolution = deriveResolutionPreset(size);
-  const availableResolutions = availableResolutionPresets({ apiMode, requestPolicy, imageModelID });
+  const aspectOptions = listAspectPresetOptions(capabilityInput, customAspectRatios);
+  const activeAspect = deriveAspectPreset(normalizedSize, customAspectRatios);
+  const activeResolution = deriveResolutionPreset(normalizedSize);
+  const availableResolutions = availableResolutionPresets(capabilityInput);
   const activeAspectLabel = aspectPresetLabel(activeAspect, customAspectRatios);
   const activeResolutionLabel = activeResolution === "auto" ? "自动" : activeResolution.toUpperCase();
-  const activeQualityLabel = QUALITY_TIERS.find((item) => item.value === quality)?.label ?? quality;
+  const activeQualityLabel = qualityOptions.find((item) => item.value === normalizedQuality)?.label ?? normalizedQuality;
   const editSourceLabel = sources.length > 0 ? `${sources.length} 张已添加` : currentImage?.savedPath ? "使用当前画板" : "未添加";
   const settingsExpanded = parametersOpen || advancedOpen;
 
@@ -64,7 +73,7 @@ export function AndroidPhoneComposePanel({
     setField("size", buildAndroidAspectSizeSelection(
       aspect,
       activeResolution,
-      { apiMode, requestPolicy, imageModelID },
+      capabilityInput,
       customAspectRatios,
     ));
   };
@@ -73,7 +82,7 @@ export function AndroidPhoneComposePanel({
     setField("size", buildAndroidResolutionSizeSelection(
       activeAspect,
       resolution,
-      { apiMode, requestPolicy, imageModelID },
+      capabilityInput,
       customAspectRatios,
     ));
   };
@@ -118,9 +127,9 @@ export function AndroidPhoneComposePanel({
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
-          {(lastPayload && !isRunning) || errorRawPath ? (
+          {(errorCanRetry && lastPayload && !isRunning) || errorRawPath ? (
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              {lastPayload && !isRunning ? (
+              {errorCanRetry && lastPayload && !isRunning ? (
                 <button
                   type="button"
                   onClick={retryLast}
@@ -200,6 +209,9 @@ export function AndroidPhoneComposePanel({
             </p>
           </div>
         ) : null}
+        <div className="mb-3">
+          <ParameterPresetsSection variant="android" />
+        </div>
         <div className="android-phone-prompt-head">
           <label className="android-phone-kicker">{mode === "edit" ? "修改要求" : "提示词"}</label>
           <span className="font-mono-token text-[11px] text-zinc-400 dark:text-zinc-500">{promptLen}</span>
@@ -252,6 +264,7 @@ export function AndroidPhoneComposePanel({
           activeResolutionLabel={activeResolutionLabel}
           activeQualityLabel={activeQualityLabel}
           activeStyleLabel={activeStyleLabel}
+          allowCustomAspectRatios={allowCustomAspectRatios}
           availableResolutions={availableResolutions}
           batchCount={batchCount}
           handleAspectSelect={handleAspectSelect}
@@ -260,7 +273,7 @@ export function AndroidPhoneComposePanel({
           onOpenCustomAspectRatioModal={openCustomAspectRatioModal}
           apiMode={apiMode}
           parametersOpen={parametersOpen}
-          quality={quality}
+          quality={normalizedQuality}
           requestPolicy={requestPolicy}
           setField={setField as any}
           setParametersOpen={setParametersOpen}
@@ -274,6 +287,7 @@ export function AndroidPhoneComposePanel({
           currentImage={currentImage}
           editSourceLabel={editSourceLabel}
           onSelectSource={handleSelectSource}
+          onViewSource={(index) => void viewSourceOnCanvas(index)}
           removeSource={removeSource}
           sources={sources}
         />
@@ -282,9 +296,16 @@ export function AndroidPhoneComposePanel({
       {!needsUpstreamSetup ? (
         <AndroidPhoneAdvancedSection
           advancedOpen={advancedOpen}
+          background={background}
+          imageStyle={imageStyle}
+          inputFidelity={inputFidelity}
+          moderation={moderation}
           negativePrompt={negativePrompt}
+          outputCompression={outputCompression}
           outputFormat={outputFormat}
+          partialImages={partialImages}
           seed={seed}
+          userIdentifier={userIdentifier}
           setAdvancedOpen={setAdvancedOpen}
           setField={setField as any}
         />

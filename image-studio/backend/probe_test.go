@@ -18,7 +18,7 @@ func TestProbeUpstreamRequestsModelsFromBackend(t *testing.T) {
 		gotAuth = r.Header.Get("Authorization")
 		gotUserAgent = r.Header.Get("User-Agent")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"data":[{"id":"gpt-5.5"},{"id":"gpt-image-2"}]}`))
+		_, _ = w.Write([]byte(`{"data":[{"id":"gpt-5.5","owned_by":"openai","name":"GPT 5.5"},{"id":"gpt-image-2","object":"model"}]}`))
 	}))
 	defer srv.Close()
 
@@ -32,11 +32,42 @@ func TestProbeUpstreamRequestsModelsFromBackend(t *testing.T) {
 	if got.ModelCount != 2 {
 		t.Fatalf("model count = %d, want 2", got.ModelCount)
 	}
+	if len(got.Models) != 2 {
+		t.Fatalf("models len = %d, want 2", len(got.Models))
+	}
+	if got.Models[0].ID != "gpt-5.5" || got.Models[0].OwnedBy != "openai" || got.Models[0].DisplayName != "GPT 5.5" {
+		t.Fatalf("unexpected first model: %+v", got.Models[0])
+	}
+	if got.Models[1].ID != "gpt-image-2" || got.Models[1].Object != "model" {
+		t.Fatalf("unexpected second model: %+v", got.Models[1])
+	}
 	if gotAuth != "Bearer sk-test" {
 		t.Fatalf("Authorization = %q", gotAuth)
 	}
 	if !strings.HasPrefix(gotUserAgent, "image-studio/") {
 		t.Fatalf("unexpected User-Agent %q", gotUserAgent)
+	}
+}
+
+func TestProbeUpstreamSkipsModelItemsWithoutID(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"id":"gpt-5.5"},{"owned_by":"relay"},{"id":"gpt-image-2"}]}`))
+	}))
+	defer srv.Close()
+
+	got, err := probeUpstream(context.Background(), ProbeUpstreamOptions{
+		APIKey:  "sk-test",
+		BaseURL: srv.URL,
+	})
+	if err != nil {
+		t.Fatalf("ProbeUpstream returned error: %v", err)
+	}
+	if got.ModelCount != 3 {
+		t.Fatalf("model count = %d, want 3", got.ModelCount)
+	}
+	if len(got.Models) != 2 {
+		t.Fatalf("models len = %d, want 2", len(got.Models))
 	}
 }
 

@@ -1,7 +1,18 @@
-import { Eye, EyeOff, HelpCircle, Info, Plug } from "lucide-react";
-import type { APIMode, RequestPolicy, UpstreamProfile } from "../../types/domain";
+import { CheckCircle2, Eye, EyeOff, HelpCircle, Info, Plug, RefreshCw } from "lucide-react";
+import {
+  REASONING_EFFORT_OPTIONS,
+  type APIMode,
+  type RequestPolicy,
+  type UpstreamProfile,
+} from "../../types/domain";
 import { requestPolicyLabel } from "../../lib/profiles";
 import { usePlatform } from "../../platform/context";
+import {
+  formatUpstreamModelLabel,
+  preferredModelsForAPIMode,
+  type UpstreamModelCatalog,
+  type UpstreamModelDescriptor,
+} from "../../lib/upstreamModels";
 
 export function UpstreamProfileEditor({
   draft,
@@ -11,11 +22,15 @@ export function UpstreamProfileEditor({
   baseURLError,
   canSave,
   isTestingKey,
+  loadingModels,
+  modelCatalog,
+  modelCatalogError,
   usesAppleUI,
   onOpenFAQ,
   onPatchDraft,
   onChangeDraftKey,
   onToggleShowKey,
+  onLoadModels,
   onTest,
   onClose,
   onSaveAndClose,
@@ -27,16 +42,32 @@ export function UpstreamProfileEditor({
   baseURLError: string | null;
   canSave: boolean;
   isTestingKey: boolean;
+  loadingModels: boolean;
+  modelCatalog: UpstreamModelCatalog | null;
+  modelCatalogError: string | null;
   usesAppleUI: boolean;
   onOpenFAQ: () => void;
   onPatchDraft: (patch: Partial<UpstreamProfile>) => void;
   onChangeDraftKey: (value: string) => void;
   onToggleShowKey: () => void;
+  onLoadModels: () => void | Promise<void>;
   onTest: () => void | Promise<void>;
   onClose: () => void;
   onSaveAndClose: () => void | Promise<void>;
 }) {
   const { isAndroidPhone, usesFluentUI } = usePlatform();
+  const apiModeOptions = [
+    { id: "responses" as APIMode, title: "Responses API", sub: "SSE 保活(CF 超时推荐)" },
+    { id: "images" as APIMode, title: "Images API", sub: "标准 generations / edits" },
+  ];
+  const requestPolicyOptions = [
+    { id: "openai" as RequestPolicy, title: requestPolicyLabel("openai"), sub: "默认。只发送 OpenAI 官方公开字段。" },
+    { id: "compat" as RequestPolicy, title: requestPolicyLabel("compat"), sub: "兼容部分 relay 扩展字段，例如 seed / negative_prompt。" },
+  ];
+  const selectedAPIMode = apiModeOptions.find((option) => option.id === draft.apiMode) ?? apiModeOptions[0];
+  const selectedRequestPolicy = requestPolicyOptions.find((option) => option.id === draft.requestPolicy) ?? requestPolicyOptions[0];
+  const selectedReasoningEffort = REASONING_EFFORT_OPTIONS.find((option) => option.value === draft.reasoningEffort) ?? REASONING_EFFORT_OPTIONS[0];
+  const preferredModels = modelCatalog ? preferredModelsForAPIMode(modelCatalog, draft.apiMode) : null;
 
   return (
     <div className={`upstream-profile-editor flex min-w-0 flex-col ${isAndroidPhone ? "gap-3" : "gap-3.5"}`}>
@@ -60,27 +91,26 @@ export function UpstreamProfileEditor({
         />
       </Field>
 
-      <Field label="API 形态">
+      <Field
+        label={(
+          <span className="flex items-center justify-between gap-3">
+            <span>API 形态</span>
+            <span className="shrink-0 text-[11px] font-medium text-[var(--accent)]">已选 {selectedAPIMode.title}</span>
+          </span>
+        )}
+      >
         <div className={`grid gap-2 ${isAndroidPhone ? "grid-cols-1" : "grid-cols-2"}`}>
-          {([
-            { id: "responses" as APIMode, title: "Responses API", sub: "SSE 保活(CF 超时推荐)" },
-            { id: "images" as APIMode, title: "Images API", sub: "标准 generations / edits" },
-          ]).map((option) => {
+          {apiModeOptions.map((option) => {
             const active = draft.apiMode === option.id;
             return (
-              <button
+              <OptionCard
                 key={option.id}
-                type="button"
+                active={active}
+                usesFluentUI={usesFluentUI}
+                title={option.title}
+                sub={option.sub}
                 onClick={() => onPatchDraft({ apiMode: option.id })}
-                className={`upstream-option-card platform-card flex flex-col items-start gap-0.5 border p-2.5 text-left transition-colors ${
-                  active
-                    ? "active border-[color:var(--accent)]/25 bg-[var(--accent-soft)] text-[var(--accent)]"
-                    : "border-black/[0.08] text-zinc-700 hover:border-[color:var(--accent)]/30 dark:border-white/[0.06] dark:text-zinc-300"
-                } ${usesFluentUI ? "rounded-[8px]" : "rounded-[14px]"}`}
-              >
-                <span className="upstream-option-title min-w-0 text-[12px] font-semibold">{option.title}</span>
-                <span className={`upstream-option-sub min-w-0 text-[10px] ${active ? "text-[var(--accent)]/80" : "text-zinc-500"}`}>{option.sub}</span>
-              </button>
+              />
             );
           })}
         </div>
@@ -91,27 +121,26 @@ export function UpstreamProfileEditor({
         </Hint>
       </Field>
 
-      <Field label="参数策略">
+      <Field
+        label={(
+          <span className="flex items-center justify-between gap-3">
+            <span>参数策略</span>
+            <span className="shrink-0 text-[11px] font-medium text-[var(--accent)]">已选 {selectedRequestPolicy.title}</span>
+          </span>
+        )}
+      >
         <div className="grid gap-2">
-          {([
-            { id: "openai" as RequestPolicy, title: requestPolicyLabel("openai"), sub: "默认。只发送 OpenAI 官方公开字段。" },
-            { id: "compat" as RequestPolicy, title: requestPolicyLabel("compat"), sub: "兼容部分 relay 扩展字段，例如 seed / negative_prompt。" },
-          ]).map((option) => {
+          {requestPolicyOptions.map((option) => {
             const active = draft.requestPolicy === option.id;
             return (
-              <button
+              <OptionCard
                 key={option.id}
-                type="button"
+                active={active}
+                usesFluentUI={usesFluentUI}
+                title={option.title}
+                sub={option.sub}
                 onClick={() => onPatchDraft({ requestPolicy: option.id })}
-                className={`upstream-option-card platform-card flex flex-col items-start gap-0.5 border p-2.5 text-left transition-colors ${
-                  active
-                    ? "active border-[color:var(--accent)]/25 bg-[var(--accent-soft)] text-[var(--accent)]"
-                    : "border-black/[0.08] text-zinc-700 hover:border-[color:var(--accent)]/30 dark:border-white/[0.06] dark:text-zinc-300"
-                } ${usesFluentUI ? "rounded-[8px]" : "rounded-[14px]"}`}
-              >
-                <span className="upstream-option-title min-w-0 text-[12px] font-semibold">{option.title}</span>
-                <span className={`upstream-option-sub min-w-0 text-[10px] ${active ? "text-[var(--accent)]/80" : "text-zinc-500"}`}>{option.sub}</span>
-              </button>
+              />
             );
           })}
         </div>
@@ -158,17 +187,80 @@ export function UpstreamProfileEditor({
         <Hint>API Key 保存到系统凭据存储(Keychain / Credential Manager / Secret Service),不在 localStorage 中明文存放。</Hint>
       </Field>
 
+      <Field
+        label={(
+          <span className="flex items-center justify-between gap-3">
+            <span>上游模型列表</span>
+            {modelCatalog ? (
+              <span className="shrink-0 text-[11px] font-medium text-[var(--accent)]">已识别 {modelCatalog.all.length} 个模型</span>
+            ) : null}
+          </span>
+        )}
+      >
+        <button
+          type="button"
+          onClick={() => void onLoadModels()}
+          disabled={loadingModels}
+          className={`platform-action-btn inline-flex w-full items-center justify-center gap-2 border border-black/[0.08] px-3 py-2 text-sm text-zinc-700 transition-colors hover:border-[color:var(--accent)]/35 hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/[0.08] dark:text-zinc-300 ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${loadingModels ? "animate-spin" : ""}`} />
+          {loadingModels ? "拉取中..." : "拉取并解析上游模型"}
+        </button>
+        <Hint>
+          通过宿主侧请求 <code className="font-mono-token">/v1/models</code> 获取模型列表，避免浏览器跨域或 WebView 差异影响结果。
+        </Hint>
+        {modelCatalogError ? <Hint>{modelCatalogError}</Hint> : null}
+      </Field>
+
       {draft.apiMode === "responses" ? (
-        <Field label="文本模型 ID">
-          <input
-            type="text"
-            value={draft.textModelID}
-            placeholder="留空=默认 gpt-5.5"
-            onChange={(e) => onPatchDraft({ textModelID: e.target.value })}
-            spellCheck={false}
-            className={`focus-ring w-full min-w-0 border border-black/[0.08] bg-[var(--surface)] px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 dark:border-white/[0.08] dark:text-zinc-100 dark:placeholder:text-zinc-500 font-mono-token ${usesFluentUI ? "rounded-[10px]" : "rounded-[14px]"}`}
-          />
-        </Field>
+        <>
+          <Field label="文本模型 ID">
+            <input
+              type="text"
+              value={draft.textModelID}
+              placeholder="留空=默认 gpt-5.5"
+              onChange={(e) => onPatchDraft({ textModelID: e.target.value })}
+              spellCheck={false}
+              className={`focus-ring w-full min-w-0 border border-black/[0.08] bg-[var(--surface)] px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 dark:border-white/[0.08] dark:text-zinc-100 dark:placeholder:text-zinc-500 font-mono-token ${usesFluentUI ? "rounded-[10px]" : "rounded-[14px]"}`}
+            />
+            {preferredModels && preferredModels.text.length > 0 ? (
+              <ModelSuggestions
+                title="推荐文本模型"
+                models={preferredModels.text}
+                selectedID={draft.textModelID}
+                usesFluentUI={usesFluentUI}
+                onSelect={(id) => onPatchDraft({ textModelID: id })}
+              />
+            ) : null}
+          </Field>
+
+          <Field
+            label={(
+              <span className="flex items-center justify-between gap-3">
+                <span>推理强度</span>
+                <span className="shrink-0 text-[11px] font-medium text-[var(--accent)]">已选 {selectedReasoningEffort.label}</span>
+              </span>
+            )}
+          >
+            <div className={`grid gap-2 ${isAndroidPhone ? "grid-cols-2" : "grid-cols-4"}`}>
+              {REASONING_EFFORT_OPTIONS.map((option) => {
+                const active = draft.reasoningEffort === option.value;
+                return (
+                  <OptionCard
+                    key={option.value}
+                    active={active}
+                    usesFluentUI={usesFluentUI}
+                    title={option.label}
+                    onClick={() => onPatchDraft({ reasoningEffort: option.value })}
+                  />
+                );
+              })}
+            </div>
+            <Hint>
+              默认 <code className="font-mono-token">xhigh</code>。低强度在部分模型或中转上可能不触发 <code className="font-mono-token">image_generation</code> 工具调用，优先保持 <code className="font-mono-token">xhigh</code> 或 <code className="font-mono-token">high</code>。
+            </Hint>
+          </Field>
+        </>
       ) : null}
 
       <Field label="图像模型 ID">
@@ -180,6 +272,15 @@ export function UpstreamProfileEditor({
           spellCheck={false}
           className={`focus-ring w-full min-w-0 border border-black/[0.08] bg-[var(--surface)] px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 dark:border-white/[0.08] dark:text-zinc-100 dark:placeholder:text-zinc-500 font-mono-token ${usesFluentUI ? "rounded-[10px]" : "rounded-[14px]"}`}
         />
+        {preferredModels && preferredModels.image.length > 0 ? (
+          <ModelSuggestions
+            title="推荐图像模型"
+            models={preferredModels.image}
+            selectedID={draft.imageModelID}
+            usesFluentUI={usesFluentUI}
+            onSelect={(id) => onPatchDraft({ imageModelID: id })}
+          />
+        ) : null}
       </Field>
 
       <Field label="并发数量限制">
@@ -278,6 +379,82 @@ function Field({ label, children }: { label: React.ReactNode; children: React.Re
 function Hint({ children }: { children: React.ReactNode }) {
   return (
     <p className="mt-1.5 min-w-0 break-words text-[11px] leading-relaxed text-zinc-500 [overflow-wrap:anywhere] dark:text-zinc-500">{children}</p>
+  );
+}
+
+function OptionCard({
+  active,
+  usesFluentUI,
+  title,
+  sub,
+  onClick,
+}: {
+  active: boolean;
+  usesFluentUI: boolean;
+  title: string;
+  sub?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={`upstream-option-card platform-card flex flex-col items-start gap-1 border p-2.5 text-left transition-all ${
+        active
+          ? "active border-[color:var(--accent)]/55 bg-[var(--accent-soft)] text-zinc-950 shadow-[0_0_0_1px_rgb(0_122_255_/_0.12)] dark:text-zinc-50"
+          : "border-black/[0.08] text-zinc-700 hover:border-[color:var(--accent)]/30 hover:bg-white/80 dark:border-white/[0.06] dark:text-zinc-300 dark:hover:bg-white/[0.05]"
+      } ${usesFluentUI ? "rounded-[8px]" : "rounded-[14px]"}`}
+    >
+      <span className="upstream-option-head flex w-full items-start justify-between gap-2">
+        <span className="upstream-option-title min-w-0 text-[12px] font-semibold">{title}</span>
+        {active ? (
+          <span className="upstream-option-check inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/78 text-[var(--accent)] shadow-[0_4px_10px_-8px_rgb(0_122_255_/_0.85)] dark:bg-white/[0.08]">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+          </span>
+        ) : null}
+      </span>
+      {sub ? <span className={`upstream-option-sub min-w-0 text-[10px] ${active ? "text-[var(--accent)]/90" : "text-zinc-500"}`}>{sub}</span> : null}
+    </button>
+  );
+}
+
+function ModelSuggestions({
+  title,
+  models,
+  selectedID,
+  usesFluentUI,
+  onSelect,
+}: {
+  title: string;
+  models: UpstreamModelDescriptor[];
+  selectedID: string;
+  usesFluentUI: boolean;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <div className="mt-2 flex flex-col gap-2">
+      <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">{title}</span>
+      <div className="flex flex-wrap gap-2">
+        {models.slice(0, 12).map((model) => {
+          const active = model.id === selectedID.trim();
+          return (
+            <button
+              key={model.id}
+              type="button"
+              onClick={() => onSelect(model.id)}
+              className={`inline-flex max-w-full items-center gap-1.5 border px-2.5 py-1.5 text-left text-[11px] transition-colors ${
+                active
+                  ? "border-[color:var(--accent)]/45 bg-[var(--accent-soft)] text-[var(--accent)]"
+                  : "border-black/[0.08] bg-black/[0.03] text-zinc-600 hover:border-[color:var(--accent)]/30 hover:text-[var(--accent)] dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-zinc-300"
+              } ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
+            >
+              <span className="min-w-0 break-words [overflow-wrap:anywhere]">{formatUpstreamModelLabel(model)}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

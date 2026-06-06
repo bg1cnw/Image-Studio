@@ -3,15 +3,21 @@ package client
 import "errors"
 
 const (
-	BaseURL              = "" // 不再内置默认上游;调用方必须显式提供 Options.BaseURL
-	TextModel            = "gpt-5.5"
-	ImageModel           = "gpt-image-2"
-	DefaultSize          = "1024x1024"
-	DefaultQuality       = "auto"
-	OutputFormat         = "png"
-	DefaultPartialImages = 1
-	MaxInputImageBytes   = 50 * 1024 * 1024
-	MaxAttempts          = 3
+	BaseURL                  = "" // 不再内置默认上游;调用方必须显式提供 Options.BaseURL
+	TextModel                = "gpt-5.5"
+	ImageModel               = "gpt-image-2"
+	DefaultSize              = "1024x1024"
+	DefaultQuality           = "auto"
+	OutputFormat             = "png"
+	DefaultBackground        = "auto"
+	DefaultOutputCompression = 100
+	DefaultInputFidelity     = "auto"
+	DefaultImageStyle        = "default"
+	DefaultModeration        = "low"
+	DefaultReasoningEffort   = "xhigh"
+	DefaultPartialImages     = 1
+	MaxInputImageBytes       = 50 * 1024 * 1024
+	MaxAttempts              = 3
 )
 
 // Tunable knobs (exposed as vars so tests can shrink them).
@@ -167,11 +173,35 @@ type Options struct {
 	// gptcodex-image tool reads it varies; sent for forward compatibility.
 	NegativePrompt string
 
+	// Background controls whether GPT image models render an automatic,
+	// opaque, or transparent background.
+	Background string
+
+	// OutputCompression controls jpeg/webp compression (0-100).
+	OutputCompression int
+
+	// InputFidelity controls how strongly supported models preserve source
+	// image details during edits/reference-image workflows.
+	InputFidelity string
+
+	// ImageStyle controls DALL-E 3 generation style. "default" omits the field.
+	ImageStyle string
+
+	// Moderation controls the upstream image safety filter. Empty / invalid
+	// values fall back to DefaultModeration ("low").
+	Moderation string
+
+	// UserIdentifier is a stable end-user identifier used for abuse detection.
+	// Responses API maps it to safety_identifier; Images API maps it to user.
+	UserIdentifier string
+
 	// Optional overrides for the URL and model IDs. Empty values fall back
 	// to BaseURL / TextModel / ImageModel constants.
 	BaseURL      string
 	TextModelID  string
 	ImageModelID string
+	// ReasoningEffort controls Responses API reasoning.effort.
+	ReasoningEffort string
 
 	// Proxy controls outbound upstream HTTP(S) requests.
 	// Empty Mode defaults to system proxy settings.
@@ -185,6 +215,9 @@ type Options struct {
 	// PartialImages controls streaming partial_images for GPT image models.
 	// Negative values fall back to DefaultPartialImages; values above 3 are clamped.
 	PartialImages int
+
+	// DisablePreview forces partial_images = 0 for this request.
+	DisablePreview bool
 }
 
 // EffectiveImageDataURLs returns the merged list, deduplicating empty entries.

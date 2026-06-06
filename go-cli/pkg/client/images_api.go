@@ -50,6 +50,53 @@ func supportsImagesResponseFormat(model string, mode Mode) bool {
 	return family == "dalle2" || family == "dalle3"
 }
 
+func supportsImageModeration(model string) bool {
+	return classifyImageModel(model) == "gpt-image"
+}
+
+func supportsImageBackground(model string) bool {
+	return classifyImageModel(model) == "gpt-image"
+}
+
+func supportsOutputCompression(model, outputFormat string) bool {
+	return supportsImageBackground(model) && (outputFormat == "jpeg" || outputFormat == "webp")
+}
+
+func supportsInputFidelity(model string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(model))
+	if strings.HasPrefix(normalized, "gpt-image-2") {
+		return false
+	}
+	if strings.HasPrefix(normalized, "gpt-image-1.5") {
+		return true
+	}
+	if strings.HasPrefix(normalized, "gpt-image-1-mini") {
+		return true
+	}
+	if strings.HasPrefix(normalized, "gpt-image-1") {
+		return true
+	}
+	if strings.HasPrefix(normalized, "chatgpt-image-latest") {
+		return true
+	}
+	return false
+}
+
+func supportsImageStyle(model string, mode Mode) bool {
+	return mode != ModeEdit && classifyImageModel(model) == "dalle3"
+}
+
+func normalizeImageStyle(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "vivid":
+		return "vivid"
+	case "natural":
+		return "natural"
+	default:
+		return DefaultImageStyle
+	}
+}
+
 type imagesAPIDatum struct {
 	B64JSON       string `json:"b64_json"`
 	URL           string `json:"url"`
@@ -186,6 +233,16 @@ func RequestImagesAPIWithPartial(
 	if outputFormat == "" {
 		outputFormat = OutputFormat
 	}
+	background := normalizeBackground(opts.Background)
+	outputCompression := normalizeOutputCompression(opts.OutputCompression)
+	inputFidelity := normalizeInputFidelity(opts.InputFidelity)
+	imageStyle := normalizeImageStyle(opts.ImageStyle)
+	moderation := normalizeModeration(opts.Moderation)
+	userIdentifier := normalizeUserIdentifier(opts.UserIdentifier)
+	partialImages := normalizePartialImages(opts.PartialImages)
+	if opts.DisablePreview {
+		partialImages = 0
+	}
 	includeExtended := shouldSendExtendedImageParameters(opts.RequestPolicy)
 	useNewAPICompat := opts.ImagesNewAPICompat
 
@@ -200,7 +257,7 @@ func RequestImagesAPIWithPartial(
 		if len(paths) == 0 {
 			return ImageResult{}, errors.New("图生图模式需要至少一张源图(请在面板里添加参考图)")
 		}
-		multipartBuf, mpType, err := buildEditsMultipart(paths, opts.MaskB64, opts.Prompt, model, size, quality, outputFormat, opts.NegativePrompt, opts.Seed, opts.RequestPolicy, normalizePartialImages(opts.PartialImages), useNewAPICompat)
+		multipartBuf, mpType, err := buildEditsMultipart(paths, opts.MaskB64, opts.Prompt, model, size, quality, outputFormat, background, outputCompression, inputFidelity, moderation, userIdentifier, opts.NegativePrompt, opts.Seed, opts.RequestPolicy, partialImages, useNewAPICompat)
 		if err != nil {
 			return ImageResult{}, err
 		}
@@ -216,12 +273,27 @@ func RequestImagesAPIWithPartial(
 			"quality":       quality,
 			"output_format": outputFormat,
 		}
+		if supportsImageBackground(model) {
+			payload["background"] = background
+		}
+		if supportsOutputCompression(model, outputFormat) {
+			payload["output_compression"] = outputCompression
+		}
+		if supportsImageStyle(model, opts.Mode) && imageStyle != DefaultImageStyle {
+			payload["style"] = imageStyle
+		}
+		if supportsImageModeration(model) {
+			payload["moderation"] = moderation
+		}
+		if userIdentifier != "" {
+			payload["user"] = userIdentifier
+		}
 		if useNewAPICompat || supportsImagesResponseFormat(model, opts.Mode) {
 			payload["response_format"] = "b64_json"
 		}
 		if !useNewAPICompat {
 			payload["stream"] = true
-			payload["partial_images"] = normalizePartialImages(opts.PartialImages)
+			payload["partial_images"] = partialImages
 		}
 		if includeExtended && opts.Seed != 0 {
 			payload["seed"] = opts.Seed
@@ -477,7 +549,7 @@ func writeDataURLToTemp(dataURL string) (string, error) {
 // 多张源图按 image[] / image[1] / ... 形式串联 —— 不同中转站对多图编辑支持不一,
 // 仅第一张是 OpenAI 官方接受的最小可用形态,其余作为兼容性 best-effort。
 func buildEditsMultipart(
-	paths []string, maskB64, prompt, model, size, quality, outputFormat, negativePrompt string, seed int64, requestPolicy RequestPolicy, partialImages int, useNewAPICompat bool,
+	paths []string, maskB64, prompt, model, size, quality, outputFormat, background string, outputCompression int, inputFidelity, moderation, userIdentifier, negativePrompt string, seed int64, requestPolicy RequestPolicy, partialImages int, useNewAPICompat bool,
 ) (*bytes.Buffer, string, error) {
 	buf := &bytes.Buffer{}
 	w := multipart.NewWriter(buf)
@@ -517,6 +589,21 @@ func buildEditsMultipart(
 	_ = w.WriteField("quality", quality)
 	if strings.TrimSpace(outputFormat) != "" {
 		_ = w.WriteField("output_format", outputFormat)
+	}
+	if supportsImageBackground(model) {
+		_ = w.WriteField("background", background)
+	}
+	if supportsOutputCompression(model, outputFormat) {
+		_ = w.WriteField("output_compression", fmt.Sprintf("%d", outputCompression))
+	}
+	if supportsInputFidelity(model) && inputFidelity != DefaultInputFidelity {
+		_ = w.WriteField("input_fidelity", inputFidelity)
+	}
+	if supportsImageModeration(model) {
+		_ = w.WriteField("moderation", moderation)
+	}
+	if userIdentifier != "" {
+		_ = w.WriteField("user", userIdentifier)
 	}
 	if useNewAPICompat || supportsImagesResponseFormat(model, ModeEdit) {
 		_ = w.WriteField("response_format", "b64_json")

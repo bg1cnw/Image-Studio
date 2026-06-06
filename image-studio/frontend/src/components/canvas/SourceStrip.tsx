@@ -6,8 +6,10 @@ import { usePlatform } from "../../platform/context";
 
 export function SourceStrip() {
   const sources = useStudioStore((s) => s.sources);
+  const currentImage = useStudioStore((s) => s.currentImage);
   const removeSource = useStudioStore((s) => s.removeSource);
   const reorderSources = useStudioStore((s) => s.reorderSources);
+  const viewSourceOnCanvas = useStudioStore((s) => s.viewSourceOnCanvas);
   const mode = useStudioStore((s) => s.mode);
   const selectSourceImage = useStudioStore((s) => s.selectSourceImage);
   const { isMac, usesFluentUI, usesAppleUI } = usePlatform();
@@ -41,6 +43,8 @@ export function SourceStrip() {
           setOverIdx={setOverIdx}
           reorderSources={reorderSources}
           removeSource={removeSource}
+          active={currentImage?.savedPath === s.path}
+          onPreview={() => void viewSourceOnCanvas(i)}
         />
       ))}
       <button
@@ -65,6 +69,8 @@ function SourceTile({
   setOverIdx,
   reorderSources,
   removeSource,
+  active,
+  onPreview,
 }: {
   source: { path: string; name: string; previewUrl?: string | null; imageBlob?: Blob | null; imageB64?: string };
   index: number;
@@ -74,6 +80,8 @@ function SourceTile({
   setOverIdx: (v: number | null) => void;
   reorderSources: (from: number, to: number) => void;
   removeSource: (index: number) => void;
+  active: boolean;
+  onPreview: () => void;
 }) {
   const objectURL = useBlobURL(source.imageBlob ?? null, source.imageB64 ?? null);
   const previewURL = source.previewUrl || objectURL;
@@ -91,7 +99,17 @@ function SourceTile({
         setOverIdx(null);
       }}
       onDragEnd={() => { setDragFrom(null); setOverIdx(null); }}
-      title={`${index + 1}. ${source.name}\n${source.path}`}
+      onClick={onPreview}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onPreview();
+        }
+      }}
+      title={`${index + 1}. ${source.name}\n${source.path}\n点击在画布查看`}
+      role="button"
+      tabIndex={0}
+      data-active={active ? "true" : "false"}
       className={`source-thumb relative group h-12 w-12 shrink-0 cursor-grab overflow-hidden border transition-all ${
         overIdx === index
           ? "scale-105 border-[color:var(--accent)] shadow-[0_0_0_1px_var(--accent)]"

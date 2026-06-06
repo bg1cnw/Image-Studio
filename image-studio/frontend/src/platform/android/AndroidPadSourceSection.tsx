@@ -1,5 +1,6 @@
 import { CheckCircle2, ImagePlus, Trash2, X } from "lucide-react";
 import type { HistoryItem, SourceImage } from "../../types/domain";
+import { useBlobURL } from "../../lib/images";
 import { vibrateForPlatform } from "./bridge";
 
 export function AndroidPadSourceSection({
@@ -7,6 +8,7 @@ export function AndroidPadSourceSection({
   currentImage,
   editSourceLabel,
   onSelectSource,
+  onViewSource,
   removeSource,
   sources,
 }: {
@@ -14,6 +16,7 @@ export function AndroidPadSourceSection({
   currentImage: HistoryItem | null;
   editSourceLabel: string;
   onSelectSource: () => void;
+  onViewSource: (index: number) => void;
   removeSource: (index: number) => void;
   sources: SourceImage[];
 }) {
@@ -55,10 +58,13 @@ export function AndroidPadSourceSection({
       {sources.length > 0 ? (
         <div className="android-source-list">
           {sources.map((source, index) => (
-            <div key={source.path} className="android-source-list-item">
-              <span title={source.path}>
-                {index + 1}. {source.name}
-              </span>
+            <div key={source.path} className="android-source-list-item" data-active={currentImage?.savedPath === source.path ? "true" : "false"}>
+              <AndroidPadSourceSummaryButton
+                active={currentImage?.savedPath === source.path}
+                index={index}
+                source={source}
+                onPreview={() => { vibrateForPlatform(8); onViewSource(index); }}
+              />
               <button
                 type="button"
                 onClick={() => { vibrateForPlatform(5); removeSource(index); }}
@@ -90,5 +96,42 @@ export function AndroidPadSourceSection({
         ) : null}
       </div>
     </section>
+  );
+}
+
+function AndroidPadSourceSummaryButton({
+  active,
+  index,
+  source,
+  onPreview,
+}: {
+  active: boolean;
+  index: number;
+  source: SourceImage;
+  onPreview: () => void;
+}) {
+  const objectURL = useBlobURL(source.imageBlob ?? null, source.imageB64 ?? null);
+  const previewURL = source.previewUrl || objectURL;
+  const fallback = source.name.split(".").pop()?.toUpperCase() ?? "IMG";
+  return (
+    <button
+      type="button"
+      onClick={onPreview}
+      title={`${index + 1}. ${source.name}\n${source.path}\n点击在画布查看`}
+      className="android-source-preview-button"
+      data-active={active ? "true" : "false"}
+    >
+      <span className="android-source-preview-thumb">
+        {previewURL ? (
+          <img src={previewURL} alt={source.name} loading="lazy" decoding="async" />
+        ) : (
+          <span className="android-source-preview-fallback">{fallback}</span>
+        )}
+      </span>
+      <span className="android-source-preview-copy">
+        <span title={source.path}>{index + 1}. {source.name}</span>
+        <small>{active ? "当前画布" : "点按查看大图"}</small>
+      </span>
+    </button>
   );
 }

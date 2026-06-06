@@ -91,18 +91,24 @@ func TestHistoryItemFromRunUsesWebViewCompatibleFields(t *testing.T) {
 		OutputFormat:   "png",
 		Seed:           42,
 		NegativePrompt: "blur",
+		SourcePaths:    []string{"/tmp/images/src-a.png", "/tmp/images/src-b.png"},
 	}, kernel.Result{
 		SavedPath:     "/tmp/images/cat.png",
+		PreviewPath:   "/tmp/images/previews/cat.png",
+		ThumbPath:     "/tmp/images/thumbs/cat.png",
 		RawPath:       "/tmp/log/raw.txt",
 		RevisedPrompt: "cat revised",
 	}, 1.25)
 	if item.ID == "" || item.CreatedAt == 0 {
 		t.Fatalf("missing identity fields: %#v", item)
 	}
-	if item.Prompt != "cat" || item.Mode != string(client.ModeEdit) || item.SavedPath != "/tmp/images/cat.png" || item.RawPath != "/tmp/log/raw.txt" {
+	if item.Prompt != "cat" || item.Mode != string(client.ModeEdit) || item.SavedPath != "/tmp/images/cat.png" || item.PreviewPath != "/tmp/images/previews/cat.png" || item.ThumbPath != "/tmp/images/thumbs/cat.png" || item.RawPath != "/tmp/log/raw.txt" {
 		t.Fatalf("history item not mapped: %#v", item)
 	}
 	if !item.PreviewOnly || item.ElapsedSec != 1.25 || item.Seed != 42 || item.NegativePrompt != "blur" {
 		t.Fatalf("history metadata not mapped: %#v", item)
+	}
+	if len(item.SourcePaths) != 2 || item.SourcePaths[0] != "/tmp/images/src-a.png" || item.SourcePaths[1] != "/tmp/images/src-b.png" {
+		t.Fatalf("source paths not mapped: %#v", item.SourcePaths)
 	}
 }

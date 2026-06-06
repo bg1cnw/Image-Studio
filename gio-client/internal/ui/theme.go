@@ -3,6 +3,7 @@ package ui
 import (
 	"image/color"
 
+	"gioui.org/unit"
 	"gioui.org/widget/material"
 )
 
@@ -40,72 +41,73 @@ type fluentColors struct {
 }
 
 var fluentLight = fluentColors{
-	accent:          rgb(0x0067c0),
-	accent2:         rgb(0x0f7ad6),
-	accentSoft:      rgba(0x0067c0, 0x1f),
+	accent:          rgb(0x005fb8),
+	accent2:         rgb(0x0a6fcb),
+	accentSoft:      rgba(0x005fb8, 0x1f),
 	bg:              rgb(0xf3f3f3),
-	bg2:             rgb(0xededed),
-	panel:           rgba(0xffffff, 0xe0),
-	panel2:          rgba(0xfafafa, 0xeb),
-	surface:         rgb(0xfbfbfb),
-	surface2:        rgb(0xefefef),
-	surfaceElevated: rgba(0xffffff, 0xd6),
-	sidebar:         rgba(0xf8f8f8, 0xd1),
-	inspector:       rgba(0xf4f4f4, 0xd6),
-	toolbar:         rgba(0xf6f6f6, 0xd1),
-	border:          rgba(0x000000, 0x17),
-	border2:         rgba(0x000000, 0x2e),
+	bg2:             rgb(0xe9e9e9),
+	panel:           rgb(0xfbfbfb),
+	panel2:          rgb(0xf6f6f6),
+	surface:         rgb(0xffffff),
+	surface2:        rgb(0xf2f2f2),
+	surfaceElevated: rgb(0xfcfcfc),
+	sidebar:         rgb(0xfbfbfb),
+	inspector:       rgb(0xf8f8f8),
+	toolbar:         rgb(0xf7f7f7),
+	border:          rgba(0x000000, 0x14),
+	border2:         rgba(0x000000, 0x24),
 	text:            rgb(0x1f1f1f),
-	textMuted:       rgba(0x363636, 0xc7),
-	textDim:         rgba(0x606060, 0xc2),
-	cardShadow:      rgba(0x000000, 0x07),
-	cardGlow:        rgba(0xffffff, 0x20),
-	bgGlow:          rgba(0xffffff, 0x36),
-	canvasBg:        rgb(0xececec),
+	textMuted:       rgba(0x1f1f1f, 0xb8),
+	textDim:         rgba(0x1f1f1f, 0x8a),
+	cardShadow:      rgba(0x000000, 0x12),
+	cardGlow:        rgba(0xffffff, 0x05),
+	bgGlow:          rgba(0xffffff, 0x28),
+	canvasBg:        rgb(0xeeeeee),
 	canvasTile:      rgb(0xdedede),
 	success:         rgb(0x0f7b0f),
 	danger:          rgb(0xc42b1c),
 	dangerSoft:      rgba(0xc42b1c, 0x1f),
-	toolHoverBg:     rgba(0x0067c0, 0x1a),
-	toolHoverText:   rgb(0x005a9e),
-	windowOutline:   rgba(0xffffff, 0xb3),
+	toolHoverBg:     rgba(0x000000, 0x0a),
+	toolHoverText:   rgb(0x1f1f1f),
+	windowOutline:   rgba(0xffffff, 0x38),
 	white:           rgb(0xffffff),
 }
 
 var fluentDark = fluentColors{
-	accent:          rgb(0x4cc2ff),
-	accent2:         rgb(0x78d3ff),
-	accentSoft:      rgba(0x4cc2ff, 0x2e),
+	accent:          rgb(0x60cdff),
+	accent2:         rgb(0x8bdcff),
+	accentSoft:      rgba(0x60cdff, 0x29),
 	bg:              rgb(0x202020),
-	bg2:             rgb(0x1b1b1b),
-	panel:           rgba(0x2a2a2a, 0xe6),
-	panel2:          rgba(0x262626, 0xf0),
-	surface:         rgb(0x2b2b2b),
-	surface2:        rgb(0x353535),
-	surfaceElevated: rgba(0x202020, 0xb8),
-	sidebar:         rgba(0x232323, 0xdb),
-	inspector:       rgba(0x1f1f1f, 0xd6),
-	toolbar:         rgba(0x252525, 0xdb),
+	bg2:             rgb(0x1c1c1c),
+	panel:           rgb(0x2b2b2b),
+	panel2:          rgb(0x282828),
+	surface:         rgb(0x333333),
+	surface2:        rgb(0x3b3b3b),
+	surfaceElevated: rgb(0x333333),
+	sidebar:         rgb(0x2b2b2b),
+	inspector:       rgb(0x292929),
+	toolbar:         rgb(0x2d2d2d),
 	border:          rgba(0xffffff, 0x14),
-	border2:         rgba(0xffffff, 0x2e),
+	border2:         rgba(0xffffff, 0x24),
 	text:            rgb(0xf5f5f5),
-	textMuted:       rgba(0xf3f3f3, 0xc2),
-	textDim:         rgba(0xd7d7d7, 0x99),
-	cardShadow:      rgba(0x000000, 0x34),
-	cardGlow:        rgba(0xffffff, 0x08),
-	bgGlow:          rgba(0xffffff, 0x05),
-	canvasBg:        rgb(0x252526),
-	canvasTile:      rgb(0x343436),
+	textMuted:       rgba(0xf3f3f3, 0xb8),
+	textDim:         rgba(0xf3f3f3, 0x80),
+	cardShadow:      rgba(0x000000, 0x00),
+	cardGlow:        rgba(0xffffff, 0x00),
+	bgGlow:          rgba(0xffffff, 0x04),
+	canvasBg:        rgb(0x242424),
+	canvasTile:      rgb(0x343434),
 	success:         rgb(0x6ccb5f),
 	danger:          rgb(0xff99a4),
 	dangerSoft:      rgba(0xff99a4, 0x1f),
-	toolHoverBg:     rgba(0x4cc2ff, 0x24),
-	toolHoverText:   rgb(0xb7e8ff),
-	windowOutline:   rgba(0xffffff, 0x14),
+	toolHoverBg:     rgba(0xffffff, 0x0f),
+	toolHoverText:   rgb(0xf3f3f3),
+	windowOutline:   rgba(0xffffff, 0x00),
 	white:           rgb(0xffffff),
 }
 
 var fluent = fluentLight
+var systemThemeResolver = systemThemeMode
 
 func themePalette(mode string) fluentColors {
 	if mode == "dark" {
@@ -124,10 +126,40 @@ func normalizeThemeMode(mode string) string {
 }
 
 func resolveThemeMode(mode string) string {
-	if normalizeThemeMode(mode) == "dark" {
+	switch normalizeThemeMode(mode) {
+	case "dark":
 		return "dark"
+	case "light":
+		return "light"
 	}
-	return "light"
+	return systemThemeResolver()
+}
+
+func normalizeFontScale(scale float64) float64 {
+	switch {
+	case scale <= 0:
+		return 1
+	case scale < 0.9:
+		return 0.85
+	case scale > 1.08:
+		return 1.15
+	default:
+		return 1
+	}
+}
+
+func (a *App) scaledSp(size unit.Sp) unit.Sp {
+	scale := float32(1)
+	if a != nil && a.fontScale > 0 {
+		scale = float32(a.fontScale)
+	}
+	return unit.Sp(float32(size) * scale)
+}
+
+func (a *App) applyFontScale(scale float64) {
+	a.fontScale = normalizeFontScale(scale)
+	a.th.TextSize = a.scaledSp(unit.Sp(14))
+	a.invalidateNow()
 }
 
 func (a *App) applyThemeMode(mode string) {

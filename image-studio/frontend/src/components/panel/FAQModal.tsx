@@ -114,7 +114,7 @@ export function FAQModal({ open, onClose }: { open: boolean; onClose: () => void
         </details>
 
         <details className="faq-item">
-          <summary className="faq-summary">蒙版 / 多参考图 / seed 上游会用吗?</summary>
+          <summary className="faq-summary">蒙版 / 多参考图 / seed / background / compression / input_fidelity / style / moderation / partial_images / user 标识 上游会用吗?</summary>
           <div className="faq-content">
             <p>
               这些字段是否发送,取决于当前 profile 里的「参数策略」。默认 `OpenAI 标准` 只发官方公开字段；切到 `兼容中转扩展` 才会额外发送 relay 常见扩展字段。
@@ -122,7 +122,13 @@ export function FAQModal({ open, onClose }: { open: boolean; onClose: () => void
             <ul>
               <li><strong>多参考图</strong>:作为多个 <code>input_image</code> 内容块发送,上游解释方式因模型而异</li>
               <li><strong>蒙版</strong>:Responses 模式按 OpenAI 官方 <code>input_image_mask</code> 发送；Images 模式按标准 multipart <code>mask</code> 文件发送</li>
+              <li><strong>background / output_compression</strong>:属于 OpenAI 官方图像字段。仅 GPT 图像模型支持；压缩只对 JPEG / WebP 生效，透明背景需要 PNG / WebP</li>
+              <li><strong>input_fidelity</strong>:用于图生图/参考图流程。`gpt-image-2` 要省略此字段；其它支持该能力的 GPT 图像模型可选 `low` / `high`</li>
+              <li><strong>style</strong>:仅 `dall-e-3` 文生图支持，值为 `vivid` / `natural`</li>
+              <li><strong>partial_images</strong>:属于 OpenAI 官方流式图像字段。当前支持 `0-3`，`0` 只返回最终图，`1-3` 会流式返回预览帧</li>
+              <li><strong>稳定用户标识</strong>:属于 OpenAI 官方请求字段。Responses 模式映射到 `safety_identifier`，Images API 模式映射到 `user`，建议传哈希后的用户标识</li>
               <li><strong>seed / negative prompt</strong>:属于 relay 常见扩展字段。只有在 `兼容中转扩展` 策略下才会附带发送，OpenAI 标准模式默认不发</li>
+              <li><strong>moderation</strong>:属于 OpenAI 官方图像字段。当前支持 `low` 和 `auto`，仅在 GPT 图像模型路径上发送</li>
             </ul>
           </div>
         </details>
@@ -138,7 +144,7 @@ export function FAQModal({ open, onClose }: { open: boolean; onClose: () => void
               <li>历史记录元数据:本地 IndexedDB 数据库</li>
               <li>生成的图片 PNG:<code>{platformOutputRootLabel()}/images/</code></li>
               <li>导入的源图:系统 config 目录下的 <code>image-studio/imports/</code>(内部 scratch,与输出目录解耦)</li>
-              <li>原始上游响应:输出根目录的 <code>log/</code> 下(<code>sse-response-*.txt</code> 或 <code>images-response-*.json</code>,排错时用)</li>
+              <li>原始上游响应:输出根目录的 <code>log/</code> 下(<code>sse-response-*.txt</code> 或 <code>images-response-*.json</code>)；默认退出应用会清理，在「设置 → 日志保留」开启后会保留。</li>
             </ul>
           </div>
         </details>

@@ -1,10 +1,17 @@
-import { Check, Eye, EyeOff, Minus, Plug, Plus, Save } from "lucide-react";
+import { Check, Eye, EyeOff, Minus, Plug, Plus, RefreshCw, Save } from "lucide-react";
 import type { ReactNode } from "react";
 import type { UpstreamProfile } from "../../../types/domain";
 import {
   ANDROID_API_MODE_OPTIONS,
+  ANDROID_REASONING_EFFORT_OPTIONS,
   ANDROID_REQUEST_POLICY_OPTIONS,
 } from "./useAndroidUpstreamConfig";
+import {
+  formatUpstreamModelLabel,
+  preferredModelsForAPIMode,
+  type UpstreamModelCatalog,
+  type UpstreamModelDescriptor,
+} from "../../../lib/upstreamModels";
 
 export function AndroidUpstreamProfileForm({
   activeProfileId,
@@ -13,7 +20,11 @@ export function AndroidUpstreamProfileForm({
   draft,
   draftKey,
   isTestingKey,
+  loadingModels,
+  modelCatalog,
+  modelCatalogError,
   onChangeDraftKey,
+  onLoadModels,
   onPatchDraft,
   onSave,
   onSaveAndSetActive,
@@ -30,7 +41,11 @@ export function AndroidUpstreamProfileForm({
   draft: UpstreamProfile;
   draftKey: string;
   isTestingKey: boolean;
+  loadingModels: boolean;
+  modelCatalog: UpstreamModelCatalog | null;
+  modelCatalogError: string | null;
   onChangeDraftKey: (value: string) => void;
+  onLoadModels: () => void | Promise<void>;
   onPatchDraft: (patch: Partial<UpstreamProfile>) => void;
   onSave: () => void | Promise<void>;
   onSaveAndSetActive: () => void | Promise<void>;
@@ -43,6 +58,7 @@ export function AndroidUpstreamProfileForm({
 }) {
   const isActive = draft.id === activeProfileId;
   const busy = saving || isTestingKey;
+  const preferredModels = modelCatalog ? preferredModelsForAPIMode(modelCatalog, draft.apiMode) : null;
 
   return (
     <section className="android-upstream-form" aria-label="编辑上游配置">
@@ -122,17 +138,54 @@ export function AndroidUpstreamProfileForm({
         </div>
       </AndroidField>
 
+      <AndroidField
+        label="上游模型列表"
+        hint="通过宿主侧请求 /v1/models 获取模型列表，避免 WebView 跨域差异。"
+      >
+        <button type="button" className="android-upstream-load-models" onClick={() => void onLoadModels()} disabled={loadingModels}>
+          <RefreshCw className={`h-4 w-4 ${loadingModels ? "animate-spin" : ""}`} />
+          <span>{loadingModels ? "拉取中..." : "拉取并解析上游模型"}</span>
+        </button>
+        {modelCatalog ? <p className="android-upstream-hint">已识别 {modelCatalog.all.length} 个模型。</p> : null}
+        {modelCatalogError ? <p className="android-upstream-error">{modelCatalogError}</p> : null}
+      </AndroidField>
+
       {draft.apiMode === "responses" ? (
-        <AndroidField label="文本模型 ID">
-          <input
-            type="text"
-            value={draft.textModelID}
-            onChange={(event) => onPatchDraft({ textModelID: event.target.value })}
-            placeholder="留空 = 默认 gpt-5.5"
-            className="focus-ring android-upstream-input font-mono-token"
-            spellCheck={false}
-          />
-        </AndroidField>
+        <>
+          <AndroidField label="文本模型 ID">
+            <input
+              type="text"
+              value={draft.textModelID}
+              onChange={(event) => onPatchDraft({ textModelID: event.target.value })}
+              placeholder="留空 = 默认 gpt-5.5"
+              className="focus-ring android-upstream-input font-mono-token"
+              spellCheck={false}
+            />
+            {preferredModels && preferredModels.text.length > 0 ? (
+              <AndroidModelSuggestions
+                models={preferredModels.text}
+                selectedID={draft.textModelID}
+                onSelect={(id) => onPatchDraft({ textModelID: id })}
+              />
+            ) : null}
+          </AndroidField>
+
+          <AndroidField label="推理强度" hint="默认 xhigh。低强度在部分模型或中转上可能导致工具调用失败。">
+            <div className="android-upstream-option-grid two">
+              {ANDROID_REASONING_EFFORT_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={draft.reasoningEffort === option.id ? "active" : ""}
+                  onClick={() => onPatchDraft({ reasoningEffort: option.id })}
+                >
+                  <strong>{option.title}</strong>
+                  <small>{option.meta}</small>
+                </button>
+              ))}
+            </div>
+          </AndroidField>
+        </>
       ) : null}
 
       <AndroidField label="图像模型 ID">
@@ -144,6 +197,13 @@ export function AndroidUpstreamProfileForm({
           className="focus-ring android-upstream-input font-mono-token"
           spellCheck={false}
         />
+        {preferredModels && preferredModels.image.length > 0 ? (
+          <AndroidModelSuggestions
+            models={preferredModels.image}
+            selectedID={draft.imageModelID}
+            onSelect={(id) => onPatchDraft({ imageModelID: id })}
+          />
+        ) : null}
       </AndroidField>
 
       <AndroidField label="并发数量限制" hint="0 表示不限制；正整数会限制同一配置跨标签页的并发任务。">
@@ -232,6 +292,34 @@ function AndroidField({
       </span>
       {children}
       {hint ? <span className="android-upstream-hint">{hint}</span> : null}
+    </div>
+  );
+}
+
+function AndroidModelSuggestions({
+  models,
+  selectedID,
+  onSelect,
+}: {
+  models: UpstreamModelDescriptor[];
+  selectedID: string;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <div className="android-upstream-model-suggestions">
+      {models.slice(0, 10).map((model) => {
+        const active = model.id === selectedID.trim();
+        return (
+          <button
+            key={model.id}
+            type="button"
+            className={active ? "active" : ""}
+            onClick={() => onSelect(model.id)}
+          >
+            <strong>{formatUpstreamModelLabel(model)}</strong>
+          </button>
+        );
+      })}
     </div>
   );
 }

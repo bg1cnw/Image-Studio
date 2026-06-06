@@ -49,15 +49,24 @@ html[data-ui-family="apple"] .upstream-config-modal .liquid-primary-button {
 }
 
 html[data-ui-family="apple"] .upstream-config-modal .upstream-option-card {
-  min-height: 56px;
+  min-height: 58px;
   justify-content: center;
-  gap: 3px;
+  gap: 4px;
   overflow: hidden;
   padding: 9px 12px;
 }
 
+html[data-ui-family="apple"] .upstream-config-modal .upstream-option-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  width: 100%;
+}
+
 html[data-ui-family="apple"] .upstream-config-modal .upstream-option-title,
-html[data-ui-family="apple"] .upstream-config-modal .upstream-option-sub {
+html[data-ui-family="apple"] .upstream-config-modal .upstream-option-sub,
+html[data-ui-family="apple"] .upstream-config-modal .upstream-option-check {
   display: block;
   max-width: 100%;
   min-width: 0;
@@ -77,6 +86,11 @@ html[data-ui-family="apple"] .upstream-config-modal .upstream-option-sub {
   word-break: break-word;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+html[data-ui-family="apple"] .upstream-config-modal .upstream-option-check {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 html[data-ui-family="apple"] .upstream-config-modal button > svg {

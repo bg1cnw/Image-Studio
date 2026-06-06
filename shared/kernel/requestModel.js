@@ -3,6 +3,12 @@ export const DEFAULT_IMAGE_MODEL = "gpt-image-2";
 export const DEFAULT_SIZE = "1024x1024";
 export const DEFAULT_QUALITY = "auto";
 export const DEFAULT_OUTPUT_FORMAT = "png";
+export const DEFAULT_BACKGROUND = "auto";
+export const DEFAULT_OUTPUT_COMPRESSION = 100;
+export const DEFAULT_INPUT_FIDELITY = "auto";
+export const DEFAULT_IMAGE_STYLE = "default";
+export const DEFAULT_MODERATION = "low";
+export const DEFAULT_REASONING_EFFORT = "xhigh";
 export const DEFAULT_REQUEST_POLICY = "openai";
 export const DEFAULT_PARTIAL_IMAGES = 1;
 export const MAX_ATTEMPTS = 3;
@@ -39,9 +45,47 @@ export function normalizeNegativePrompt(negativePrompt) {
   return String(negativePrompt || "").trim();
 }
 
+export function normalizeUserIdentifier(value) {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return "";
+  return Array.from(trimmed).slice(0, 64).join("");
+}
+
+export function normalizeBackground(value) {
+  if (value === "opaque" || value === "transparent") return value;
+  return DEFAULT_BACKGROUND;
+}
+
+export function normalizeOutputCompression(value) {
+  if (value === null || value === undefined || value === "") return DEFAULT_OUTPUT_COMPRESSION;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return DEFAULT_OUTPUT_COMPRESSION;
+  return Math.max(0, Math.min(100, Math.round(numeric)));
+}
+
+export function normalizeInputFidelity(value) {
+  if (value === "low" || value === "high") return value;
+  return DEFAULT_INPUT_FIDELITY;
+}
+
+export function normalizeImageStyle(value) {
+  if (value === "vivid" || value === "natural") return value;
+  return DEFAULT_IMAGE_STYLE;
+}
+
+export function normalizeModeration(value) {
+  return value === "auto" ? "auto" : DEFAULT_MODERATION;
+}
+
+export function normalizeReasoningEffort(value) {
+  return value === "low" || value === "medium" || value === "high" || value === "xhigh"
+    ? value
+    : DEFAULT_REASONING_EFFORT;
+}
+
 export function normalizePartialImages(value) {
   const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) return DEFAULT_PARTIAL_IMAGES;
+  if (!Number.isFinite(numeric) || numeric < 0) return DEFAULT_PARTIAL_IMAGES;
   return Math.max(0, Math.min(3, Math.floor(numeric)));
 }
 
@@ -61,6 +105,32 @@ export function supportsImagesResponseFormat(imageModelID, mode = "generate") {
   const family = classifyImageModel(imageModelID);
   if (mode === "edit") return family === "dalle2";
   return family === "dalle2" || family === "dalle3";
+}
+
+export function supportsImageModeration(imageModelID) {
+  return classifyImageModel(imageModelID) === "gpt-image";
+}
+
+export function supportsImageBackground(imageModelID) {
+  return classifyImageModel(imageModelID) === "gpt-image";
+}
+
+export function supportsOutputCompression(imageModelID, outputFormat) {
+  return supportsImageBackground(imageModelID) && (outputFormat === "jpeg" || outputFormat === "webp");
+}
+
+export function supportsInputFidelity(imageModelID) {
+  const normalized = normalizeImageModel(imageModelID).toLowerCase();
+  if (normalized.startsWith("gpt-image-2")) return false;
+  if (normalized.startsWith("gpt-image-1.5")) return true;
+  if (normalized.startsWith("gpt-image-1-mini")) return true;
+  if (normalized.startsWith("gpt-image-1")) return true;
+  if (normalized.startsWith("chatgpt-image-latest")) return true;
+  return false;
+}
+
+export function supportsImageStyle(imageModelID) {
+  return classifyImageModel(imageModelID) === "dalle3";
 }
 
 export function shouldSendExtendedImageParameters(requestPolicy) {
@@ -94,7 +164,11 @@ export function buildResponsesImageTool(payload, sourceDataURLs, options = {}) {
   const size = payload.size || DEFAULT_SIZE;
   const quality = payload.quality || DEFAULT_QUALITY;
   const outputFormat = payload.outputFormat || DEFAULT_OUTPUT_FORMAT;
+  const background = normalizeBackground(payload.background);
+  const outputCompression = normalizeOutputCompression(payload.outputCompression);
+  const inputFidelity = normalizeInputFidelity(payload.inputFidelity);
   const negativePrompt = normalizeNegativePrompt(payload.negativePrompt);
+  const moderation = normalizeModeration(payload.moderation);
   const compatExtensions = shouldSendExtendedImageParameters(payload.requestPolicy);
   const partialImages = payload.disablePreview ? 0 : normalizePartialImages(payload.partialImages);
   const tool = {
@@ -104,9 +178,14 @@ export function buildResponsesImageTool(payload, sourceDataURLs, options = {}) {
     size,
     quality,
     output_format: outputFormat,
-    moderation: "low",
     partial_images: partialImages,
   };
+  if (supportsImageBackground(payload.imageModelID)) tool.background = background;
+  if (supportsOutputCompression(payload.imageModelID, outputFormat)) tool.output_compression = outputCompression;
+  if (supportsInputFidelity(payload.imageModelID) && sourceDataURLs.length > 0 && inputFidelity !== DEFAULT_INPUT_FIDELITY) {
+    tool.input_fidelity = inputFidelity;
+  }
+  if (supportsImageModeration(payload.imageModelID)) tool.moderation = moderation;
   if (compatExtensions && payload.seed) tool.seed = payload.seed;
   if (compatExtensions && negativePrompt) tool.negative_prompt = negativePrompt;
 
@@ -121,6 +200,7 @@ export function buildResponsesImageTool(payload, sourceDataURLs, options = {}) {
 
 export function buildResponsesPayload(payload, sourceDataURLs, options = {}) {
   const content = buildResponsesInputContent(payload.prompt, sourceDataURLs);
+  const userIdentifier = normalizeUserIdentifier(payload.userIdentifier);
   const tool = {
     ...buildResponsesImageTool(payload, sourceDataURLs, options),
   };
@@ -130,11 +210,12 @@ export function buildResponsesPayload(payload, sourceDataURLs, options = {}) {
     input: [{ role: "user", content }],
     tools: [tool],
     tool_choice: { type: "image_generation" },
-    reasoning: { effort: "xhigh" },
+    reasoning: { effort: normalizeReasoningEffort(payload.reasoningEffort) },
     store: false,
     stream: true,
   };
   request.instructions = NO_PROMPT_REVISION_INSTRUCTIONS;
+  if (userIdentifier) request.safety_identifier = userIdentifier;
   return request;
 }
 
@@ -218,6 +299,42 @@ export function describeAPIError(error) {
   return parts.length > 0 ? `接口返回错误:${parts.join(" ")}` : "接口返回错误";
 }
 
+function extractOutputTextFromContent(content) {
+  if (!Array.isArray(content)) return "";
+  for (const part of content) {
+    if (part?.type === "output_text" && typeof part?.text === "string" && part.text.trim()) {
+      return part.text.trim();
+    }
+  }
+  return "";
+}
+
+function extractStructuredMessage(value) {
+  if (!value || typeof value !== "object") return "";
+
+  if (Array.isArray(value)) {
+    for (const child of value) {
+      const text = extractStructuredMessage(child);
+      if (text) return text;
+    }
+    return "";
+  }
+
+  if ((value.type === "output_text" || value.type === "response.output_text.done") && typeof value.text === "string" && value.text.trim()) {
+    return value.text.trim();
+  }
+
+  const directContentText = extractOutputTextFromContent(value.content);
+  if (directContentText) return directContentText;
+
+  for (const key of ["part", "item", "response", "output"]) {
+    const text = extractStructuredMessage(value[key]);
+    if (text) return text;
+  }
+
+  return "";
+}
+
 export function describeProblem(raw) {
   const text = String(raw || "").trim();
   if (!text) return "接口返回为空。";
@@ -236,6 +353,8 @@ export function describeProblem(raw) {
     if (data?.status && [502, 503, 504, 524].includes(Number(data.status))) {
       return `接口返回 ${data.status}:上游服务超时。`;
     }
+    const structuredMessage = extractStructuredMessage(data);
+    if (structuredMessage) return structuredMessage;
   } catch {
     // ignore
   }
@@ -248,6 +367,8 @@ export function describeProblem(raw) {
       const event = JSON.parse(payload);
       if (event?.error && typeof event.error === "object") return describeAPIError(event.error);
       if (event?.response?.error && typeof event.response.error === "object") return describeAPIError(event.response.error);
+      const structuredMessage = extractStructuredMessage(event);
+      if (structuredMessage) return structuredMessage;
     } catch {
       // ignore
     }

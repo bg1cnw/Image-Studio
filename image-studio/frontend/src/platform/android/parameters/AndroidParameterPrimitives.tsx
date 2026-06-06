@@ -208,7 +208,7 @@ export function AndroidAspectGrid({
   onChange,
 }: {
   items: AspectPresetOption[];
-  onManageCustom: () => void;
+  onManageCustom?: () => void;
   value: AspectPreset;
   onChange: (value: AspectPreset) => void;
 }) {
@@ -239,18 +239,20 @@ export function AndroidAspectGrid({
           );
         })}
       </div>
-      <div className="mt-3 flex justify-end">
-        <button
-          type="button"
-          onClick={() => {
-            vibrateForPlatform(6);
-            onManageCustom();
-          }}
-          className="text-[12px] font-medium text-[var(--accent)] transition-opacity hover:opacity-80"
-        >
-          自定义比例
-        </button>
-      </div>
+      {onManageCustom ? (
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              vibrateForPlatform(6);
+              onManageCustom();
+            }}
+            className="text-[12px] font-medium text-[var(--accent)] transition-opacity hover:opacity-80"
+          >
+            自定义比例
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

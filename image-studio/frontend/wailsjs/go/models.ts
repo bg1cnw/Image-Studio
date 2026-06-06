@@ -13,9 +13,16 @@ export namespace backend {
 	    maskB64: string;
 	    seed: number;
 	    negativePrompt: string;
+	    background: string;
+	    outputCompression: number;
+	    inputFidelity: string;
+	    imageStyle: string;
+	    moderation: string;
+	    userIdentifier: string;
 	    baseURL: string;
 	    textModelID: string;
 	    imageModelID: string;
+	    reasoningEffort: string;
 	    proxyMode: string;
 	    proxyURL: string;
 	    apiMode: string;
@@ -44,9 +51,16 @@ export namespace backend {
 	        this.maskB64 = source["maskB64"];
 	        this.seed = source["seed"];
 	        this.negativePrompt = source["negativePrompt"];
+	        this.background = source["background"];
+	        this.outputCompression = source["outputCompression"];
+	        this.inputFidelity = source["inputFidelity"];
+	        this.imageStyle = source["imageStyle"];
+	        this.moderation = source["moderation"];
+	        this.userIdentifier = source["userIdentifier"];
 	        this.baseURL = source["baseURL"];
 	        this.textModelID = source["textModelID"];
 	        this.imageModelID = source["imageModelID"];
+	        this.reasoningEffort = source["reasoningEffort"];
 	        this.proxyMode = source["proxyMode"];
 	        this.proxyURL = source["proxyURL"];
 	        this.apiMode = source["apiMode"];
@@ -206,6 +220,7 @@ export namespace backend {
 	}
 	export class ProbeUpstreamResult {
 	    modelCount: number;
+	    models?: UpstreamModelDescriptor[];
 
 	    static createFrom(source: any = {}) {
 	        return new ProbeUpstreamResult(source);
@@ -214,6 +229,43 @@ export namespace backend {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.modelCount = source["modelCount"];
+	        this.models = this.convertValues(source["models"], UpstreamModelDescriptor);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if(!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class UpstreamModelDescriptor {
+	    id: string;
+	    object?: string;
+	    ownedBy?: string;
+	    displayName?: string;
+
+	    static createFrom(source: any = {}) {
+	        return new UpstreamModelDescriptor(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.object = source["object"];
+	        this.ownedBy = source["ownedBy"];
+	        this.displayName = source["displayName"];
 	    }
 	}
 	export class SelectFileResponse {

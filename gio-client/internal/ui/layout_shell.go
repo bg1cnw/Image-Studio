@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"gioui.org/f32"
 	"gioui.org/font"
 	"gioui.org/layout"
 	"gioui.org/op/clip"
@@ -19,8 +18,10 @@ import (
 
 const repoURL = "https://github.com/RoseKhlifa/Image-Studio"
 const issuesURL = "https://github.com/RoseKhlifa/Image-Studio/issues"
+const licenseURL = "https://opensource.org/licenses/MIT"
 
 func (a *App) layout(gtx layout.Context) layout.Dimensions {
+	defer a.recordLayoutTiming(layoutTimingShell, time.Now())
 	snap := a.readSnapshot()
 	for a.runButton.Clicked(gtx) {
 		a.startRun()
@@ -33,27 +34,17 @@ func (a *App) layout(gtx layout.Context) layout.Dimensions {
 	}
 
 	paint.FillShape(gtx.Ops, fluent.bg, clip.Rect{Max: gtx.Constraints.Max}.Op())
-	if gtx.Constraints.Max.X > 0 && gtx.Constraints.Max.Y > 0 {
-		diagStart := withAlpha(fluent.white, 0xb8)
-		diagEnd := withAlpha(fluent.bg2, 0xee)
+	if !a.reducedEffects && gtx.Constraints.Max.X > 0 && gtx.Constraints.Max.Y > 0 {
+		bodyStart := withAlpha(fluent.white, 0x08)
+		bodyEnd := withAlpha(fluent.bg2, 0x18)
+		topGlow := withAlpha(fluent.white, 0x70)
 		if resolveThemeMode(a.themeMode) == "dark" {
-			diagStart = withAlpha(fluent.white, 0x09)
-			diagEnd = withAlpha(fluent.bg2, 0xf4)
+			bodyStart = rgba(0xffffff, 0x00)
+			bodyEnd = withAlpha(fluent.bg2, 0x22)
+			topGlow = withAlpha(fluent.white, 0x09)
 		}
-		paint.LinearGradientOp{
-			Stop1:  f32.Pt(0, 0),
-			Color1: diagStart,
-			Stop2:  f32.Pt(float32(gtx.Constraints.Max.X), float32(gtx.Constraints.Max.Y)),
-			Color2: diagEnd,
-		}.Add(gtx.Ops)
-		bgStack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
-		paint.PaintOp{}.Add(gtx.Ops)
-		bgStack.Pop()
+		paintLinearGradient(gtx, image.Rect(0, 0, gtx.Constraints.Max.X, gtx.Constraints.Max.Y), 0, bodyStart, bodyEnd)
 
-		topGlow := withAlpha(fluent.white, 0x22)
-		if resolveThemeMode(a.themeMode) == "dark" {
-			topGlow = withAlpha(fluent.white, 0x03)
-		}
 		glowHeight := min(gtx.Dp(unit.Dp(190)), gtx.Constraints.Max.Y)
 		if glowHeight > 0 {
 			paintLinearGradient(gtx, image.Rect(0, 0, gtx.Constraints.Max.X, glowHeight), 0, topGlow, rgba(0xffffff, 0x00))
@@ -72,33 +63,43 @@ func (a *App) layout(gtx layout.Context) layout.Dimensions {
 			}))
 		}
 	}
-	children = append(children, layout.Flexed(1, a.layoutBody))
+	children = append(children, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+		return a.layoutBody(gtx, snap)
+	}))
 	if !snap.Fullscreen {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return fixedHeight(gtx, unit.Dp(42), a.layoutFooter)
+			return fixedHeight(gtx, unit.Dp(42), func(gtx layout.Context) layout.Dimensions {
+				return a.layoutFooter(gtx, snap)
+			})
 		}))
 	}
 	dims := layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	if snap.SavePromptVisible {
-		a.layoutSavePrompt(gtx)
+		a.layoutSavePrompt(gtx, snap)
+	}
+	if a.generalSettingsOpen {
+		a.layoutGeneralSettingsModal(gtx, snap)
+	}
+	if a.aboutModalOpen {
+		a.layoutAboutModal(gtx)
 	}
 	if a.settingsModalOpen {
-		a.layoutSettingsModal(gtx)
+		a.layoutSettingsModal(gtx, snap)
 		if a.settingsHelpOpen {
 			a.layoutSettingsHelpModal(gtx)
 		}
 	}
 	if snap.ActiveResultDetail.ID != "" || snap.ActiveResultDetail.SavedPath != "" {
-		a.layoutResultDetailModal(gtx)
+		a.layoutResultDetailModal(gtx, snap)
 	}
 	if strings.TrimSpace(snap.RawResponseModalPath) != "" || strings.TrimSpace(snap.RawResponseModalError) != "" || strings.TrimSpace(snap.RawResponseModalText) != "" {
-		a.layoutRawResponseModal(gtx)
+		a.layoutRawResponseModal(gtx, snap)
 	}
 	if snap.ActivePromptGroup.Key != "" {
-		a.layoutPromptGroupModal(gtx)
+		a.layoutPromptGroupModal(gtx, snap)
 	}
 	if snap.HistoryTimelineOpen {
-		a.layoutHistoryTimelineModal(gtx)
+		a.layoutHistoryTimelineModal(gtx, snap)
 	}
 	return dims
 }
@@ -126,7 +127,7 @@ func (a *App) layoutHeader(gtx layout.Context) layout.Dimensions {
 		}
 	}
 	for a.settingsButton.Clicked(gtx) {
-		a.openSettingsModal()
+		a.openGeneralSettingsModal()
 	}
 
 	return a.borderedSurface(gtx, fluent.toolbar, unit.Dp(0), fluent.border, func(gtx layout.Context) layout.Dimensions {
@@ -182,7 +183,7 @@ func (a *App) layoutHeader(gtx layout.Context) layout.Dimensions {
 				}),
 				layout.Rigid(layout.Spacer{Width: unit.Dp(4)}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return a.headerIconButtonIcon(gtx, &a.settingsButton, uiIconSettings, a.settingsModalOpen)
+					return a.headerIconButtonIcon(gtx, &a.settingsButton, uiIconSettings, a.generalSettingsOpen)
 				}),
 			)
 		})
@@ -225,7 +226,7 @@ func (a *App) layoutHeaderBrand(gtx layout.Context) layout.Dimensions {
 	)
 }
 
-func (a *App) layoutFooter(gtx layout.Context) layout.Dimensions {
+func (a *App) layoutFooter(gtx layout.Context, snap snapshot) layout.Dimensions {
 	for a.footerOutputButton.Clicked(gtx) {
 		if err := openPath(a.outputDirInput.Text()); err != nil {
 			a.appendLog("打开输出目录失败: " + err.Error())
@@ -242,14 +243,13 @@ func (a *App) layoutFooter(gtx layout.Context) layout.Dimensions {
 		}
 	}
 
-	snap := a.readSnapshot()
 	state := "就绪"
 	dot := fluent.textDim
 	if snap.Running {
 		state = "运行中"
 		dot = fluent.accent
 	}
-	todayCount := todayHistoryCount(snap.History, time.Now())
+	todayCount := snap.TodayHistoryCount
 	totalCount := len(snap.History)
 	activeRunningCount := max(snap.BatchTotal, 1)
 	return a.borderedSurface(gtx, withAlpha(fluent.toolbar, 0xf2), unit.Dp(0), fluent.border, func(gtx layout.Context) layout.Dimensions {
@@ -321,13 +321,13 @@ func (a *App) layoutFooter(gtx layout.Context) layout.Dimensions {
 	})
 }
 
-func (a *App) layoutBody(gtx layout.Context) layout.Dimensions {
-	if a.readSnapshot().Fullscreen {
-		return a.layoutCanvas(gtx)
+func (a *App) layoutBody(gtx layout.Context, snap snapshot) layout.Dimensions {
+	if snap.Fullscreen {
+		return a.layoutCanvas(gtx, snap)
 	}
 	width := gtx.Constraints.Max.X
 	centerMin := gtx.Dp(unit.Dp(360))
-	leftWidth := gtx.Dp(unit.Dp(360))
+	leftWidth := gtx.Dp(unit.Dp(372))
 	rightWidth := gtx.Dp(unit.Dp(320))
 	if width <= gtx.Dp(unit.Dp(1180)) {
 		leftWidth = gtx.Dp(unit.Dp(336))
@@ -346,11 +346,17 @@ func (a *App) layoutBody(gtx layout.Context) layout.Dimensions {
 	}
 	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return fixedPixelWidth(gtx, leftWidth, a.layoutControls)
+			return fixedPixelWidth(gtx, leftWidth, func(gtx layout.Context) layout.Dimensions {
+				return a.layoutControls(gtx, snap)
+			})
 		}),
-		layout.Flexed(1, a.layoutCanvas),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return a.layoutCanvas(gtx, snap)
+		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return fixedPixelWidth(gtx, rightWidth, a.layoutHistoryAndLogs)
+			return fixedPixelWidth(gtx, rightWidth, func(gtx layout.Context) layout.Dimensions {
+				return a.layoutHistoryAndLogs(gtx, snap)
+			})
 		}),
 	)
 }

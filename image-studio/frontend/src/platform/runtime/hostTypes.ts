@@ -10,9 +10,16 @@ export type GenerateOptionsLike = {
   maskB64: string;
   seed: number;
   negativePrompt: string;
+  background: string;
+  outputCompression: number;
+  inputFidelity: string;
+  imageStyle: string;
+  moderation: string;
+  userIdentifier?: string;
   baseURL: string;
   textModelID: string;
   imageModelID: string;
+  reasoningEffort?: string;
   proxyMode?: string;
   proxyURL?: string;
   apiMode: string;
@@ -53,6 +60,21 @@ export type ProbeUpstreamOptionsLike = {
 
 export type ProbeUpstreamResultLike = {
   modelCount: number;
+  models?: UpstreamModelDescriptorLike[];
+};
+
+export type UpstreamModelDescriptorLike = {
+  id: string;
+  object?: string;
+  ownedBy?: string;
+  displayName?: string;
+};
+
+export type CodexAPIConfigLike = {
+  provider: string;
+  baseURL: string;
+  apiKey: string;
+  wireAPI: string;
 };
 
 export type JobStartedLike = { jobId: string };
@@ -84,6 +106,16 @@ export type MediaAssetRefLike = {
   previewHeight?: number;
 };
 export type CompatibilityStateLike = Record<string, unknown>;
+export type AppUpdateInfoLike = {
+  currentVersion: string;
+  latestVersion: string;
+  releaseTag: string;
+  releaseName?: string;
+  releaseURL: string;
+  publishedAt?: string;
+  body?: string;
+  hasUpdate: boolean;
+};
 export type HostKind = "wails-desktop" | "android-shell" | "browser";
 
 export type HostCapabilities = {

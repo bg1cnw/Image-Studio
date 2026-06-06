@@ -1,4 +1,5 @@
 import type { QualityValue, SizeValue } from "../../types/domain";
+import { classifyImageModel } from "../../../../../shared/kernel/requestModel.js";
 
 export const STYLE_CHIPS: { id: string; label: string; hint: string }[] = [
   { id: "cyberpunk", label: "赛博朋克", hint: "霓虹夜景" },
@@ -23,4 +24,22 @@ export const QUALITY_TIERS: { value: QualityValue; label: string }[] = [
   { value: "low", label: "快速" },
   { value: "medium", label: "标准" },
   { value: "high", label: "精修" },
+  { value: "standard", label: "standard" },
+  { value: "hd", label: "hd" },
 ];
+
+export function availableQualityOptions(imageModelID?: string): Array<{ value: QualityValue; label: string }> {
+  const family = classifyImageModel(imageModelID || "");
+  if (family === "dalle2") {
+    return QUALITY_TIERS.filter((item) => item.value === "auto" || item.value === "standard");
+  }
+  if (family === "dalle3") {
+    return QUALITY_TIERS.filter((item) => item.value === "auto" || item.value === "standard" || item.value === "hd");
+  }
+  return QUALITY_TIERS.filter((item) => item.value === "auto" || item.value === "low" || item.value === "medium" || item.value === "high");
+}
+
+export function normalizeQualitySelection(value: string, imageModelID?: string): QualityValue {
+  const allowed = availableQualityOptions(imageModelID);
+  return allowed.some((item) => item.value === value) ? value as QualityValue : allowed[0].value;
+}

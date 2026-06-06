@@ -3,7 +3,7 @@ import {
   GetStoredAPIKey,
   SetStoredAPIKey,
 } from "../platform/runtime/host";
-import type { APIMode, RequestPolicy, UpstreamProfile } from "../types/domain";
+import type { APIMode, ReasoningEffortValue, RequestPolicy, UpstreamProfile } from "../types/domain";
 import type { StudioState } from "./studioStore.types";
 import {
   duplicateProfile as cloneProfile,
@@ -31,6 +31,7 @@ export function createProfileActions(store: StateAdapter) {
       imagesNewAPICompat?: boolean;
       textModelID?: string;
       imageModelID?: string;
+      reasoningEffort?: ReasoningEffortValue;
       concurrencyLimit?: number;
       apiKey?: string;
       setActive?: boolean;
@@ -46,6 +47,7 @@ export function createProfileActions(store: StateAdapter) {
         baseURL: cleanBaseURL(input.baseURL ?? ""),
         textModelID: (input.textModelID ?? "").trim(),
         imageModelID: (input.imageModelID ?? "").trim(),
+        reasoningEffort: input.reasoningEffort ?? "xhigh",
         concurrencyLimit: normalizeConcurrencyLimit(input.concurrencyLimit ?? 0),
         createdAt: Date.now(),
       };
@@ -78,6 +80,7 @@ export function createProfileActions(store: StateAdapter) {
         baseURL: patch.baseURL !== undefined ? cleanBaseURL(patch.baseURL) : current.baseURL,
         textModelID: patch.textModelID !== undefined ? patch.textModelID.trim() : current.textModelID,
         imageModelID: patch.imageModelID !== undefined ? patch.imageModelID.trim() : current.imageModelID,
+        reasoningEffort: patch.reasoningEffort ?? current.reasoningEffort ?? "xhigh",
         concurrencyLimit: patch.concurrencyLimit !== undefined
           ? normalizeConcurrencyLimit(patch.concurrencyLimit) : current.concurrencyLimit,
         lastUsedAt: patch.lastUsedAt ?? current.lastUsedAt,
@@ -100,6 +103,7 @@ export function createProfileActions(store: StateAdapter) {
           baseURL: next.baseURL,
           textModelID: next.textModelID,
           imageModelID: next.imageModelID,
+          reasoningEffort: next.reasoningEffort,
           apiKey,
         });
       }
@@ -130,6 +134,7 @@ export function createProfileActions(store: StateAdapter) {
             baseURL: "",
             textModelID: "",
             imageModelID: "",
+            reasoningEffort: "xhigh",
             apiMode: "responses",
             requestPolicy: "openai",
             imagesNewAPICompat: false,
@@ -174,6 +179,7 @@ export function createProfileActions(store: StateAdapter) {
         baseURL: profile.baseURL,
         textModelID: profile.textModelID,
         imageModelID: profile.imageModelID,
+        reasoningEffort: profile.reasoningEffort,
         apiKey,
       });
     },

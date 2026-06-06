@@ -15,6 +15,7 @@ import { useCanvasShortcuts } from "./useCanvasShortcuts";
 import { StreamPreviewBadge } from "./StreamPreviewBadge";
 import { streamPreviewItemsFromPreviews } from "../../state/studioStore.streamPreview";
 import { historyFullSrc } from "../../lib/images";
+import { DragExportHandle } from "./DragExportHandle";
 
 export function CanvasStage() {
   const {
@@ -447,6 +448,13 @@ export function CanvasStage() {
           <div className="stream-preview-overlay">
             <StreamPreviewBadge />
           </div>
+        ) : null}
+        {!showingResultGrid && currentImage ? (
+          <DragExportHandle
+            item={currentImage}
+            sourceURL={currentImageURL}
+            className="stage-drag-export"
+          />
         ) : null}
         {showingResultGrid && (
           <BatchResultGrid

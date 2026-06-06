@@ -3,7 +3,7 @@ import {
   CheckCircle2, ImagePlus, ListPlus, Sparkles,
 } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
-import { QUALITY_TIERS, STYLE_CHIPS } from "../../components/panel/panelOptions";
+import { availableQualityOptions, normalizeQualitySelection, STYLE_CHIPS } from "../../components/panel/panelOptions";
 import type { Mode } from "../../types/domain";
 import { AndroidModeSwitch } from "./AndroidModeSwitch";
 import { usePlatform } from "../context";
@@ -12,12 +12,15 @@ import { AndroidAdvancedSection } from "./AndroidAdvancedSection";
 import { AndroidPadParameterSection } from "./AndroidPadParameterSection";
 import { AndroidPadSourceSection } from "./AndroidPadSourceSection";
 import { AndroidPromptTemplateModal } from "./AndroidPromptTemplateModal";
+import { ParameterPresetsSection } from "../../components/panel/ParameterPresetsSection";
 import {
   aspectPresetLabel,
   availableResolutionPresets,
   deriveAspectPreset,
   deriveResolutionPreset,
   listAspectPresetOptions,
+  normalizeSizeSelection,
+  supportsCustomAspectRatios,
 } from "../../components/panel/sizeCapabilities";
 import {
   buildAndroidAspectSizeSelection,
@@ -31,9 +34,10 @@ export function AndroidPadComposePanel({
   onSubmitStart?: () => void;
 } = {}) {
   const {
-    apiKey, mode, prompt, negativePrompt, size, quality, seed, styleTag, outputFormat,
+    apiKey, mode, prompt, background, imageStyle, inputFidelity, moderation, negativePrompt, outputCompression, size, quality, seed, styleTag, outputFormat,
+    userIdentifier, partialImages,
     batchCount, loopGeneration, sources, currentImage, isRunning, isOptimizingPrompt, apiMode, requestPolicy, baseURL, imageModelID,
-    profiles, customAspectRatios, setField, selectSourceImage, removeSource, clearSources,
+    profiles, customAspectRatios, setField, selectSourceImage, removeSource, clearSources, viewSourceOnCanvas,
     openCustomAspectRatioModal,
     openUpstreamConfig, submit, cancel, optimizePrompt,
   } = useStudioStore();
@@ -50,21 +54,26 @@ export function AndroidPadComposePanel({
   const optimizeReady = !!(
     prompt.trim() && (hasUsableResponsesProfile || (apiKey.trim() && baseURL.trim()))
   );
+  const capabilityInput = { apiMode, requestPolicy, imageModelID };
+  const normalizedSize = normalizeSizeSelection(size, capabilityInput, customAspectRatios);
+  const normalizedQuality = normalizeQualitySelection(quality, imageModelID);
+  const qualityOptions = availableQualityOptions(imageModelID);
+  const allowCustomAspectRatios = supportsCustomAspectRatios(capabilityInput);
   const activeStyleLabel = STYLE_CHIPS.find((item) => item.id === styleTag)?.label ?? "默认风格";
-  const aspectOptions = listAspectPresetOptions(customAspectRatios);
-  const activeAspect = deriveAspectPreset(size, customAspectRatios);
-  const activeResolution = deriveResolutionPreset(size);
-  const availableResolutions = availableResolutionPresets({ apiMode, requestPolicy, imageModelID });
+  const aspectOptions = listAspectPresetOptions(capabilityInput, customAspectRatios);
+  const activeAspect = deriveAspectPreset(normalizedSize, customAspectRatios);
+  const activeResolution = deriveResolutionPreset(normalizedSize);
+  const availableResolutions = availableResolutionPresets(capabilityInput);
   const activeAspectLabel = aspectPresetLabel(activeAspect, customAspectRatios);
   const activeResolutionLabel = activeResolution === "auto" ? "自动" : activeResolution.toUpperCase();
-  const activeQualityLabel = QUALITY_TIERS.find((item) => item.value === quality)?.label ?? quality;
+  const activeQualityLabel = qualityOptions.find((item) => item.value === normalizedQuality)?.label ?? normalizedQuality;
   const editSourceLabel = sources.length > 0 ? `${sources.length} 张已添加` : currentImage?.savedPath ? "使用当前画板" : "未添加";
 
   const handleAspectSelect = (aspect: typeof activeAspect) => {
     setField("size", buildAndroidAspectSizeSelection(
       aspect,
       activeResolution,
-      { apiMode, requestPolicy, imageModelID },
+      capabilityInput,
       customAspectRatios,
     ));
   };
@@ -73,7 +82,7 @@ export function AndroidPadComposePanel({
     setField("size", buildAndroidResolutionSizeSelection(
       activeAspect,
       resolution,
-      { apiMode, requestPolicy, imageModelID },
+      capabilityInput,
       customAspectRatios,
     ));
   };
@@ -164,7 +173,10 @@ export function AndroidPadComposePanel({
 
       <div className="android-pad-compose-grid">
         <section className="platform-card android-pad-prompt p-5">
-          <div className="android-pad-section-head">
+          <div className="mt-3">
+            <ParameterPresetsSection variant="android" />
+          </div>
+          <div className="android-pad-section-head mt-3">
             <label className="android-phone-kicker">{mode === "edit" ? "修改要求" : "提示词"}</label>
             <span className="font-mono-token text-[11px] text-zinc-400 dark:text-zinc-500">{promptLen}</span>
           </div>
@@ -217,6 +229,7 @@ export function AndroidPadComposePanel({
             activeResolutionLabel={activeResolutionLabel}
             activeQualityLabel={activeQualityLabel}
             activeStyleLabel={activeStyleLabel}
+            allowCustomAspectRatios={allowCustomAspectRatios}
             availableResolutions={availableResolutions}
             apiMode={apiMode}
             batchCount={batchCount}
@@ -227,7 +240,7 @@ export function AndroidPadComposePanel({
             needsUpstreamSetup={needsUpstreamSetup}
             onOpenCustomAspectRatioModal={openCustomAspectRatioModal}
             onOpenUpstream={() => { vibrateForPlatform(8); openUpstreamConfig("app"); }}
-            quality={quality}
+            quality={normalizedQuality}
             requestPolicy={requestPolicy}
             setField={setField as any}
             styleTag={styleTag}
@@ -236,13 +249,14 @@ export function AndroidPadComposePanel({
           <div className="android-pad-right-stack">
             {mode === "edit" ? (
               <AndroidPadSourceSection
-                clearSources={clearSources}
-                currentImage={currentImage}
-                editSourceLabel={editSourceLabel}
-                onSelectSource={handleSelectSource}
-                removeSource={removeSource}
-                sources={sources}
-              />
+              clearSources={clearSources}
+              currentImage={currentImage}
+              editSourceLabel={editSourceLabel}
+              onSelectSource={handleSelectSource}
+              onViewSource={(index) => void viewSourceOnCanvas(index)}
+              removeSource={removeSource}
+              sources={sources}
+            />
             ) : (
               <section className="platform-card android-pad-source-placeholder">
                 <ImagePlus className="h-4 w-4" />
@@ -256,9 +270,16 @@ export function AndroidPadComposePanel({
 
             <AndroidAdvancedSection
               advancedOpen={advancedOpen}
+              background={background}
+              imageStyle={imageStyle}
+              inputFidelity={inputFidelity}
+              moderation={moderation}
               negativePrompt={negativePrompt}
+              outputCompression={outputCompression}
               outputFormat={outputFormat}
+              partialImages={partialImages}
               seed={seed}
+              userIdentifier={userIdentifier}
               setAdvancedOpen={setAdvancedOpen}
               setField={setField as any}
               surface="pad"

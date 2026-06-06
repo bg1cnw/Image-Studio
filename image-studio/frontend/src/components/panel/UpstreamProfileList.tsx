@@ -1,4 +1,4 @@
-import { Copy, Plus, Trash2 } from "lucide-react";
+import { Copy, Plus, RefreshCw, Trash2 } from "lucide-react";
 import type { UpstreamProfile } from "../../types/domain";
 import { usePlatform } from "../../platform/context";
 
@@ -8,22 +8,28 @@ export function UpstreamProfileList({
   activeProfileId,
   draftId,
   isAndroidPhone,
+  canSyncCodexConfig,
+  isSyncingCodexConfig,
   onSelectProfile,
   onHandleNew,
   onHandleDuplicate,
   onHandleDelete,
   onHandleSetActive,
+  onHandleSyncCodex,
 }: {
   profiles: UpstreamProfile[];
   selectedId: string;
   activeProfileId: string;
   draftId?: string;
   isAndroidPhone: boolean;
+  canSyncCodexConfig: boolean;
+  isSyncingCodexConfig: boolean;
   onSelectProfile: (id: string) => void;
   onHandleNew: () => void | Promise<void>;
   onHandleDuplicate: () => void | Promise<void>;
   onHandleDelete: () => void | Promise<void>;
   onHandleSetActive: () => void | Promise<void>;
+  onHandleSyncCodex: () => void | Promise<void>;
 }) {
   const { usesFluentUI } = usePlatform();
 
@@ -62,6 +68,17 @@ export function UpstreamProfileList({
           </div>
         )}
       </div>
+      {canSyncCodexConfig ? (
+        <button
+          type="button"
+          onClick={() => void onHandleSyncCodex()}
+          disabled={isSyncingCodexConfig}
+          className={`platform-action-btn inline-flex items-center justify-center gap-1 border border-[color:var(--accent)]/28 bg-[var(--accent-soft)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--accent)] transition-colors hover:bg-[color:var(--accent)]/15 disabled:cursor-not-allowed disabled:opacity-60 ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
+        >
+          <RefreshCw className={`h-3 w-3 ${isSyncingCodexConfig ? "animate-spin" : ""}`} />
+          {isSyncingCodexConfig ? "同步中..." : "同步 Codex 配置"}
+        </button>
+      ) : null}
       <div className="flex flex-wrap gap-1.5">
         <button
           type="button"

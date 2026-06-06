@@ -62,6 +62,26 @@ func ConfigFromState(cfg kernel.Config, state shared.State) kernel.Config {
 	cfg.ImageModelID = profile.ImageModelID
 	cfg.APIMode = normaliseAPIMode(profile.APIMode)
 	cfg.RequestPolicy = normalisePolicy(profile.RequestPolicy)
+	cfg.ImagesNewAPICompat = profile.ImagesNewAPICompat
+	if strings.TrimSpace(state.Settings.Background) != "" {
+		cfg.Background = state.Settings.Background
+	}
+	if state.Settings.OutputCompression != nil {
+		cfg.OutputCompression = *state.Settings.OutputCompression
+	}
+	if strings.TrimSpace(state.Settings.InputFidelity) != "" {
+		cfg.InputFidelity = state.Settings.InputFidelity
+	}
+	if strings.TrimSpace(state.Settings.ImageStyle) != "" {
+		cfg.ImageStyle = state.Settings.ImageStyle
+	}
+	if strings.TrimSpace(state.Settings.Moderation) != "" {
+		cfg.Moderation = state.Settings.Moderation
+	}
+	cfg.UserIdentifier = strings.TrimSpace(state.Settings.UserIdentifier)
+	if state.Settings.PartialImages != nil {
+		cfg.PartialImages = *state.Settings.PartialImages
+	}
 	cfg.APIKey, _ = ReadAPIKey(profile.ID)
 	return cfg
 }
@@ -139,16 +159,18 @@ func UpsertConfig(state shared.State, cfg kernel.Config) shared.State {
 		profileID = "gio-" + randomID()
 	}
 	profile := shared.UpstreamProfile{
-		ID:               profileID,
-		Name:             nextDefaultProfileName(state.Profiles),
-		APIMode:          string(normaliseAPIMode(string(cfg.APIMode))),
-		RequestPolicy:    string(normalisePolicy(string(cfg.RequestPolicy))),
-		BaseURL:          strings.TrimSpace(cfg.BaseURL),
-		TextModelID:      strings.TrimSpace(cfg.TextModelID),
-		ImageModelID:     strings.TrimSpace(cfg.ImageModelID),
-		ConcurrencyLimit: 0,
-		CreatedAt:        now,
-		LastUsedAt:       now,
+		ID:                 profileID,
+		Name:               nextDefaultProfileName(state.Profiles),
+		APIMode:            string(normaliseAPIMode(string(cfg.APIMode))),
+		RequestPolicy:      string(normalisePolicy(string(cfg.RequestPolicy))),
+		ImagesNewAPICompat: cfg.ImagesNewAPICompat,
+		BaseURL:            strings.TrimSpace(cfg.BaseURL),
+		TextModelID:        strings.TrimSpace(cfg.TextModelID),
+		ImageModelID:       strings.TrimSpace(cfg.ImageModelID),
+		ReasoningEffort:    "xhigh",
+		ConcurrencyLimit:   0,
+		CreatedAt:          now,
+		LastUsedAt:         now,
 	}
 	if profileIndex >= 0 {
 		profile.Name = state.Profiles[profileIndex].Name
@@ -163,6 +185,15 @@ func UpsertConfig(state shared.State, cfg kernel.Config) shared.State {
 	state.Settings.ProxyURL = strings.TrimSpace(cfg.ProxyURL)
 	state.Settings.OutputFormat = strings.TrimSpace(cfg.OutputFormat)
 	state.Settings.OutputDir = strings.TrimSpace(cfg.OutputDir)
+	state.Settings.Background = strings.TrimSpace(cfg.Background)
+	state.Settings.InputFidelity = strings.TrimSpace(cfg.InputFidelity)
+	state.Settings.ImageStyle = strings.TrimSpace(cfg.ImageStyle)
+	state.Settings.Moderation = strings.TrimSpace(cfg.Moderation)
+	state.Settings.UserIdentifier = strings.TrimSpace(cfg.UserIdentifier)
+	outputCompression := cfg.OutputCompression
+	state.Settings.OutputCompression = &outputCompression
+	partialImages := cfg.PartialImages
+	state.Settings.PartialImages = &partialImages
 	if state.Settings.Theme == "" {
 		state.Settings.Theme = "system"
 	}
@@ -176,7 +207,7 @@ func UpsertConfig(state shared.State, cfg kernel.Config) shared.State {
 }
 
 func HistoryItemFromRun(cfg kernel.Config, result kernel.Result, elapsedSec float64) shared.HistoryItem {
-	return shared.HistoryItem{
+	item := shared.HistoryItem{
 		ID:             randomID(),
 		Prompt:         cfg.Prompt,
 		RevisedPrompt:  result.RevisedPrompt,
@@ -187,13 +218,25 @@ func HistoryItemFromRun(cfg kernel.Config, result kernel.Result, elapsedSec floa
 		CreatedAt:      time.Now().UnixMilli(),
 		Seed:           cfg.Seed,
 		NegativePrompt: cfg.NegativePrompt,
+		Background:     cfg.Background,
+		InputFidelity:  cfg.InputFidelity,
+		ImageStyle:     cfg.ImageStyle,
+		Moderation:     cfg.Moderation,
 		StyleTag:       cfg.StyleTag,
 		BatchIndex:     cfg.BatchIndex,
 		ElapsedSec:     elapsedSec,
+		SourcePaths:    append([]string(nil), cfg.SourcePaths...),
 		SavedPath:      result.SavedPath,
+		PreviewPath:    result.PreviewPath,
+		ThumbPath:      result.ThumbPath,
 		RawPath:        result.RawPath,
 		PreviewOnly:    true,
 	}
+	if cfg.OutputCompression > 0 {
+		compression := cfg.OutputCompression
+		item.OutputCompression = &compression
+	}
+	return item
 }
 
 func ReadAPIKey(profileID string) (string, error) {

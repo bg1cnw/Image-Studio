@@ -35,17 +35,27 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 			OutputFormat:         "webp",
 			OutputDir:            "/tmp/images",
 			PromptHistory:        []string{"cat"},
+			ReducedEffects:       true,
 			SavePromptSuppressed: true,
+			KeepLogs:             true,
+			IgnoredReleaseTag:    "1.1.6",
+			CompletionSound: &CompletionSoundSettings{
+				Enabled:    true,
+				Mode:       "custom",
+				CustomName: "ding.wav",
+				CustomData: "data:audio/wav;base64,AAAA",
+			},
 		},
 		Profiles: []UpstreamProfile{{
-			ID:            "p1",
-			Name:          "配置1",
-			APIMode:       "responses",
-			RequestPolicy: "openai",
-			BaseURL:       "https://upstream.example",
-			TextModelID:   "gpt-5.5",
-			ImageModelID:  "gpt-image-2",
-			CreatedAt:     100,
+			ID:              "p1",
+			Name:            "配置1",
+			APIMode:         "responses",
+			RequestPolicy:   "openai",
+			BaseURL:         "https://upstream.example",
+			TextModelID:     "gpt-5.5",
+			ImageModelID:    "gpt-image-2",
+			ReasoningEffort: "xhigh",
+			CreatedAt:       100,
 		}},
 		ActiveProfile: "p1",
 		History: []HistoryItem{{
@@ -56,6 +66,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 			Quality:      "high",
 			OutputFormat: "png",
 			CreatedAt:    200,
+			SourcePaths:  []string{"/tmp/a.png", "/tmp/b.png"},
 			SavedPath:    "/tmp/images/cat.png",
 		}},
 		HistoryFull: []HistoryFullItem{{ID: "h1", ImageB64: "aW1n"}},
@@ -67,14 +78,20 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if loaded.Client != "test" || loaded.ActiveProfile != "p1" || loaded.Settings.OutputDir != "/tmp/images" || !loaded.Settings.SavePromptSuppressed {
+	if loaded.Client != "test" || loaded.ActiveProfile != "p1" || loaded.Settings.OutputDir != "/tmp/images" || !loaded.Settings.ReducedEffects || !loaded.Settings.SavePromptSuppressed || !loaded.Settings.KeepLogs || loaded.Settings.IgnoredReleaseTag != "1.1.6" {
 		t.Fatalf("unexpected state: %#v", loaded)
 	}
-	if len(loaded.Profiles) != 1 || loaded.Profiles[0].BaseURL != "https://upstream.example" {
+	if loaded.Settings.CompletionSound == nil || !loaded.Settings.CompletionSound.Enabled || loaded.Settings.CompletionSound.Mode != "custom" || loaded.Settings.CompletionSound.CustomName != "ding.wav" || loaded.Settings.CompletionSound.CustomData != "data:audio/wav;base64,AAAA" {
+		t.Fatalf("completion sound not preserved: %#v", loaded.Settings.CompletionSound)
+	}
+	if len(loaded.Profiles) != 1 || loaded.Profiles[0].BaseURL != "https://upstream.example" || loaded.Profiles[0].ReasoningEffort != "xhigh" {
 		t.Fatalf("profiles not preserved: %#v", loaded.Profiles)
 	}
 	if len(loaded.History) != 1 || loaded.History[0].SavedPath != "/tmp/images/cat.png" {
 		t.Fatalf("history not preserved: %#v", loaded.History)
+	}
+	if len(loaded.History[0].SourcePaths) != 2 || loaded.History[0].SourcePaths[0] != "/tmp/a.png" || loaded.History[0].SourcePaths[1] != "/tmp/b.png" {
+		t.Fatalf("sourcePaths not preserved: %#v", loaded.History[0].SourcePaths)
 	}
 	if len(loaded.HistoryFull) != 1 || loaded.HistoryFull[0].ImageB64 != "aW1n" {
 		t.Fatalf("historyFull not preserved: %#v", loaded.HistoryFull)

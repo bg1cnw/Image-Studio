@@ -92,6 +92,9 @@ func DescribeProblem(raw string) string {
 		if msg, ok := data["message"].(string); ok && msg != "" {
 			return fmt.Sprintf("接口返回消息:%s", msg)
 		}
+		if msg := extractStructuredMessage(data); msg != "" {
+			return msg
+		}
 	}
 
 	for ev := range IterEvents(raw) {
@@ -104,9 +107,60 @@ func DescribeProblem(raw string) string {
 				return describeAPIError(errObj)
 			}
 		}
+		if msg := extractStructuredMessage(ev); msg != "" {
+			return msg
+		}
 	}
 
 	return "接口已返回内容,但没有发现 image_generation_call.result。"
+}
+
+func extractStructuredMessage(value any) string {
+	switch x := value.(type) {
+	case Event:
+		return extractStructuredMessage(map[string]any(x))
+	case []any:
+		for _, child := range x {
+			if msg := extractStructuredMessage(child); msg != "" {
+				return msg
+			}
+		}
+	case map[string]any:
+		if typ, _ := x["type"].(string); typ == "output_text" || typ == "response.output_text.done" {
+			if text, _ := x["text"].(string); strings.TrimSpace(text) != "" {
+				return strings.TrimSpace(text)
+			}
+		}
+		if msg := extractOutputTextFromContent(x["content"]); msg != "" {
+			return msg
+		}
+		for _, key := range []string{"part", "item", "response", "output"} {
+			if msg := extractStructuredMessage(x[key]); msg != "" {
+				return msg
+			}
+		}
+	}
+	return ""
+}
+
+func extractOutputTextFromContent(value any) string {
+	content, ok := value.([]any)
+	if !ok {
+		return ""
+	}
+	for _, part := range content {
+		partMap, ok := part.(map[string]any)
+		if !ok {
+			continue
+		}
+		if typ, _ := partMap["type"].(string); typ != "output_text" {
+			continue
+		}
+		if text, _ := partMap["text"].(string); strings.TrimSpace(text) != "" {
+			return strings.TrimSpace(text)
+		}
+	}
+	return ""
 }
 
 // reqIDRe 匹配 OpenAI 错误消息里的 request ID(UUID 形如 4906b7e4-767b-4d95-8008-cf07260f546d)。

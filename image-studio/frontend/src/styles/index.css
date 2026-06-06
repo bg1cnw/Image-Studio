@@ -868,6 +868,7 @@ html[data-ui-family="apple"] .select:focus {
 @import "./fluent/_shared-shell.css";
 @import "./fluent/_shared-controls.css";
 @import "./_layout.css";
+@import "./_advanced-floating-panel.css";
 @import "./_android-phone-advanced.css";
 @import "./_android-settings.css";
 @import "./_android-upstream.css";

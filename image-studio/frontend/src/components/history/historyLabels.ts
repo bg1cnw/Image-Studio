@@ -6,6 +6,10 @@ export function qualityLabel(raw: string): string {
       return "标准";
     case "high":
       return "精修";
+    case "standard":
+      return "standard";
+    case "hd":
+      return "hd";
     case "auto":
       return "自动";
     default:
@@ -15,6 +19,10 @@ export function qualityLabel(raw: string): string {
 
 export function sizeLabel(raw: string): string {
   switch (raw) {
+    case "256x256":
+      return "1:1 · 256";
+    case "512x512":
+      return "1:1 · 512";
     case "1024x1024":
       return "1:1 · 1K";
     case "1536x1024":
@@ -25,6 +33,10 @@ export function sizeLabel(raw: string): string {
       return "16:9 · 1K";
     case "864x1536":
       return "9:16 · 1K";
+    case "1792x1024":
+      return "7:4 · 1K";
+    case "1024x1792":
+      return "4:7 · 1K";
     case "2048x2048":
       return "1:1 · 2K";
     case "2048x1360":

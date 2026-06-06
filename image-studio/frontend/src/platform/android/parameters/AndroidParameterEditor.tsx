@@ -1,5 +1,5 @@
 import type { QualityValue } from "../../../types/domain";
-import { QUALITY_TIERS } from "../../../components/panel/panelOptions";
+import { availableQualityOptions } from "../../../components/panel/panelOptions";
 import {
   RESOLUTION_PRESETS,
   sizeCapabilityHint,
@@ -27,6 +27,7 @@ export function AndroidParameterEditor({
   activeResolutionLabel,
   activeQualityLabel,
   activeStyleLabel,
+  allowCustomAspectRatios,
   availableResolutions,
   apiMode,
   batchCount,
@@ -46,6 +47,7 @@ export function AndroidParameterEditor({
   activeResolutionLabel: string;
   activeQualityLabel: string;
   activeStyleLabel: string;
+  allowCustomAspectRatios: boolean;
   availableResolutions: ResolutionPreset[];
   apiMode: "responses" | "images";
   batchCount: number;
@@ -91,7 +93,7 @@ export function AndroidParameterEditor({
       <AndroidParameterBlock title="画幅比例">
         <AndroidAspectGrid
           items={aspectOptions}
-          onManageCustom={onOpenCustomAspectRatioModal}
+          onManageCustom={allowCustomAspectRatios ? onOpenCustomAspectRatioModal : undefined}
           value={activeAspect}
           onChange={handleAspectSelect}
         />
@@ -108,7 +110,7 @@ export function AndroidParameterEditor({
       <AndroidParameterBlock title="画面质量">
         <AndroidSegmentedChoices
           columns={2}
-          options={QUALITY_TIERS.map((item) => ({ ...item, hint: qualityHint(item.value) }))}
+          options={availableQualityOptions(imageModelID).map((item) => ({ ...item, hint: qualityHint(item.value) }))}
           value={quality as QualityValue}
           onChange={(next) => setField("quality", next)}
         />
@@ -133,6 +135,10 @@ function qualityHint(value: QualityValue) {
       return "均衡";
     case "high":
       return "细节";
+    case "standard":
+      return "默认";
+    case "hd":
+      return "增强";
     default:
       return "上游";
   }

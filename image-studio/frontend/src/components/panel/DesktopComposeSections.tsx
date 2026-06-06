@@ -3,9 +3,11 @@ import type {
   Mode,
   QualityValue,
   RequestPolicy,
+  SourceImage,
   SizeValue,
 } from "../../types/domain";
-import { QUALITY_TIERS, STYLE_CHIPS } from "./panelOptions";
+import { useBlobURL } from "../../lib/images";
+import { STYLE_CHIPS } from "./panelOptions";
 import { Section, Seg, SegItem } from "./panelChrome";
 import {
   RESOLUTION_PRESETS,
@@ -19,6 +21,7 @@ export function DesktopComposeSections({
   activeAspect,
   aspectOptions,
   activeResolution,
+  allowCustomAspectRatios,
   apiMode,
   batchCount,
   clearSources,
@@ -28,8 +31,10 @@ export function DesktopComposeSections({
   imageModelID,
   onOpenCustomAspectRatioModal,
   onRemoveSource,
+  onPreviewSource,
   mode,
   quality,
+  qualityOptions,
   requestPolicy,
   selectSourceImage,
   setField,
@@ -42,6 +47,7 @@ export function DesktopComposeSections({
   activeAspect: AspectPreset;
   aspectOptions: AspectPresetOption[];
   activeResolution: ResolutionPreset;
+  allowCustomAspectRatios: boolean;
   apiMode: "responses" | "images";
   batchCount: number;
   clearSources: () => void;
@@ -53,12 +59,14 @@ export function DesktopComposeSections({
   usesFluentUI: boolean;
   mode: Mode;
   onRemoveSource: (index: number) => void;
+  onPreviewSource: (index: number) => void;
   quality: QualityValue;
+  qualityOptions: Array<{ value: QualityValue; label: string }>;
   requestPolicy: RequestPolicy;
   selectSourceImage: () => void;
   setField: (key: "styleTag" | "quality" | "batchCount" | "size", value: any) => void;
   size: SizeValue;
-  sources: Array<{ path: string; name: string }>;
+  sources: SourceImage[];
   styleTag: string;
   availableResolutions: ResolutionPreset[];
 }) {
@@ -93,7 +101,7 @@ export function DesktopComposeSections({
 
       <Section
         label="比例"
-        trailing={(
+        trailing={allowCustomAspectRatios ? (
           <button
             type="button"
             onClick={onOpenCustomAspectRatioModal}
@@ -101,7 +109,7 @@ export function DesktopComposeSections({
           >
             自定义比例
           </button>
-        )}
+        ) : undefined}
       >
         <div className="grid grid-cols-3 gap-2.5">
           {aspectOptions.map((aspect) => {
@@ -151,7 +159,7 @@ export function DesktopComposeSections({
 
       <Section label="质量">
         <Seg>
-          {QUALITY_TIERS.map((item) => (
+          {qualityOptions.map((item) => (
             <SegItem
               key={item.value}
               active={quality === item.value}
@@ -198,10 +206,14 @@ export function DesktopComposeSections({
               </div>
             ) : null}
             {sources.map((source, index) => (
-              <div key={source.path} className={`flex items-center gap-1 border border-black/[0.06] bg-[var(--surface)] px-2.5 py-2 dark:border-white/[0.06] ${usesFluentUI ? "rounded-[10px]" : "rounded-[14px]"}`}>
-                <span className="flex-1 truncate text-xs text-zinc-700 dark:text-zinc-300" title={source.path}>
-                  {index + 1}. {source.name}
-                </span>
+              <div key={source.path} className={`flex items-center gap-2 border border-black/[0.06] bg-[var(--surface)] px-2.5 py-2 dark:border-white/[0.06] ${usesFluentUI ? "rounded-[10px]" : "rounded-[14px]"}`}>
+                <DesktopSourcePreviewRow
+                  source={source}
+                  index={index}
+                  active={currentImageSavedPath === source.path}
+                  usesFluentUI={usesFluentUI}
+                  onPreview={() => onPreviewSource(index)}
+                />
                 <button
                   type="button"
                   onClick={() => onRemoveSource(index)}
@@ -226,5 +238,51 @@ export function DesktopComposeSections({
         </Section>
       ) : null}
     </>
+  );
+}
+
+function DesktopSourcePreviewRow({
+  source,
+  index,
+  active,
+  usesFluentUI,
+  onPreview,
+}: {
+  source: SourceImage;
+  index: number;
+  active: boolean;
+  usesFluentUI: boolean;
+  onPreview: () => void;
+}) {
+  const objectURL = useBlobURL(source.imageBlob ?? null, source.imageB64 ?? null);
+  const previewURL = source.previewUrl || objectURL;
+  const fileExt = source.name.split(".").pop()?.toUpperCase() ?? "IMG";
+  return (
+    <button
+      type="button"
+      onClick={onPreview}
+      title={`${index + 1}. ${source.name}\n${source.path}\n点击在画布查看`}
+      className={`flex min-w-0 flex-1 items-center gap-2 text-left transition-colors ${active ? "text-[var(--accent)]" : "text-zinc-700 hover:text-[var(--accent)] dark:text-zinc-300"}`}
+    >
+      <div className={`relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden border ${active ? "border-[color:var(--accent)] shadow-[0_0_0_1px_var(--accent)]" : "border-black/[0.08] dark:border-white/[0.08]"} ${usesFluentUI ? "rounded-[8px]" : "rounded-[12px]"}`}>
+        {previewURL ? (
+          <img
+            src={previewURL}
+            alt={source.name}
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">{fileExt}</span>
+        )}
+      </div>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-xs font-medium">{index + 1}. {source.name}</span>
+        <span className={`block truncate text-[10px] ${active ? "text-[var(--accent)]/80" : "text-zinc-400 dark:text-zinc-500"}`}>
+          {active ? "当前画布" : "点击查看大图"}
+        </span>
+      </span>
+    </button>
   );
 }

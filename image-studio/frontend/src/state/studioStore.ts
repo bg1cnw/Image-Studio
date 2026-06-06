@@ -12,16 +12,23 @@ import {
   SetStoredAPIKey,
   RegisterMediaAsset,
   RegisterImportedImageAsset,
+  SetKeepLogsEnabled,
   SetOutputDir,
+  CheckForAppUpdate,
   probeCurrentUpstream,
   setKernelRuntimeMode,
 } from "../platform/runtime/host";
 import type { backend } from "../../wailsjs/go/models";
 import {
   APIMode,
+  AppUpdateInfo,
+  BackgroundValue,
   HistoryItem,
+  ImageStyleValue,
+  InputFidelityValue,
   KernelRuntimeMode,
   LoopGenerationConfig,
+  ModerationValue,
   Mode,
   OutputFormatValue,
   Preset,
@@ -49,8 +56,17 @@ import {
 import {
   compatibilityExportFingerprint,
   importCompatibilityStateIfNewer,
+  readIgnoredReleaseTag,
   scheduleCompatibilityExport,
+  writeIgnoredReleaseTag,
 } from "../lib/compatState";
+import {
+  normalizeCompletionSoundConfig,
+  playCompletionSound,
+  persistCompletionSoundConfig,
+  readCompletionSoundConfig,
+  shouldPlayCompletionSound,
+} from "../lib/completionSound";
 import {
   loadCustomAspectRatios,
   makeCustomAspectRatio,
@@ -93,6 +109,7 @@ import {
   isBuiltInAspectRatio,
   normalizeSizeSelection,
 } from "../components/panel/sizeCapabilities";
+import { normalizeQualitySelection } from "../components/panel/panelOptions";
 import { buildMacWorkspacePreview, readPreviewScenario } from "../app/dev/previewData";
 import {
   applyTheme,
@@ -222,6 +239,7 @@ function launchQueuedLoopJobs(controller: LoopRunController): void {
 }
 
 const SAVE_PROMPT_SUPPRESSED_KEY = "gptcodex.savePromptSuppressed";
+const KEEP_LOGS_KEY = "gptcodex.keepLogs";
 const INITIAL_HISTORY_LOAD = 18;
 const HISTORY_MEDIA_HYDRATE_CONCURRENCY = 4;
 
@@ -242,6 +260,75 @@ function writeSavePromptSuppressed(value: boolean): void {
   } catch {
     // localStorage can be unavailable in tests/previews.
   }
+}
+
+function readKeepLogs(): boolean {
+  try {
+    return localStorage.getItem(KEEP_LOGS_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeKeepLogs(value: boolean): void {
+  try {
+    if (value) localStorage.setItem(KEEP_LOGS_KEY, "1");
+    else localStorage.removeItem(KEEP_LOGS_KEY);
+  } catch {
+    // localStorage can be unavailable in tests/previews.
+  }
+}
+
+function normalizeAppUpdate(raw: unknown): AppUpdateInfo | null {
+  if (!raw || typeof raw !== "object") return null;
+  const source = raw as Record<string, unknown>;
+  const currentVersion = typeof source.currentVersion === "string" ? source.currentVersion.trim() : "";
+  const latestVersion = typeof source.latestVersion === "string" ? source.latestVersion.trim() : "";
+  const releaseTag = typeof source.releaseTag === "string" ? source.releaseTag.trim() : "";
+  const releaseURL = typeof source.releaseURL === "string" ? source.releaseURL.trim() : "";
+  const hasUpdate = source.hasUpdate === true;
+  if (!currentVersion || !latestVersion || !releaseTag || !releaseURL) return null;
+  return {
+    currentVersion,
+    latestVersion,
+    releaseTag,
+    releaseURL,
+    hasUpdate,
+    releaseName: typeof source.releaseName === "string" ? source.releaseName.trim() : "",
+    publishedAt: typeof source.publishedAt === "string" ? source.publishedAt.trim() : "",
+    body: typeof source.body === "string" ? source.body.trim() : "",
+  };
+}
+
+function normalizeBackgroundValue(value: unknown): BackgroundValue {
+  return value === "opaque" || value === "transparent" || value === "auto" ? value : "auto";
+}
+
+function normalizeOutputCompressionValue(value: unknown): number {
+  if (value === null || value === undefined || value === "") return 100;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 100;
+  return Math.max(0, Math.min(100, Math.round(numeric)));
+}
+
+function normalizeInputFidelityValue(value: unknown): InputFidelityValue {
+  return value === "low" || value === "high" || value === "auto" ? value : "auto";
+}
+
+function normalizeImageStyleValue(value: unknown): ImageStyleValue {
+  return value === "vivid" || value === "natural" || value === "default" ? value : "default";
+}
+
+function normalizeUserIdentifierValue(value: unknown): string {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return "";
+  return Array.from(trimmed).slice(0, 64).join("");
+}
+
+function normalizePartialImagesValue(value: unknown): number {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) return 1;
+  return Math.max(0, Math.min(3, Math.floor(numeric)));
 }
 
 async function writeBase64ToTempFile(b64: string, _name: string): Promise<string> {
@@ -373,10 +460,18 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   quality: "medium",
   outputFormat: "png",
   seed: 0,
+  background: "auto",
+  outputCompression: 100,
+  inputFidelity: "auto",
+  imageStyle: "default",
+  moderation: "low",
+  userIdentifier: "",
+  partialImages: 1,
   kernelRuntimeMode: "auto",
   baseURL: "",
   textModelID: "",
   imageModelID: "",
+  reasoningEffort: "xhigh",
   proxyMode: "system",
   proxyURL: "",
   apiMode: "responses",
@@ -395,6 +490,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   streamPreviews: {},
   lastLogLine: "",
   errorMessage: null,
+  errorCanRetry: false,
   errorRawPath: null,
   isRunning: false,
   lastPayload: null,
@@ -435,6 +531,11 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   savePromptItem: null,
   savePromptQueue: [],
   savePromptSuppressed: readSavePromptSuppressed(),
+  keepLogs: readKeepLogs(),
+  completionSound: readCompletionSoundConfig(),
+  ignoredReleaseTag: readIgnoredReleaseTag(),
+  appUpdate: null,
+  appUpdateModalOpen: false,
   promptHistory: [],
   batchCount: 1,
   loopGeneration: defaultLoopGenerationConfig(),
@@ -541,6 +642,56 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     writeSavePromptSuppressed(value);
     set(value ? { savePromptSuppressed: true, savePromptQueue: [] } : { savePromptSuppressed: false });
   },
+  setKeepLogs: async (value) => {
+    writeKeepLogs(value);
+    set({ keepLogs: value });
+    await SetKeepLogsEnabled(value).catch(() => undefined);
+  },
+  ignoreAppUpdate: (releaseTag) => {
+    const trimmed = releaseTag.trim();
+    writeIgnoredReleaseTag(trimmed);
+    set((state) => ({
+      ignoredReleaseTag: trimmed,
+      appUpdate: state.appUpdate?.releaseTag === trimmed ? null : state.appUpdate,
+      appUpdateModalOpen: false,
+    }));
+  },
+  dismissAppUpdateModal: () => {
+    set({ appUpdateModalOpen: false });
+  },
+  setCompletionSoundEnabled: (value) => {
+    const next = normalizeCompletionSoundConfig({ ...get().completionSound, enabled: value });
+    persistCompletionSoundConfig(next);
+    set({ completionSound: next });
+  },
+  setCompletionSoundMode: (value) => {
+    const next = normalizeCompletionSoundConfig({ ...get().completionSound, mode: value });
+    persistCompletionSoundConfig(next);
+    set({ completionSound: next });
+  },
+  setCompletionSoundCustom: (input) => {
+    const next = normalizeCompletionSoundConfig({
+      ...get().completionSound,
+      mode: "custom",
+      customName: input.name,
+      customDataURL: input.dataURL,
+    });
+    persistCompletionSoundConfig(next);
+    set({ completionSound: next });
+  },
+  resetCompletionSoundCustom: () => {
+    const next = normalizeCompletionSoundConfig({
+      ...get().completionSound,
+      mode: "default",
+      customName: "",
+      customDataURL: "",
+    });
+    persistCompletionSoundConfig(next);
+    set({ completionSound: next });
+  },
+  previewCompletionSound: async () => {
+    await playCompletionSound(get().completionSound, { force: true });
+  },
   workspaces: [],
   activeWorkspaceId: "",
   styleTag: "",
@@ -551,7 +702,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     // 这些字段必须走 updateProfile / setActiveProfile 这两个 action。开发期
     // 抓一下,生产期还是 set 一下顶层让 UI 不爆炸。
     if (key === "apiMode" || key === "baseURL" || key === "apiKey" ||
-        key === "textModelID" || key === "imageModelID") {
+        key === "textModelID" || key === "imageModelID" || key === "reasoningEffort") {
       if (typeof console !== "undefined") {
         console.warn(`setField("${String(key)}", ...) 不写持久化;改这个字段请用 updateProfile / setActiveProfile`);
       }
@@ -561,6 +712,18 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     // 其他全局偏好字段
     const normalizedValue = key === "batchCount"
       ? normalizeBatchCount(value)
+      : key === "background"
+        ? normalizeBackgroundValue(value)
+        : key === "outputCompression"
+          ? normalizeOutputCompressionValue(value)
+          : key === "inputFidelity"
+            ? normalizeInputFidelityValue(value)
+            : key === "imageStyle"
+              ? normalizeImageStyleValue(value)
+              : key === "userIdentifier"
+                ? normalizeUserIdentifierValue(value)
+                : key === "partialImages"
+                  ? normalizePartialImagesValue(value)
       : key === "loopGeneration"
         ? normalizeLoopGenerationConfig(value)
         : value;
@@ -592,6 +755,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       });
     } else if (key === "errorMessage") {
       set({ workspaces: patchWorkspaceRuntime(get().workspaces, get().activeWorkspaceId, { errorMessage: value as string | null }) });
+    } else if (key === "errorCanRetry") {
+      set({ workspaces: patchWorkspaceRuntime(get().workspaces, get().activeWorkspaceId, { errorCanRetry: value as boolean }) });
     } else if (key === "errorRawPath") {
       set({ workspaces: patchWorkspaceRuntime(get().workspaces, get().activeWorkspaceId, { errorRawPath: value as string | null }) });
     } else if (key === "lastPayload") {
@@ -602,6 +767,20 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       setKernelRuntimeMode(value as KernelRuntimeMode);
     } else if (key === "outputFormat") {
       try { localStorage.setItem("gptcodex.outputFormat", String(value)); } catch {}
+    } else if (key === "background") {
+      try { localStorage.setItem("gptcodex.background", String(value)); } catch {}
+    } else if (key === "outputCompression") {
+      try { localStorage.setItem("gptcodex.outputCompression", String(value)); } catch {}
+    } else if (key === "inputFidelity") {
+      try { localStorage.setItem("gptcodex.inputFidelity", String(value)); } catch {}
+    } else if (key === "imageStyle") {
+      try { localStorage.setItem("gptcodex.imageStyle", String(value)); } catch {}
+    } else if (key === "moderation") {
+      try { localStorage.setItem("gptcodex.moderation", String(value)); } catch {}
+    } else if (key === "userIdentifier") {
+      try { localStorage.setItem("gptcodex.userIdentifier", String(value)); } catch {}
+    } else if (key === "partialImages") {
+      try { localStorage.setItem("gptcodex.partialImages", String(value)); } catch {}
     }
   },
   setFullscreen: async (value) => {
@@ -648,9 +827,11 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     const wsId = get().activeWorkspaceId;
     set({
       errorMessage: null,
+      errorCanRetry: false,
       errorRawPath: null,
       workspaces: patchWorkspaceRuntime(get().workspaces, wsId, {
         errorMessage: null,
+        errorCanRetry: false,
         errorRawPath: null,
       }),
     });
@@ -665,15 +846,15 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     const s = get();
     if (s.isRunning) return;
     if (!s.apiKey.trim()) {
-      set({ errorMessage: "请填写 API Key", errorRawPath: null });
+      set({ errorMessage: "请填写 API Key", errorCanRetry: false, errorRawPath: null });
       return;
     }
     if (!s.prompt.trim()) {
-      set({ errorMessage: "请填写提示词", errorRawPath: null });
+      set({ errorMessage: "请填写提示词", errorCanRetry: false, errorRawPath: null });
       return;
     }
     if (!s.baseURL.trim()) {
-      set({ errorMessage: "请在右侧工作栏顶部的「上游配置」中填入你的中转站地址(必须兼容 OpenAI Responses API + image_generation 工具)", errorRawPath: null });
+      set({ errorMessage: "请在右侧工作栏顶部的「上游配置」中填入你的中转站地址(必须兼容 OpenAI Responses API + image_generation 工具)", errorCanRetry: false, errorRawPath: null });
       return;
     }
     const cleanedBaseURL = cleanBaseURL(s.baseURL);
@@ -685,7 +866,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       ? Math.min(requestedJobCount, normalizeLoopGenerationConcurrency(loopGeneration.concurrency))
       : batchCount;
     if (loopEnabled && loopGeneration.autoSave && !loopGeneration.autoSaveDir.trim()) {
-      set({ errorMessage: "请先为循环出图配置自动另存为路径", errorRawPath: null });
+      set({ errorMessage: "请先为循环出图配置自动另存为路径", errorCanRetry: false, errorRawPath: null });
       return;
     }
     const activeProfile = s.profiles.find((p) => p.id === s.activeProfileId);
@@ -700,6 +881,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
           errorMessage: loopEnabled
             ? `${apiLabel} 并发限制 ${concurrencyLimit},当前还可提交 ${Math.max(0, available)} 个,循环模式并发需要 ${requiredConcurrency} 个。`
             : `${apiLabel} 并发限制 ${concurrencyLimit},当前还可提交 ${Math.max(0, available)} 个,本次需要 ${batchCount} 个。`,
+          errorCanRetry: false,
           errorRawPath: null,
         });
         return;
@@ -720,6 +902,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
           errorMessage: platform.isAndroid
             ? "图生图模式需要先从相册或历史添加源图"
             : "图生图模式需要先添加源图(或从文件管理器拖图到画板)",
+          errorCanRetry: false,
           errorRawPath: null,
         });
         return;
@@ -731,6 +914,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     stopLoopRun(workspaceId);
     const runPatch = {
       errorMessage: null,
+      errorCanRetry: false,
       errorRawPath: null,
       progress: null,
       streamPreview: null,
@@ -775,6 +959,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       requestPolicy: s.requestPolicy,
       imageModelID: s.imageModelID,
     });
+    const resolvedQuality = normalizeQualitySelection(s.quality, s.imageModelID);
 
     const basePayload: backend.GenerateOptions = {
       apiKey: s.apiKey,
@@ -782,16 +967,23 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       requestedJobId: "",
       prompt: augmentedPrompt,
       size: resolvedSize,
-      quality: s.quality,
+      quality: resolvedQuality,
       outputFormat: s.outputFormat,
       imagePaths: editSourcePaths,
       imagePath: "",
       maskB64: maskB64,
       seed: s.seed,
       negativePrompt: s.negativePrompt,
+      background: s.background,
+      outputCompression: s.outputCompression,
+      inputFidelity: s.inputFidelity,
+      imageStyle: s.imageStyle,
+      moderation: s.moderation,
+      userIdentifier: s.userIdentifier,
       baseURL: cleanedBaseURL,
       textModelID: s.textModelID,
       imageModelID: s.imageModelID,
+      reasoningEffort: s.reasoningEffort,
       proxyMode: s.proxyMode,
       proxyURL: s.proxyURL,
       requestPolicy: s.requestPolicy,
@@ -799,8 +991,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       apiMode: s.apiMode,
       noPromptRevision: true,
       concurrencyLimit,
-      partialImages: 1,
-      disablePreview: loopEnabled && !loopGeneration.livePreview,
+      partialImages: s.partialImages,
+      disablePreview: s.partialImages === 0 || (loopEnabled && !loopGeneration.livePreview),
     };
     const remotePayload: RuntimeGenerateOptions = {
       ...basePayload,
@@ -822,7 +1014,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       workspaceId,
       apiMode: s.apiMode,
       size: s.size,
-      quality: s.quality,
+      quality: resolvedQuality,
       outputFormat: s.outputFormat,
       sources: s.sources,
       currentImage: s.currentImage,
@@ -886,6 +1078,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
 
   applyHistoryParams: (item) => imageActions.applyHistoryParams(item),
   regenerateFromHistory: async (item) => imageActions.regenerateFromHistory(item),
+  viewSourceOnCanvas: async (index) => imageActions.viewSourceOnCanvas(index),
   reuseAsSource: async (item) => imageActions.reuseAsSource(item),
   deleteHistoryItem: async (id) => imageActions.deleteHistoryItem(id),
   saveCurrentImageAs: async () => imageActions.saveCurrentImageAs(),
@@ -895,6 +1088,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     if (previewScenario === "mac-workspace") {
       const workspaceId = genId();
       const preview = buildMacWorkspacePreview(workspaceId);
+      await SetKeepLogsEnabled(readKeepLogs()).catch(() => undefined);
       applyTheme("dark");
       document.documentElement.style.setProperty("--font-scale", "1");
       setKernelRuntimeMode("auto");
@@ -907,10 +1101,18 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         quality: preview.currentImage.quality,
         outputFormat: "png",
         seed: preview.currentImage.seed ?? 3200,
+        background: preview.currentImage.background ?? "auto",
+        outputCompression: preview.currentImage.outputCompression ?? 100,
+        inputFidelity: preview.currentImage.inputFidelity ?? "auto",
+        imageStyle: preview.currentImage.imageStyle ?? "default",
+        moderation: preview.currentImage.moderation ?? "low",
+        userIdentifier: "",
+        partialImages: 1,
         kernelRuntimeMode: "auto",
         baseURL: preview.profile.baseURL,
         textModelID: preview.profile.textModelID,
         imageModelID: preview.profile.imageModelID,
+        reasoningEffort: preview.profile.reasoningEffort,
         proxyMode: "system",
         proxyURL: "",
         apiMode: preview.profile.apiMode,
@@ -980,6 +1182,11 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         savePromptItem: null,
         savePromptQueue: [],
         savePromptSuppressed: readSavePromptSuppressed(),
+        keepLogs: readKeepLogs(),
+        completionSound: readCompletionSoundConfig(),
+        ignoredReleaseTag: readIgnoredReleaseTag(),
+        appUpdate: null,
+        appUpdateModalOpen: false,
       });
       return;
     }
@@ -1018,12 +1225,46 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       const v = localStorage.getItem("gptcodex.kernelRuntimeMode");
       if (v === "auto" || v === "local" || v === "remote") kernelRuntimeMode = v;
     } catch {}
+    const keepLogs = readKeepLogs();
+    const completionSound = readCompletionSoundConfig();
+    const ignoredReleaseTag = readIgnoredReleaseTag();
+    const updateInfo = normalizeAppUpdate(await CheckForAppUpdate().catch(() => null));
+    const shouldShowUpdate = !!updateInfo?.hasUpdate && updateInfo.releaseTag !== ignoredReleaseTag;
     const noPromptRevision = true;
     const proxyConfig = loadProxyConfig();
     let outputFormat: OutputFormatValue = "png";
     try {
       const v = localStorage.getItem("gptcodex.outputFormat");
       if (v === "png" || v === "jpeg" || v === "webp") outputFormat = v;
+    } catch {}
+    let background: BackgroundValue = "auto";
+    try {
+      background = normalizeBackgroundValue(localStorage.getItem("gptcodex.background"));
+    } catch {}
+    let outputCompression = 100;
+    try {
+      outputCompression = normalizeOutputCompressionValue(localStorage.getItem("gptcodex.outputCompression"));
+    } catch {}
+    let inputFidelity: InputFidelityValue = "auto";
+    try {
+      inputFidelity = normalizeInputFidelityValue(localStorage.getItem("gptcodex.inputFidelity"));
+    } catch {}
+    let imageStyle: ImageStyleValue = "default";
+    try {
+      imageStyle = normalizeImageStyleValue(localStorage.getItem("gptcodex.imageStyle"));
+    } catch {}
+    let moderation: ModerationValue = "low";
+    try {
+      const v = localStorage.getItem("gptcodex.moderation");
+      if (v === "auto" || v === "low") moderation = v;
+    } catch {}
+    let userIdentifier = "";
+    try {
+      userIdentifier = normalizeUserIdentifierValue(localStorage.getItem("gptcodex.userIdentifier"));
+    } catch {}
+    let partialImages = 1;
+    try {
+      partialImages = normalizePartialImagesValue(localStorage.getItem("gptcodex.partialImages"));
     } catch {}
     // ---- v0.1.6 profile 列表加载 / 迁移 -----------------------------------
     // 1) 优先读新格式 gptcodex.profiles。
@@ -1071,6 +1312,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
           baseURL: legacyResponses.baseURL,
           textModelID: legacyResponses.textModelID,
           imageModelID: legacyResponses.imageModelID,
+          reasoningEffort: "xhigh",
           concurrencyLimit: normalizeConcurrencyLimit(legacyResponses.concurrencyLimit),
           createdAt: Date.now(),
           lastUsedAt: legacyApiMode === "responses" ? Date.now() : undefined,
@@ -1090,6 +1332,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
           baseURL: legacyImages.baseURL,
           textModelID: legacyImages.textModelID,
           imageModelID: legacyImages.imageModelID,
+          reasoningEffort: "xhigh",
           concurrencyLimit: normalizeConcurrencyLimit(legacyImages.concurrencyLimit),
           createdAt: Date.now(),
           lastUsedAt: legacyApiMode === "images" ? Date.now() : undefined,
@@ -1125,6 +1368,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     const baseURL = activeProfile?.baseURL ?? "";
     const textModelID = activeProfile?.textModelID ?? "";
     const imageModelID = activeProfile?.imageModelID ?? "";
+    const reasoningEffort = activeProfile?.reasoningEffort ?? "xhigh";
     const activeKey = activeProfile
       ? await GetStoredAPIKey(keyringUserFor(activeProfile.id)).catch(() => "")
       : "";
@@ -1132,6 +1376,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     applyTheme(theme);
     document.documentElement.style.setProperty("--font-scale", String(fontScale));
     setKernelRuntimeMode(kernelRuntimeMode);
+    await SetKeepLogsEnabled(keepLogs).catch(() => undefined);
     // 用户自定义输出目录 —— 推给 backend,并记为可信输出根。
     const trustedRoots = new Set(loadTrustedOutputRoots());
     try {
@@ -1157,6 +1402,13 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       quality: "medium",
       outputFormat,
       seed: 0,
+      background,
+      outputCompression,
+      inputFidelity,
+      imageStyle,
+      moderation,
+      userIdentifier,
+      partialImages,
       batchCount: 1,
       loopGeneration: defaultLoopGenerationConfig(),
       sources: [],
@@ -1183,10 +1435,17 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       historyHasMore,
       historyLoading: false,
       historyCursorBeforeDayStart: initialHistoryPage.nextCursor?.beforeDayStart ?? null,
-      apiMode, requestPolicy, imagesNewAPICompat, baseURL, textModelID, imageModelID, kernelRuntimeMode, noPromptRevision,
+      apiMode, requestPolicy, imagesNewAPICompat, baseURL, textModelID, imageModelID, reasoningEffort, kernelRuntimeMode, noPromptRevision,
       proxyMode: proxyConfig.mode,
       proxyURL: proxyConfig.url,
       outputFormat,
+      background,
+      outputCompression,
+      inputFidelity,
+      imageStyle,
+      moderation,
+      userIdentifier,
+      partialImages,
       profiles,
       activeProfileId,
       workspaces: [initialWorkspace],
@@ -1200,6 +1459,11 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       savePromptItem: null,
       savePromptQueue: [],
       savePromptSuppressed: readSavePromptSuppressed(),
+      keepLogs,
+      completionSound,
+      ignoredReleaseTag,
+      appUpdate: shouldShowUpdate ? updateInfo : null,
+      appUpdateModalOpen: shouldShowUpdate,
     });
     enableCompatibilityExport();
     void backfillHistoryPreviewRefs(items);
@@ -1363,6 +1627,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   flipCurrent: async (horizontal) => mediaActions.flipCurrent(horizontal),
   cropToRect: async (x, y, w, h) => mediaActions.cropToRect(x, y, w, h),
   savePreset: (name) => mediaActions.savePreset(name),
+  overwritePreset: (id) => mediaActions.overwritePreset(id),
+  updatePreset: (id, patch) => mediaActions.updatePreset(id, patch),
   applyPreset: (id) => mediaActions.applyPreset(id),
   deletePreset: (id) => mediaActions.deletePreset(id),
   exportHistory: async () => mediaActions.exportHistory(),
@@ -1448,7 +1714,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     if (s.mode === "edit" && sourcePaths.length === 0 && s.currentImage?.savedPath) {
       sourcePaths.push(s.currentImage.savedPath);
     }
-    set({ isOptimizingPrompt: true, errorMessage: null, errorRawPath: null });
+    set({ isOptimizingPrompt: true, errorMessage: null, errorCanRetry: false, errorRawPath: null });
     try {
       const optimized = await wailsOptimizePrompt({
         apiKey: optimizeAPIKey,
@@ -1469,7 +1735,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       s.pushToast("已优化提示词", "success");
     } catch (e: any) {
       const msg = `优化失败:${e?.message ?? e}`;
-      set({ errorMessage: msg, errorRawPath: null });
+      set({ errorMessage: msg, errorCanRetry: false, errorRawPath: null });
       s.pushToast(msg, "error", 6000);
     } finally {
       set({ isOptimizingPrompt: false });
@@ -1486,7 +1752,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   retryLast: async () => {
     const s = get();
     if (!s.lastPayload || s.isRunning) return;
-    set({ errorMessage: null, errorRawPath: null });
+    set({ errorMessage: null, errorCanRetry: false, errorRawPath: null });
     // Re-invoke submit, which will rebuild the payload from current state.
     // (We don't reuse lastPayload verbatim so any tweaks the user made
     // after the failure — different seed, different prompt — take effect.)
@@ -1629,6 +1895,11 @@ async function launchOneJob(
             createdAt: Date.now(),
             seed: payload.seed || undefined,
             negativePrompt: payload.negativePrompt || undefined,
+            background: normalizeBackgroundValue(payload.background),
+            outputCompression: normalizeOutputCompressionValue(payload.outputCompression),
+            inputFidelity: normalizeInputFidelityValue(payload.inputFidelity),
+            imageStyle: normalizeImageStyleValue(payload.imageStyle),
+            moderation: payload.moderation === "auto" ? "auto" : "low",
             styleTag: snapshot.styleTag || undefined,
             batchIndex: snapshot.batchIndex,
             elapsedSec: Number(elapsedSec.toFixed(1)),
@@ -1686,6 +1957,14 @@ async function launchOneJob(
           persistHistoryItem(historyItem).catch(() => undefined);
           const loopMode = snapshot.loopGeneration.enabled;
           const isFinalLoopResult = loopMode && completedNow === totalNow;
+          const shouldPlaySound = shouldPlayCompletionSound({
+            config: store.getState().completionSound,
+            completedNow,
+            totalNow,
+          });
+          if (shouldPlaySound) {
+            void playCompletionSound(store.getState().completionSound);
+          }
           // 桌面通知 —— 点击拉前台 + 直达详情抽屉
           if (willNotify && (!loopMode || isFinalLoopResult)) {
             tryNotify("Image Studio · 已完成", r.prompt ?? "", () => {
@@ -1738,6 +2017,7 @@ async function launchOneJob(
         } catch (err: any) {
           const patch: WorkspacePatch = {
             errorMessage: `处理结果失败:${err?.message ?? err}`,
+            errorCanRetry: true,
             errorRawPath: null,
           };
           store.setState((state) => ({
@@ -1756,6 +2036,7 @@ async function launchOneJob(
         const prunedPreview = removeStreamPreview(runtime.streamPreviews, jobId);
         const patch: WorkspacePatch = {
           errorMessage: e?.message ?? "未知错误",
+          errorCanRetry: true,
           errorRawPath: (typeof e?.rawPath === "string" && e.rawPath) ? e.rawPath : null,
           streamPreview: prunedPreview.streamPreview,
           streamPreviews: prunedPreview.streamPreviews,
@@ -1792,6 +2073,7 @@ async function launchOneJob(
     cleanup();
     const patch: WorkspacePatch = {
       errorMessage: `提交失败:${e?.message ?? e}`,
+      errorCanRetry: true,
       errorRawPath: null,
     };
     store.setState((state) => {

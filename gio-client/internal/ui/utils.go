@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"image"
 	sharedCompat "image-studio/shared/compat"
+	"image/draw"
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
@@ -14,9 +15,15 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 
+	_ "github.com/gen2brain/avif"
+	xdraw "golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 )
+
+const historyThumbFallbackMaxDimension = 256
+const fastThumbScaleMaxDimension = 64
 
 func decodeImageB64(imageB64 string) (image.Image, error) {
 	data, err := base64.StdEncoding.DecodeString(imageB64)
@@ -43,6 +50,35 @@ func decodeImageFile(path string) (image.Image, error) {
 	return img, nil
 }
 
+func downscaleToMaxDimension(img image.Image, maxDimension int) image.Image {
+	if img == nil {
+		return nil
+	}
+	if maxDimension <= 0 {
+		return img
+	}
+	bounds := img.Bounds()
+	srcW := bounds.Dx()
+	srcH := bounds.Dy()
+	if srcW <= maxDimension && srcH <= maxDimension {
+		return img
+	}
+	scale := float64(maxDimension) / float64(max(srcW, srcH))
+	dstW := max(1, int(float64(srcW)*scale+0.5))
+	dstH := max(1, int(float64(srcH)*scale+0.5))
+	dst := image.NewRGBA(image.Rect(0, 0, dstW, dstH))
+	if maxDimension <= fastThumbScaleMaxDimension {
+		xdraw.NearestNeighbor.Scale(dst, dst.Bounds(), img, bounds, draw.Src, nil)
+	} else {
+		xdraw.ApproxBiLinear.Scale(dst, dst.Bounds(), img, bounds, draw.Src, nil)
+	}
+	return dst
+}
+
+func downscaleForHistoryThumb(img image.Image) image.Image {
+	return downscaleToMaxDimension(img, historyThumbFallbackMaxDimension)
+}
+
 func appendBounded(logs []string, line string) []string {
 	const maxLogs = 240
 	logs = append(logs, time.Now().Format("15:04:05")+"  "+line)
@@ -54,12 +90,42 @@ func appendBounded(logs []string, line string) []string {
 }
 
 func shortPrompt(prompt string) string {
-	prompt = strings.Join(strings.Fields(prompt), " ")
-	if len([]rune(prompt)) <= 40 {
-		return prompt
+	const limit = 40
+	var b strings.Builder
+	runeCount := 0
+	pendingSpace := false
+	sawContent := false
+	truncated := false
+
+	for _, r := range prompt {
+		if unicode.IsSpace(r) {
+			if sawContent {
+				pendingSpace = true
+			}
+			continue
+		}
+		if pendingSpace {
+			if runeCount >= limit {
+				truncated = true
+				break
+			}
+			b.WriteByte(' ')
+			runeCount++
+			pendingSpace = false
+		}
+		if runeCount >= limit {
+			truncated = true
+			break
+		}
+		b.WriteRune(r)
+		runeCount++
+		sawContent = true
 	}
-	runes := []rune(prompt)
-	return string(runes[:40]) + "..."
+
+	if truncated {
+		return b.String() + "..."
+	}
+	return b.String()
 }
 
 func compactNonEmpty(items []string) []string {
@@ -95,37 +161,67 @@ func formatHistoryDay(createdAt int64) string {
 	return time.UnixMilli(createdAt).Format("2006-01-02")
 }
 
-func matchHistoryDate(createdAt int64, filter string, now time.Time) bool {
+type historyDateFilterKind uint8
+
+const (
+	historyDateFilterAll historyDateFilterKind = iota
+	historyDateFilterToday
+	historyDateFilterWeek
+)
+
+func normalizeHistorySearchQuery(query string) string {
+	return strings.TrimSpace(strings.ToLower(query))
+}
+
+func prepareHistoryDateFilter(filter string, now time.Time) (historyDateFilterKind, int64) {
 	switch strings.TrimSpace(filter) {
-	case "", "all":
-		return true
 	case "today":
-		return createdAt >= localDayStart(now).UnixMilli()
+		return historyDateFilterToday, localDayStart(now).UnixMilli()
 	case "week":
-		return createdAt >= now.AddDate(0, 0, -7).UnixMilli()
+		return historyDateFilterWeek, now.AddDate(0, 0, -7).UnixMilli()
+	default:
+		return historyDateFilterAll, 0
+	}
+}
+
+func matchHistoryDatePrepared(createdAt int64, kind historyDateFilterKind, cutoff int64) bool {
+	switch kind {
+	case historyDateFilterToday, historyDateFilterWeek:
+		return createdAt >= cutoff
 	default:
 		return true
 	}
 }
 
-func matchHistoryQuery(item sharedCompat.HistoryItem, query string) bool {
-	query = strings.TrimSpace(strings.ToLower(query))
+func matchHistoryDate(createdAt int64, filter string, now time.Time) bool {
+	kind, cutoff := prepareHistoryDateFilter(filter, now)
+	return matchHistoryDatePrepared(createdAt, kind, cutoff)
+}
+
+func matchHistoryQueryNormalized(item sharedCompat.HistoryItem, query string) bool {
 	if query == "" {
 		return true
 	}
-	candidates := []string{
-		item.Prompt,
-		item.RevisedPrompt,
-		item.SavedPath,
-		item.Size,
-		item.Quality,
+	if item.Prompt != "" && strings.Contains(strings.ToLower(item.Prompt), query) {
+		return true
 	}
-	for _, candidate := range candidates {
-		if strings.Contains(strings.ToLower(candidate), query) {
-			return true
-		}
+	if item.RevisedPrompt != "" && strings.Contains(strings.ToLower(item.RevisedPrompt), query) {
+		return true
+	}
+	if item.SavedPath != "" && strings.Contains(strings.ToLower(item.SavedPath), query) {
+		return true
+	}
+	if item.Size != "" && strings.Contains(strings.ToLower(item.Size), query) {
+		return true
+	}
+	if item.Quality != "" && strings.Contains(strings.ToLower(item.Quality), query) {
+		return true
 	}
 	return false
+}
+
+func matchHistoryQuery(item sharedCompat.HistoryItem, query string) bool {
+	return matchHistoryQueryNormalized(item, normalizeHistorySearchQuery(query))
 }
 
 func copyImageFile(src, dst string) (string, error) {

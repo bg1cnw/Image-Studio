@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
-import type { APIMode, Mode, QualityValue, RequestPolicy, SizeValue } from "../../types/domain";
+import type { APIMode, Mode, QualityValue, RequestPolicy, SizeValue, SourceImage } from "../../types/domain";
 import { DesktopComposeSections } from "./DesktopComposeSections";
 import type { AspectPreset, AspectPresetOption, ResolutionPreset } from "./sizeCapabilities";
 
@@ -14,6 +14,7 @@ export function WindowsComposePanel({
   activeResolution,
   activeResolutionLabel,
   activeQualityLabel,
+  allowCustomAspectRatios,
   availableResolutions,
   batchCount,
   clearSources,
@@ -23,8 +24,10 @@ export function WindowsComposePanel({
   imageModelID,
   onOpenCustomAspectRatioModal,
   mode,
+  onPreviewSource,
   onRemoveSource,
   quality,
+  qualityOptions,
   requestPolicy,
   selectSourceImage,
   setField,
@@ -42,6 +45,7 @@ export function WindowsComposePanel({
   activeResolution: ResolutionPreset;
   activeResolutionLabel: string;
   activeQualityLabel: string;
+  allowCustomAspectRatios: boolean;
   availableResolutions: ResolutionPreset[];
   batchCount: number;
   clearSources: () => void;
@@ -51,13 +55,15 @@ export function WindowsComposePanel({
   imageModelID: string;
   onOpenCustomAspectRatioModal: () => void;
   mode: Mode;
+  onPreviewSource: (index: number) => void;
   onRemoveSource: (index: number) => void;
   quality: QualityValue;
+  qualityOptions: Array<{ value: QualityValue; label: string }>;
   requestPolicy: RequestPolicy;
   selectSourceImage: () => void;
   setField: (key: "styleTag" | "quality" | "batchCount" | "size", value: any) => void;
   size: SizeValue;
-  sources: Array<{ path: string; name: string }>;
+  sources: SourceImage[];
   apiMode: APIMode;
 }) {
   const sourceLabel = mode === "edit"
@@ -99,6 +105,7 @@ export function WindowsComposePanel({
             activeAspect={activeAspect}
             aspectOptions={aspectOptions}
             activeResolution={activeResolution}
+            allowCustomAspectRatios={allowCustomAspectRatios}
             apiMode={apiMode}
             availableResolutions={availableResolutions}
             batchCount={batchCount}
@@ -109,8 +116,10 @@ export function WindowsComposePanel({
             imageModelID={imageModelID}
             onOpenCustomAspectRatioModal={onOpenCustomAspectRatioModal}
             mode={mode}
+            onPreviewSource={onPreviewSource}
             onRemoveSource={onRemoveSource}
             quality={quality}
+            qualityOptions={qualityOptions}
             requestPolicy={requestPolicy}
             selectSourceImage={selectSourceImage}
             setField={setField}

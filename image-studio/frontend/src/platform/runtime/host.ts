@@ -40,10 +40,12 @@ import {
   invokeService,
 } from "./hostBindings.ts";
 import type {
+  CodexAPIConfigLike,
   GenerateOptionsLike,
   HostCapabilities,
   HostKind,
   CompatibilityStateLike,
+  AppUpdateInfoLike,
   ImageTransformResultLike,
   ImportedImageLike,
   JobStartedLike,
@@ -362,6 +364,17 @@ export function GetOutputDir(): Promise<string> {
   return Promise.resolve("");
 }
 
+export function canLoadCodexAPIConfig(): boolean {
+  return detectHostKind() === "wails-desktop" && hasServiceMethod("LoadCodexAPIConfig");
+}
+
+export function LoadCodexAPIConfig(): Promise<CodexAPIConfigLike> {
+  if (hasServiceMethod("LoadCodexAPIConfig")) {
+    return invokeService<CodexAPIConfigLike>(unsupportedMessage, "LoadCodexAPIConfig");
+  }
+  return Promise.reject(new Error(unsupportedMessage("LoadCodexAPIConfig")));
+}
+
 export function DeleteStoredAPIKey(user: string): Promise<void> {
   if (hasServiceMethod("DeleteStoredAPIKey")) {
     return invokeService<void>(unsupportedMessage, "DeleteStoredAPIKey", user);
@@ -421,6 +434,13 @@ export function SaveImagePathAs(path: string, suggestedName: string): Promise<st
       .catch(() => ReadImageAsBase64(path).then((b64) => SaveImageAs(b64, suggestedName)));
   }
   return ReadImageAsBase64(path).then((b64) => SaveImageAs(b64, suggestedName));
+}
+
+export function BeginNativeFileDrag(path: string): Promise<void> {
+  if (hasServiceMethod("BeginNativeFileDrag")) {
+    return invokeService<void>(unsupportedMessage, "BeginNativeFileDrag", path);
+  }
+  return Promise.reject(new Error(unsupportedMessage("BeginNativeFileDrag")));
 }
 
 export function SaveImageToDir(imageB64: string, directory: string, suggestedName: string): Promise<string> {
@@ -545,9 +565,24 @@ export function SaveCompatibilityState(state: CompatibilityStateLike): Promise<v
   return Promise.resolve();
 }
 
+export function CheckForAppUpdate(): Promise<AppUpdateInfoLike | null> {
+  if (hasServiceMethod("CheckForAppUpdate")) {
+    return invokeService<AppUpdateInfoLike>(unsupportedMessage, "CheckForAppUpdate")
+      .catch(() => null);
+  }
+  return Promise.resolve(null);
+}
+
 export function RegisterTrustedOutputDir(root: string): Promise<void> {
   if (hasServiceMethod("RegisterTrustedOutputDir")) {
     return invokeService<void>(unsupportedMessage, "RegisterTrustedOutputDir", root);
+  }
+  return Promise.resolve();
+}
+
+export function SetKeepLogsEnabled(enabled: boolean): Promise<void> {
+  if (hasServiceMethod("SetKeepLogsEnabled")) {
+    return invokeService<void>(unsupportedMessage, "SetKeepLogsEnabled", enabled);
   }
   return Promise.resolve();
 }
@@ -626,16 +661,14 @@ export async function probeCurrentUpstream(
   proxyMode = "system",
   proxyURL = "",
   signal?: AbortSignal,
-): Promise<void> {
+): Promise<ProbeUpstreamResultLike> {
   if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
   const options: ProbeUpstreamOptionsLike = { baseURL, apiKey, proxyMode, proxyURL };
   if (hasServiceMethod("ProbeUpstream")) {
-    await invokeService<ProbeUpstreamResultLike>(unsupportedMessage, "ProbeUpstream", options);
-    return;
+    return invokeService<ProbeUpstreamResultLike>(unsupportedMessage, "ProbeUpstream", options);
   }
   if (canInvokeAndroidMethod("ProbeUpstream")) {
-    await invokeAndroid<ProbeUpstreamResultLike>(unsupportedMessage, "ProbeUpstream", options);
-    return;
+    return invokeAndroid<ProbeUpstreamResultLike>(unsupportedMessage, "ProbeUpstream", options);
   }
   throw new Error(unsupportedMessage("ProbeUpstream"));
 }

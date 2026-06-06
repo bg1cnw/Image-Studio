@@ -516,7 +516,19 @@ class AndroidImageStudioBridge(
                     throw IllegalStateException("上游 /v1/models 响应缺少 data 数组")
                 }
                 val data = parsed.optJSONArray("data") ?: throw IllegalStateException("上游 /v1/models 响应缺少 data 数组")
-                resolve(requestId, mapOf("modelCount" to data.length()))
+                val models = mutableListOf<Map<String, String>>()
+                for (index in 0 until data.length()) {
+                    val item = data.optJSONObject(index) ?: continue
+                    val id = item.optString("id").trim()
+                    if (id.isBlank()) continue
+                    models += mapOf(
+                        "id" to id,
+                        "object" to item.optString("object").trim(),
+                        "ownedBy" to item.optString("owned_by").trim(),
+                        "displayName" to item.optString("name").trim(),
+                    )
+                }
+                resolve(requestId, mapOf("modelCount" to data.length(), "models" to models))
             } catch (error: Exception) {
                 reject(requestId, error.message ?: error.javaClass.simpleName)
             }

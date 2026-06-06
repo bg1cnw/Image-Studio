@@ -3,7 +3,9 @@ package ui
 import (
 	"os"
 	"strings"
+	"time"
 
+	"gioui.org/widget"
 	gioCompat "image-studio/gio-client/internal/compat"
 	sharedCompat "image-studio/shared/compat"
 )
@@ -27,7 +29,7 @@ func (a *App) cancelRun() {
 		a.cancel = nil
 		a.running = false
 		a.status = "已取消"
-		a.logs = appendBounded(a.logs, "任务已取消")
+		a.appendLogLocked("任务已取消")
 	}
 	a.mu.Unlock()
 	if cancel != nil {
@@ -45,7 +47,7 @@ func (a *App) finishWithError(err error, rawPath string) {
 	if rawPath != "" {
 		a.result.RawPath = rawPath
 	}
-	a.logs = appendBounded(a.logs, "失败: "+err.Error())
+	a.appendLogLocked("失败: " + err.Error())
 	a.mu.Unlock()
 	a.invalidateNow()
 }
@@ -65,23 +67,45 @@ func (a *App) appendLog(line string) {
 		return
 	}
 	a.mu.Lock()
-	a.logs = appendBounded(a.logs, line)
+	a.appendLogLocked(line)
 	a.mu.Unlock()
-	a.invalidateNow()
+	a.invalidateSoon(33 * time.Millisecond)
+}
+
+func (a *App) appendLogLocked(line string) {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return
+	}
+	a.logs = appendBounded(a.logs, line)
+	a.logsRev++
 }
 
 func (a *App) setStatus(status string) {
+	status = strings.TrimSpace(status)
 	a.mu.Lock()
+	if a.status == status {
+		a.mu.Unlock()
+		return
+	}
 	a.status = status
 	a.mu.Unlock()
-	a.invalidateNow()
+	a.invalidateSoon(33 * time.Millisecond)
 }
 
 func (a *App) clearLogs() {
 	a.mu.Lock()
-	a.logs = nil
+	a.clearLogsLocked()
 	a.mu.Unlock()
 	a.invalidateNow()
+}
+
+func (a *App) clearLogsLocked() {
+	if len(a.logs) == 0 {
+		return
+	}
+	a.logs = nil
+	a.logsRev++
 }
 
 func (a *App) closeSavePrompt() {
@@ -231,16 +255,31 @@ func (a *App) closeRawResponseModal() {
 func (a *App) readSnapshot() snapshot {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	logs := append([]string(nil), a.logs...)
-	history := append([]sharedCompat.HistoryItem(nil), a.history...)
-	batchResults := historyItemsByIDs(history, a.batchResultIDs)
-	profiles := append([]sharedCompat.UpstreamProfile(nil), a.profiles...)
-	promptHistory := append([]string(nil), a.promptHistory...)
-	presets := append([]sharedCompat.Preset(nil), a.presets...)
-	return snapshot{
+	if a.snapshotReady {
+		return a.snapshotCache
+	}
+	logs := a.logsSnapshotCache
+	if a.logsSnapshotRev != a.logsRev {
+		logs = append([]string(nil), a.logs...)
+		a.logsSnapshotCache = logs
+		a.logsSnapshotRev = a.logsRev
+	}
+	history := a.history
+	batchResults := a.batchResultsSnapshotLocked(history)
+	profiles := a.profiles
+	promptHistory := a.promptHistory
+	presets := a.presets
+	todayCount := a.todayHistoryCountLocked()
+	snap := snapshot{
 		Running:                   a.running,
+		ProcessingImageTransform:  a.processingImageTransform,
 		Status:                    a.status,
 		Logs:                      logs,
+		RenderBackend:             a.renderBackend,
+		RenderFrameTime:           a.frameIntervalEMA,
+		RenderFPS:                 a.frameFPS,
+		RenderActive:              a.renderActive,
+		TodayHistoryCount:         todayCount,
 		History:                   history,
 		BatchResults:              batchResults,
 		BatchTotal:                a.lastRunBatchCount,
@@ -252,6 +291,7 @@ func (a *App) readSnapshot() snapshot {
 		Presets:                   presets,
 		OptimizingPrompt:          a.optimizingPrompt,
 		TestingUpstream:           a.testingUpstream,
+		SyncingCodexConfig:        a.syncingCodexConfig,
 		LastProbeSummary:          a.lastProbeSummary,
 		ActivePromptGroup:         a.activePromptGroup,
 		ActiveResultDetail:        a.activeResultDetail,
@@ -259,6 +299,7 @@ func (a *App) readSnapshot() snapshot {
 		Fullscreen:                a.fullscreen,
 		LastErrorMessage:          a.lastErrorMessage,
 		LastRunAvailable:          a.lastRunValid,
+		LastLowFPSSnapshotPath:    a.lastLowFPSDiagnosticsPath,
 		RawResponseModalPath:      a.rawResponseModalPath,
 		RawResponseModalText:      a.rawResponseModalText,
 		RawResponseModalError:     a.rawResponseModalError,
@@ -268,6 +309,98 @@ func (a *App) readSnapshot() snapshot {
 		Result:                    a.result,
 		SavePromptVisible:         a.savePromptVisible,
 	}
+	a.snapshotCache = snap
+	a.snapshotReady = true
+	return snap
+}
+
+func (a *App) batchResultsSnapshotLocked(history []sharedCompat.HistoryItem) []sharedCompat.HistoryItem {
+	key := strings.Join(a.batchResultIDs, "\x00")
+	if a.batchResultsRev == a.historyRev && a.batchResultsKey == key {
+		return a.batchResultsSnapshot
+	}
+	a.batchResultsSnapshot = historyItemsByIDs(history, a.batchResultIDs)
+	a.batchResultsRev = a.historyRev
+	a.batchResultsKey = key
+	return a.batchResultsSnapshot
+}
+
+func (a *App) todayHistoryCountLocked() int {
+	now := time.Now()
+	day := now.Format("2006-01-02")
+	if a.historyTodayRev == a.historyRev && a.historyTodayDay == day {
+		return a.historyTodayCount
+	}
+	count := todayHistoryCount(a.history, now)
+	a.historyTodayRev = a.historyRev
+	a.historyTodayDay = day
+	a.historyTodayCount = count
+	return count
+}
+
+func (a *App) setHistoryLocked(items []sharedCompat.HistoryItem) {
+	a.history = append([]sharedCompat.HistoryItem(nil), items...)
+	a.historyRev++
+	a.historyItemDisplayCache = historyItemDisplayCache{}
+	a.historyButtons = map[string]*widget.Clickable{}
+	a.historyActionButtons = map[string]*widget.Clickable{}
+	a.expandedPromptGroups = map[string]bool{}
+	a.pruneImageCacheLocked()
+	go a.startHistoryThumbBackfill()
+}
+
+func (a *App) setProfilesLocked(items []sharedCompat.UpstreamProfile) {
+	a.profiles = append([]sharedCompat.UpstreamProfile(nil), items...)
+	a.profileButtons = map[string]*widget.Clickable{}
+	a.settingsProfileButtons = map[string]*widget.Clickable{}
+}
+
+func (a *App) setPromptHistoryLocked(items []string) {
+	a.promptHistory = append([]string(nil), items...)
+	a.promptHistoryRev++
+	a.promptButtons = map[string]*widget.Clickable{}
+}
+
+func (a *App) openGeneralSettingsModal() {
+	a.mu.Lock()
+	a.generalSettingsOpen = true
+	a.generalRuntimePickerOpen = false
+	a.mu.Unlock()
+	a.invalidateNow()
+}
+
+func (a *App) closeGeneralSettingsModal() {
+	if err := a.persistGeneralSettings(); err != nil {
+		a.appendLog("保存通用设置失败: " + err.Error())
+	}
+	a.mu.Lock()
+	a.generalSettingsOpen = false
+	a.generalRuntimePickerOpen = false
+	a.mu.Unlock()
+	a.invalidateNow()
+}
+
+func (a *App) persistGeneralSettings() error {
+	state, _, err := gioCompat.LoadState()
+	if err != nil {
+		return err
+	}
+	state = sharedCompat.Normalize(state)
+	state.Settings.ProxyMode = strings.TrimSpace(a.proxy)
+	if state.Settings.ProxyMode == "" {
+		state.Settings.ProxyMode = "system"
+	}
+	state.Settings.KernelRuntimeMode = normalizeKernelRuntimeMode(a.kernelRuntimeMode)
+	state.Settings.FontScale = normalizeFontScale(a.fontScale)
+	state.Settings.ReducedEffects = a.reducedEffects
+	state.Settings.ProxyURL = strings.TrimSpace(a.proxyURLInput.Text())
+	state.Settings.OutputDir = strings.TrimSpace(a.outputDirInput.Text())
+	state.Settings.KeepLogs = a.keepLogs
+	state.UpdatedAt = time.Now().UnixMilli()
+	if err := gioCompat.SaveState(state); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (a *App) dismissFailureState() {
@@ -291,7 +424,38 @@ func (a *App) isRunning() bool {
 }
 
 func (a *App) invalidateNow() {
+	a.mu.Lock()
+	a.noteRenderActivityLocked(time.Now())
+	a.snapshotReady = false
+	a.mu.Unlock()
 	if a.invalidate != nil {
 		a.invalidate()
 	}
+}
+
+func (a *App) invalidateSoon(delay time.Duration) {
+	a.mu.Lock()
+	a.noteRenderActivityLocked(time.Now())
+	a.snapshotReady = false
+	if a.invalidate == nil {
+		a.mu.Unlock()
+		return
+	}
+	if a.invalidateQueued {
+		a.mu.Unlock()
+		return
+	}
+	a.invalidateQueued = true
+	a.mu.Unlock()
+
+	time.AfterFunc(delay, func() {
+		a.mu.Lock()
+		a.invalidateQueued = false
+		current := a.invalidate
+		a.mu.Unlock()
+		if current == nil {
+			return
+		}
+		current()
+	})
 }

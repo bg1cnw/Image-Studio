@@ -10,7 +10,7 @@ import { DesktopComposeSections } from "./DesktopComposeSections";
 import { LoopGenerationSection } from "./LoopGenerationSection";
 import { MacAdvancedPanel } from "./MacAdvancedPanel";
 import { MacComposePanel } from "./MacComposePanel";
-import { QUALITY_TIERS, STYLE_CHIPS } from "./panelOptions";
+import { availableQualityOptions, normalizeQualitySelection, STYLE_CHIPS } from "./panelOptions";
 import { PromptEditorSection } from "./PromptEditorSection";
 import { Section, Seg, SegItem } from "./panelChrome";
 import { SubmitBar } from "./SubmitBar";
@@ -24,6 +24,8 @@ import {
   deriveAspectPreset,
   deriveResolutionPreset,
   listAspectPresetOptions,
+  normalizeSizeSelection,
+  supportsCustomAspectRatios,
 } from "./sizeCapabilities";
 
 export function ControlPanel({
@@ -32,14 +34,15 @@ export function ControlPanel({
   onAndroidSubmitStart?: () => void;
 } = {}) {
   const {
-    apiKey, mode, prompt, negativePrompt, size, quality, seed, styleTag,
+    apiKey, mode, prompt, background, imageStyle, inputFidelity, moderation, negativePrompt, outputCompression, size, quality, seed, styleTag,
+    userIdentifier, partialImages,
     outputFormat, batchCount, loopGeneration,
     sources, currentImage,
-    errorMessage, errorRawPath, isRunning, lastPayload, isTestingKey, isOptimizingPrompt,
+    errorMessage, errorCanRetry, errorRawPath, isRunning, lastPayload, isTestingKey, isOptimizingPrompt,
     apiMode, requestPolicy, baseURL, profiles, imageModelID,
     customAspectRatios,
     setField, clearError, pushToast,
-    selectSourceImage, removeSource, clearSources,
+    selectSourceImage, removeSource, clearSources, viewSourceOnCanvas,
     openCustomAspectRatioModal,
     openUpstreamConfig,
     submit, cancel, retryLast, optimizePrompt,
@@ -65,14 +68,19 @@ export function ControlPanel({
   const hasUsableResponsesProfile = profiles.some(
     (p) => p.apiMode === "responses" && p.baseURL.trim(),
   );
+  const capabilityInput = { apiMode, requestPolicy, imageModelID };
+  const normalizedSize = normalizeSizeSelection(size, capabilityInput, customAspectRatios);
+  const normalizedQuality = normalizeQualitySelection(quality, imageModelID);
+  const qualityOptions = availableQualityOptions(imageModelID);
+  const allowCustomAspectRatios = supportsCustomAspectRatios(capabilityInput);
   const activeStyleLabel = STYLE_CHIPS.find((item) => item.id === styleTag)?.label ?? styleTag;
-  const aspectOptions = listAspectPresetOptions(customAspectRatios);
-  const activeAspect = deriveAspectPreset(size, customAspectRatios);
-  const activeResolution = deriveResolutionPreset(size);
+  const aspectOptions = listAspectPresetOptions(capabilityInput, customAspectRatios);
+  const activeAspect = deriveAspectPreset(normalizedSize, customAspectRatios);
+  const activeResolution = deriveResolutionPreset(normalizedSize);
   const activeAspectLabel = aspectPresetLabel(activeAspect, customAspectRatios);
   const activeResolutionLabel = RESOLUTION_PRESETS.find((item) => item.value === activeResolution)?.label ?? activeResolution;
-  const activeQualityLabel = QUALITY_TIERS.find((item) => item.value === quality)?.label ?? quality;
-  const availableResolutions = availableResolutionPresets({ apiMode, requestPolicy, imageModelID });
+  const activeQualityLabel = qualityOptions.find((item) => item.value === normalizedQuality)?.label ?? normalizedQuality;
+  const availableResolutions = availableResolutionPresets(capabilityInput);
   const optimizeReady = !!(
     prompt.trim() && (hasUsableResponsesProfile || (apiKey.trim() && baseURL.trim()))
   );
@@ -81,8 +89,15 @@ export function ControlPanel({
   const advancedSummary = [
     negativePrompt.trim() ? "已填负向提示词" : "无负向限制",
     outputFormat.toUpperCase(),
+    `背景 ${background}`,
+    outputFormat === "png" ? null : `压缩 ${outputCompression}`,
+    inputFidelity === "auto" ? null : `保真 ${inputFidelity}`,
+    imageStyle === "default" ? null : `图风 ${imageStyle}`,
+    `审核 ${moderation}`,
+    `预览 ${partialImages === 0 ? "仅最终图" : `${partialImages} 帧`}`,
+    userIdentifier.trim() ? "用户标识 已填" : null,
     seed > 0 ? `Seed ${seed}` : "随机 Seed",
-  ].join(" · ");
+  ].filter(Boolean).join(" · ");
   const submitLabel = loopGeneration.enabled
     ? (mode === "edit" ? "循环编辑" : "循环生成")
     : (mode === "edit" ? "编辑" : "生成");
@@ -91,7 +106,7 @@ export function ControlPanel({
     setField("size", buildAspectSizeSelection(
       aspect,
       activeResolution,
-      { apiMode, requestPolicy, imageModelID },
+      capabilityInput,
       customAspectRatios,
     ));
   }
@@ -100,7 +115,7 @@ export function ControlPanel({
     setField("size", buildResolutionSizeSelection(
       activeAspect,
       resolution,
-      { apiMode, requestPolicy, imageModelID },
+      capabilityInput,
       customAspectRatios,
     ));
   }
@@ -150,7 +165,7 @@ export function ControlPanel({
         <ErrorNotice
           errorMessage={errorMessage}
           errorRawPath={errorRawPath}
-          showRetry={!!(lastPayload && !isRunning)}
+          showRetry={!!(errorCanRetry && lastPayload && !isRunning)}
           onRetry={retryLast}
           onClear={clearError}
           onPushToast={pushToast}
@@ -198,11 +213,14 @@ export function ControlPanel({
           handleAspectSelect={handleAspectSelect}
           handleResolutionSelect={handleResolutionSelect}
           imageModelID={imageModelID}
+          allowCustomAspectRatios={allowCustomAspectRatios}
           onOpenCustomAspectRatioModal={openCustomAspectRatioModal}
           usesFluentUI={usesFluentUI}
           mode={mode}
+          onPreviewSource={(index) => void viewSourceOnCanvas(index)}
           onRemoveSource={removeSource}
-          quality={quality}
+          quality={normalizedQuality}
+          qualityOptions={qualityOptions}
           requestPolicy={requestPolicy}
           selectSourceImage={selectSourceImage}
           setField={setField as any}
@@ -231,10 +249,13 @@ export function ControlPanel({
           handleAspectSelect={handleAspectSelect}
           handleResolutionSelect={handleResolutionSelect}
           imageModelID={imageModelID}
+          allowCustomAspectRatios={allowCustomAspectRatios}
           onOpenCustomAspectRatioModal={openCustomAspectRatioModal}
           mode={mode}
+          onPreviewSource={(index) => void viewSourceOnCanvas(index)}
           onRemoveSource={removeSource}
-          quality={quality}
+          quality={normalizedQuality}
+          qualityOptions={qualityOptions}
           requestPolicy={requestPolicy}
           selectSourceImage={selectSourceImage}
           setField={setField as any}
@@ -267,10 +288,13 @@ export function ControlPanel({
           setField={setField as any}
           handleAspectSelect={handleAspectSelect}
           handleResolutionSelect={handleResolutionSelect}
+          allowCustomAspectRatios={allowCustomAspectRatios}
           onOpenCustomAspectRatioModal={openCustomAspectRatioModal}
           selectSourceImage={selectSourceImage}
           clearSources={clearSources}
-          quality={quality}
+          viewSourceOnCanvas={(index) => void viewSourceOnCanvas(index)}
+          quality={normalizedQuality}
+          qualityOptions={qualityOptions}
           Seg={Seg as any}
           SegItem={SegItem as any}
         />
@@ -281,19 +305,32 @@ export function ControlPanel({
         <MacAdvancedPanel
           advancedOpen={advancedOpen}
           advancedSummary={advancedSummary}
+          background={background}
+          imageStyle={imageStyle}
+          inputFidelity={inputFidelity}
+          moderation={moderation}
           negativePrompt={negativePrompt}
+          outputCompression={outputCompression}
           outputFormat={outputFormat}
+          userIdentifier={userIdentifier}
+          partialImages={partialImages}
           seed={seed}
           setAdvancedOpen={setAdvancedOpen}
           setField={setField as any}
-          Seg={Seg as any}
-          SegItem={SegItem as any}
         />
       ) : (
         <DesktopAdvancedPanel
           advancedOpen={advancedOpen}
+          advancedSummary={advancedSummary}
+          background={background}
+          imageStyle={imageStyle}
+          inputFidelity={inputFidelity}
+          moderation={moderation}
           negativePrompt={negativePrompt}
+          outputCompression={outputCompression}
           outputFormat={outputFormat}
+          userIdentifier={userIdentifier}
+          partialImages={partialImages}
           seed={seed}
           setAdvancedOpen={setAdvancedOpen}
           setField={setField as any}

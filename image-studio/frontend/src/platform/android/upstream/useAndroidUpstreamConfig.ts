@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { GetStoredAPIKey } from "../../runtime/host";
+import { GetStoredAPIKey, probeCurrentUpstream } from "../../runtime/host";
 import { keyringUserFor } from "../../../lib/profiles";
 import { useStudioStore } from "../../../state/studioStore";
-import type { APIMode, RequestPolicy, UpstreamProfile } from "../../../types/domain";
+import type { APIMode, ReasoningEffortValue, RequestPolicy, UpstreamProfile } from "../../../types/domain";
+import { buildUpstreamModelCatalog, type UpstreamModelCatalog } from "../../../lib/upstreamModels";
 
 export const ANDROID_API_MODE_OPTIONS: Array<{
   id: APIMode;
@@ -20,6 +21,17 @@ export const ANDROID_REQUEST_POLICY_OPTIONS: Array<{
 }> = [
   { id: "openai", title: "OpenAI 标准", meta: "只发送公开字段" },
   { id: "compat", title: "兼容中转", meta: "允许 relay 扩展字段" },
+];
+
+export const ANDROID_REASONING_EFFORT_OPTIONS: Array<{
+  id: ReasoningEffortValue;
+  title: string;
+  meta: string;
+}> = [
+  { id: "xhigh", title: "xhigh", meta: "默认，最稳" },
+  { id: "high", title: "high", meta: "高强度" },
+  { id: "medium", title: "medium", meta: "中等" },
+  { id: "low", title: "low", meta: "低强度，可能掉工具调用" },
 ];
 
 export function useAndroidUpstreamConfig(open: boolean) {
@@ -42,6 +54,9 @@ export function useAndroidUpstreamConfig(open: boolean) {
   const [showKey, setShowKey] = useState(false);
   const [savedKeyLoaded, setSavedKeyLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [modelCatalog, setModelCatalog] = useState<UpstreamModelCatalog | null>(null);
+  const [modelCatalogError, setModelCatalogError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -59,6 +74,9 @@ export function useAndroidUpstreamConfig(open: boolean) {
     setDraftKey("");
     setShowKey(false);
     setSavedKeyLoaded(false);
+    setLoadingModels(false);
+    setModelCatalog(null);
+    setModelCatalogError(null);
 
     if (!selected) {
       setSavedKeyLoaded(true);
@@ -138,6 +156,7 @@ export function useAndroidUpstreamConfig(open: boolean) {
         baseURL: draft.baseURL,
         textModelID: draft.textModelID,
         imageModelID: draft.imageModelID,
+        reasoningEffort: draft.reasoningEffort,
         concurrencyLimit: draft.concurrencyLimit,
         apiKey: draftKey.trim(),
       });
@@ -174,6 +193,39 @@ export function useAndroidUpstreamConfig(open: boolean) {
     setTimeout(() => { void testAPIKey(); }, 0);
   }
 
+  async function handleLoadModels() {
+    if (!draft) return;
+    const apiKey = draftKey.trim();
+    const baseURL = draft.baseURL.trim();
+    if (!apiKey) {
+      pushToast("先填入 API Key", "warn");
+      return;
+    }
+    if (!baseURL) {
+      pushToast("先填入上游 BASE_URL", "warn");
+      return;
+    }
+    setLoadingModels(true);
+    setModelCatalogError(null);
+    try {
+      const result = await probeCurrentUpstream(baseURL, apiKey);
+      const catalog = buildUpstreamModelCatalog(result.models ?? []);
+      setModelCatalog(catalog);
+      pushToast(
+        catalog.all.length > 0
+          ? `已加载 ${catalog.all.length} 个模型`
+          : `已连接上游，共返回 ${result.modelCount} 个条目，但没有可识别的模型 ID`,
+        catalog.all.length > 0 ? "success" : "warn",
+      );
+    } catch (error: any) {
+      const message = `加载模型失败:${error?.message ?? error}`;
+      setModelCatalogError(message);
+      pushToast(message, "error", 6000);
+    } finally {
+      setLoadingModels(false);
+    }
+  }
+
   return {
     activeProfile,
     activeProfileId,
@@ -189,12 +241,16 @@ export function useAndroidUpstreamConfig(open: boolean) {
     handleSaveAndTest,
     handleSetActive,
     isTestingKey,
+    loadingModels,
+    modelCatalog,
+    modelCatalogError,
     patchDraft,
     profiles,
     savedKeyLoaded,
     saving,
     selectedId,
     setDraftKey,
+    handleLoadModels,
     setSelectedId,
     setShowKey,
     showKey,

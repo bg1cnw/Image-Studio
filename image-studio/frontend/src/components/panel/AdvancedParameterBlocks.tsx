@@ -1,6 +1,6 @@
 import { Dices, X } from "lucide-react";
-import type { OutputFormatValue } from "../../types/domain";
-import { OUTPUT_FORMAT_OPTIONS } from "../../types/domain";
+import type { BackgroundValue, ImageStyleValue, InputFidelityValue, ModerationValue, OutputFormatValue } from "../../types/domain";
+import { BACKGROUND_OPTIONS, IMAGE_STYLE_OPTIONS, INPUT_FIDELITY_OPTIONS, MODERATION_OPTIONS, OUTPUT_FORMAT_OPTIONS } from "../../types/domain";
 
 type SegRenderer = (props: { children: React.ReactNode }) => React.ReactNode;
 type SegItemRenderer = (props: {
@@ -97,6 +97,229 @@ export function AdvancedOutputFormatField({
         ))}
       </Seg>
       <p className={`mt-1 ${noteClassName}`}>JPEG/WebP 体积更小；落盘扩展名 jpeg → .jpg</p>
+    </>
+  );
+}
+
+export function AdvancedModerationField({
+  moderation,
+  onChange,
+  Seg,
+  SegItem,
+  noteClassName = "text-[10px] text-zinc-500",
+}: {
+  moderation: ModerationValue;
+  onChange: (value: ModerationValue) => void;
+  Seg: SegRenderer;
+  SegItem: SegItemRenderer;
+  noteClassName?: string;
+}) {
+  return (
+    <>
+      <Seg>
+        {MODERATION_OPTIONS.map((item) => (
+          <SegItem
+            key={item.value}
+            active={moderation === item.value}
+            onClick={() => onChange(item.value as ModerationValue)}
+          >
+            {item.label}
+          </SegItem>
+        ))}
+      </Seg>
+      <p className={`mt-1 ${noteClassName}`}>`low` 更宽松；`auto` 使用官方默认审核强度。仅 GPT 图像模型支持。</p>
+    </>
+  );
+}
+
+export function AdvancedBackgroundField({
+  background,
+  onChange,
+  Seg,
+  SegItem,
+  noteClassName = "text-[10px] text-zinc-500",
+}: {
+  background: BackgroundValue;
+  onChange: (value: BackgroundValue) => void;
+  Seg: SegRenderer;
+  SegItem: SegItemRenderer;
+  noteClassName?: string;
+}) {
+  return (
+    <>
+      <Seg>
+        {BACKGROUND_OPTIONS.map((item) => (
+          <SegItem
+            key={item.value}
+            active={background === item.value}
+            onClick={() => onChange(item.value as BackgroundValue)}
+          >
+            {item.label}
+          </SegItem>
+        ))}
+      </Seg>
+      <p className={`mt-1 ${noteClassName}`}>仅 GPT 图像模型支持。`transparent` 需要 PNG/WebP；`gpt-image-2` 当前不支持透明背景。</p>
+    </>
+  );
+}
+
+export function AdvancedOutputCompressionField({
+  outputCompression,
+  onChange,
+  variant,
+  noteClassName = "text-[10px] text-zinc-500",
+}: {
+  outputCompression: number;
+  onChange: (value: number) => void;
+  variant: "mac" | "desktop";
+  noteClassName?: string;
+}) {
+  const inputClassName = variant === "mac"
+    ? "min-h-[44px] rounded-[18px] px-4 py-3 text-[14px]"
+    : "min-h-[42px] rounded-[10px] px-3 py-2.5 text-[13px]";
+
+  return (
+    <div className="flex flex-col gap-2">
+      <input
+        type="number"
+        value={outputCompression}
+        min={0}
+        max={100}
+        step={1}
+        onChange={(e) => {
+          const raw = e.target.value.trim();
+          if (!raw) {
+            onChange(100);
+            return;
+          }
+          onChange(Math.max(0, Math.min(100, Math.round(Number(raw) || 0))));
+        }}
+        className={`focus-ring w-full border border-black/[0.08] bg-[var(--surface)] font-mono-token text-zinc-900 placeholder:text-zinc-400 dark:border-white/[0.08] dark:text-zinc-100 dark:placeholder:text-zinc-500 ${inputClassName}`}
+      />
+      <p className={noteClassName}>仅 JPEG/WebP 生效，范围 `0-100`，默认 `100`。</p>
+    </div>
+  );
+}
+
+export function AdvancedInputFidelityField({
+  inputFidelity,
+  onChange,
+  Seg,
+  SegItem,
+  noteClassName = "text-[10px] text-zinc-500",
+}: {
+  inputFidelity: InputFidelityValue;
+  onChange: (value: InputFidelityValue) => void;
+  Seg: SegRenderer;
+  SegItem: SegItemRenderer;
+  noteClassName?: string;
+}) {
+  return (
+    <>
+      <Seg>
+        {INPUT_FIDELITY_OPTIONS.map((item) => (
+          <SegItem
+            key={item.value}
+            active={inputFidelity === item.value}
+            onClick={() => onChange(item.value as InputFidelityValue)}
+          >
+            {item.label}
+          </SegItem>
+        ))}
+      </Seg>
+      <p className={`mt-1 ${noteClassName}`}>用于图生图/参考图流程。`gpt-image-2` 会自动高保真并忽略此项。</p>
+    </>
+  );
+}
+
+export function AdvancedImageStyleField({
+  imageStyle,
+  onChange,
+  Seg,
+  SegItem,
+  noteClassName = "text-[10px] text-zinc-500",
+}: {
+  imageStyle: ImageStyleValue;
+  onChange: (value: ImageStyleValue) => void;
+  Seg: SegRenderer;
+  SegItem: SegItemRenderer;
+  noteClassName?: string;
+}) {
+  return (
+    <>
+      <Seg>
+        {IMAGE_STYLE_OPTIONS.map((item) => (
+          <SegItem
+            key={item.value}
+            active={imageStyle === item.value}
+            onClick={() => onChange(item.value as ImageStyleValue)}
+          >
+            {item.label}
+          </SegItem>
+        ))}
+      </Seg>
+      <p className={`mt-1 ${noteClassName}`}>仅 `dall-e-3` 文生图支持；默认值会省略该字段。</p>
+    </>
+  );
+}
+
+export function AdvancedUserIdentifierField({
+  userIdentifier,
+  onChange,
+  variant,
+  noteClassName = "text-[10px] text-zinc-500",
+}: {
+  userIdentifier: string;
+  onChange: (value: string) => void;
+  variant: "mac" | "desktop";
+  noteClassName?: string;
+}) {
+  const inputClassName = variant === "mac"
+    ? "min-h-[44px] rounded-[18px] px-4 py-3 text-[14px]"
+    : "min-h-[42px] rounded-[10px] px-3 py-2.5 text-[13px]";
+
+  return (
+    <div className="flex flex-col gap-2">
+      <input
+        type="text"
+        value={userIdentifier}
+        maxLength={64}
+        placeholder={variant === "mac" ? "建议填哈希后的用户标识" : "稳定用户标识(建议用哈希值)"}
+        onChange={(e) => onChange(e.target.value)}
+        className={`focus-ring w-full border border-black/[0.08] bg-[var(--surface)] font-mono-token text-zinc-900 placeholder:text-zinc-400 dark:border-white/[0.08] dark:text-zinc-100 dark:placeholder:text-zinc-500 ${inputClassName}`}
+      />
+      <p className={noteClassName}>Responses 会发 `safety_identifier`，Images API 会发 `user`。建议传哈希值，最长 `64` 字符。</p>
+    </div>
+  );
+}
+
+export function AdvancedPartialImagesField({
+  partialImages,
+  onChange,
+  Seg,
+  SegItem,
+  noteClassName = "text-[10px] text-zinc-500",
+}: {
+  partialImages: number;
+  onChange: (value: number) => void;
+  Seg: SegRenderer;
+  SegItem: SegItemRenderer;
+  noteClassName?: string;
+}) {
+  return (
+    <>
+      <Seg>
+        {[0, 1, 2, 3].map((value) => (
+          <SegItem
+            key={value}
+            active={partialImages === value}
+            onClick={() => onChange(value)}
+          >
+            {value === 0 ? "仅最终图" : `${value} 帧`}
+          </SegItem>
+        ))}
+      </Seg>
+      <p className={`mt-1 ${noteClassName}`}>官方 `partial_images` 范围 `0-3`。`0` 只返回最终图，`1-3` 会流式返回预览帧。</p>
     </>
   );
 }

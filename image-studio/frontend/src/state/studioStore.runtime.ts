@@ -186,6 +186,13 @@ export function saveActiveWorkspaceSnapshot(s: StudioState): Workspace[] {
       quality: s.quality,
       outputFormat: s.outputFormat,
       seed: s.seed,
+      background: s.background,
+      outputCompression: s.outputCompression,
+      inputFidelity: s.inputFidelity,
+      imageStyle: s.imageStyle,
+      moderation: s.moderation,
+      userIdentifier: s.userIdentifier,
+      partialImages: s.partialImages,
       batchCount: s.batchCount,
       loopGeneration: normalizeLoopGenerationConfig(s.loopGeneration),
       sources: s.sources,
@@ -200,6 +207,7 @@ export function saveActiveWorkspaceSnapshot(s: StudioState): Workspace[] {
       streamPreviews: s.streamPreviews,
       lastLogLine: s.lastLogLine,
       errorMessage: s.errorMessage,
+      errorCanRetry: s.errorCanRetry,
       lastPayload: s.lastPayload,
     };
   });

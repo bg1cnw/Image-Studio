@@ -21,6 +21,7 @@ export function AndroidPadParameterSection({
   activeResolutionLabel,
   activeQualityLabel,
   activeStyleLabel,
+  allowCustomAspectRatios,
   availableResolutions,
   apiMode,
   batchCount,
@@ -43,6 +44,7 @@ export function AndroidPadParameterSection({
   activeResolutionLabel: string;
   activeQualityLabel: string;
   activeStyleLabel: string;
+  allowCustomAspectRatios: boolean;
   availableResolutions: ResolutionPreset[];
   apiMode: "responses" | "images";
   batchCount: number;
@@ -114,6 +116,7 @@ export function AndroidPadParameterSection({
           activeResolutionLabel={activeResolutionLabel}
           activeQualityLabel={activeQualityLabel}
           activeStyleLabel={activeStyleLabel}
+          allowCustomAspectRatios={allowCustomAspectRatios}
           availableResolutions={availableResolutions}
           apiMode={apiMode}
           batchCount={batchCount}

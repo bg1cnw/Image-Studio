@@ -1,14 +1,15 @@
 import { useState, useEffect, useMemo } from "react";
-import { Eye, EyeOff, HelpCircle, Info, Plug, Plus, Sparkles } from "lucide-react";
+import { Eye, EyeOff, HelpCircle, Info, Plug, Plus, RefreshCw, Sparkles } from "lucide-react";
 import { Modal } from "../common/Modal";
 import { useStudioStore } from "../../state/studioStore";
-import { GetStoredAPIKey } from "../../platform/runtime/host";
-import { keyringUserFor, requestPolicyLabel } from "../../lib/profiles";
+import { GetStoredAPIKey, LoadCodexAPIConfig, canLoadCodexAPIConfig, probeCurrentUpstream } from "../../platform/runtime/host";
+import { keyringUserFor } from "../../lib/profiles";
 import type { APIMode, RequestPolicy, UpstreamProfile } from "../../types/domain";
 import { FAQModal } from "./FAQModal";
 import { UpstreamProfileEditor } from "./UpstreamProfileEditor";
 import { UpstreamProfileList } from "./UpstreamProfileList";
 import { usePlatform } from "../../platform/context";
+import { buildUpstreamModelCatalog, type UpstreamModelCatalog } from "../../lib/upstreamModels";
 
 // v0.1.6 多 profile 配置 modal。左侧 profile 列表 + 右侧编辑表单。
 // 列表点击 = 切 active(立即生效);右侧改字段 = 编辑当前选中,点保存才落盘。
@@ -23,8 +24,9 @@ export function UpstreamConfigModal({
   const {
     profiles, activeProfileId,
     createProfile, updateProfile, deleteProfile, duplicateProfile, setActiveProfile,
-    testAPIKey, isTestingKey,
+    testAPIKey, isTestingKey, pushToast,
   } = useStudioStore();
+  const canSyncCodexConfig = canLoadCodexAPIConfig();
 
   // selected = 当前编辑的 profile id(可以跟 active 不同 —— 用户在浏览/编辑
   // 别的 profile,但还没把它设为 active)。打开 modal 默认 selected = active。
@@ -36,6 +38,10 @@ export function UpstreamConfigModal({
   const [savedKeyLoaded, setSavedKeyLoaded] = useState(false);
   const [faqOpen, setFaqOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [syncingCodexConfig, setSyncingCodexConfig] = useState(false);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [modelCatalog, setModelCatalog] = useState<UpstreamModelCatalog | null>(null);
+  const [modelCatalogError, setModelCatalogError] = useState<string | null>(null);
 
   // 打开 modal / 切 selected → 重新加载草稿与 keyring 里的 apiKey
   useEffect(() => {
@@ -48,6 +54,9 @@ export function UpstreamConfigModal({
     setDraft(p);
     setDraftKey("");
     setSavedKeyLoaded(false);
+    setLoadingModels(false);
+    setModelCatalog(null);
+    setModelCatalogError(null);
     if (p) {
       GetStoredAPIKey(keyringUserFor(p.id))
         .then((k) => { setDraftKey(k ?? ""); setSavedKeyLoaded(true); })
@@ -77,6 +86,60 @@ export function UpstreamConfigModal({
   function patchDraft(patch: Partial<UpstreamProfile>) {
     if (!draft) return;
     setDraft({ ...draft, ...patch });
+  }
+
+  function codexProfileName(provider: string) {
+    const trimmed = provider.trim();
+    return trimmed ? `Codex · ${trimmed}` : "Codex";
+  }
+
+  async function handleSyncCodex() {
+    if (syncingCodexConfig) return;
+    setSyncingCodexConfig(true);
+    try {
+      const imported = await LoadCodexAPIConfig();
+      const name = codexProfileName(imported.provider);
+      const existing = useStudioStore.getState().profiles.find((profile) => profile.name === name) ?? null;
+      let syncedId = existing?.id ?? "";
+
+      if (existing) {
+        await updateProfile(existing.id, {
+          name,
+          apiMode: "responses",
+          requestPolicy: "openai",
+          imagesNewAPICompat: false,
+          baseURL: imported.baseURL,
+          textModelID: existing.textModelID,
+          imageModelID: existing.imageModelID,
+          reasoningEffort: existing.reasoningEffort,
+          concurrencyLimit: existing.concurrencyLimit,
+          apiKey: imported.apiKey,
+        });
+        await setActiveProfile(existing.id);
+        syncedId = existing.id;
+      } else {
+        syncedId = await createProfile({
+          name,
+          apiMode: "responses",
+          requestPolicy: "openai",
+          baseURL: imported.baseURL,
+          apiKey: imported.apiKey,
+          setActive: true,
+        });
+      }
+
+      const syncedProfile = useStudioStore.getState().profiles.find((profile) => profile.id === syncedId) ?? null;
+      setSelectedId(syncedId);
+      setDraft(syncedProfile);
+      setDraftKey(imported.apiKey);
+      setSavedKeyLoaded(true);
+      setShowKey(false);
+      pushToast(`已同步 ${name}`, "success");
+    } catch (error: any) {
+      pushToast(`同步 Codex 配置失败:${error?.message ?? error}`, "error", 6000);
+    } finally {
+      setSyncingCodexConfig(false);
+    }
   }
 
   async function handleNew(apiMode: APIMode = "responses") {
@@ -114,6 +177,7 @@ export function UpstreamConfigModal({
       baseURL: draft.baseURL,
       textModelID: draft.textModelID,
       imageModelID: draft.imageModelID,
+      reasoningEffort: draft.reasoningEffort,
       concurrencyLimit: draft.concurrencyLimit,
       apiKey: draftKey,
     });
@@ -134,6 +198,39 @@ export function UpstreamConfigModal({
     }
     onClose();
     setTimeout(() => { void testAPIKey(); }, 0);
+  }
+
+  async function handleLoadModels() {
+    if (!draft) return;
+    const apiKey = draftKey.trim();
+    const baseURL = draft.baseURL.trim();
+    if (!apiKey) {
+      pushToast("先填入 API Key", "warn");
+      return;
+    }
+    if (!baseURL) {
+      pushToast("先填入上游 BASE_URL", "warn");
+      return;
+    }
+    setLoadingModels(true);
+    setModelCatalogError(null);
+    try {
+      const result = await probeCurrentUpstream(baseURL, apiKey);
+      const catalog = buildUpstreamModelCatalog(result.models ?? []);
+      setModelCatalog(catalog);
+      pushToast(
+        catalog.all.length > 0
+          ? `已加载 ${catalog.all.length} 个模型`
+          : `已连接上游，共返回 ${result.modelCount} 个条目，但没有可识别的模型 ID`,
+        catalog.all.length > 0 ? "success" : "warn",
+      );
+    } catch (error: any) {
+      const message = `加载模型失败:${error?.message ?? error}`;
+      setModelCatalogError(message);
+      pushToast(message, "error", 6000);
+    } finally {
+      setLoadingModels(false);
+    }
   }
 
   if (profiles.length === 0) {
@@ -162,6 +259,20 @@ export function UpstreamConfigModal({
           </div>
 
           <div className={`grid gap-2 ${isAndroidPhone ? "grid-cols-1" : "grid-cols-2"}`}>
+            {canSyncCodexConfig ? (
+              <button
+                type="button"
+                onClick={() => void handleSyncCodex()}
+                disabled={syncingCodexConfig}
+                className={`platform-card col-span-full flex items-center justify-between gap-3 border border-[color:var(--accent)]/25 bg-[var(--accent-soft)] px-4 py-3 text-left text-[13px] text-[var(--accent)] transition-colors hover:bg-[color:var(--accent)]/15 disabled:cursor-not-allowed disabled:opacity-60 ${usesFluentUI ? "rounded-[10px]" : "rounded-[18px]"}`}
+              >
+                <span className="min-w-0">
+                  <span className="block font-semibold">同步 Codex 配置</span>
+                  <span className="mt-1 block text-[11px] text-[var(--accent)]/80">自动读取当前电脑里的 Codex `base_url` 和 `OPENAI_API_KEY`。</span>
+                </span>
+                <RefreshCw className={`h-4 w-4 shrink-0 ${syncingCodexConfig ? "animate-spin" : ""}`} />
+              </button>
+            ) : null}
             {([
               {
                 id: "responses" as APIMode,
@@ -223,11 +334,14 @@ export function UpstreamConfigModal({
           activeProfileId={activeProfileId}
           draftId={draft?.id}
           isAndroidPhone={isAndroidPhone}
+          canSyncCodexConfig={canSyncCodexConfig}
+          isSyncingCodexConfig={syncingCodexConfig}
           onSelectProfile={selectProfile}
           onHandleNew={() => handleNew()}
           onHandleDuplicate={handleDuplicate}
           onHandleDelete={() => setDeleteConfirmOpen(true)}
           onHandleSetActive={handleSetActive}
+          onHandleSyncCodex={handleSyncCodex}
         />
 
         {/* ---------------- 右侧编辑表单 ---------------- */}
@@ -245,11 +359,15 @@ export function UpstreamConfigModal({
               baseURLError={baseURLError}
               canSave={canSave}
               isTestingKey={isTestingKey}
+              loadingModels={loadingModels}
+              modelCatalog={modelCatalog}
+              modelCatalogError={modelCatalogError}
               usesAppleUI={usesAppleUI}
               onOpenFAQ={() => setFaqOpen(true)}
               onPatchDraft={patchDraft}
               onChangeDraftKey={setDraftKey}
               onToggleShowKey={() => setShowKey((v) => !v)}
+              onLoadModels={handleLoadModels}
               onTest={handleTest}
               onClose={onClose}
               onSaveAndClose={async () => { await handleSave(); onClose(); }}

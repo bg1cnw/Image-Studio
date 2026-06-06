@@ -1,5 +1,6 @@
 import type { HistoryItem } from "../../types/domain";
 import { historyPreviewSrc, useBlobURL } from "../../lib/images";
+import { DragExportHandle } from "./DragExportHandle";
 
 export type BatchGridSlot =
   | { type: "result"; item: HistoryItem }
@@ -75,26 +76,31 @@ function BatchGridTile({
   const previewURL = useBlobURL(item.imageBlob ?? item.previewBlob ?? null, item.imageB64 ?? null);
   const src = historyPreviewSrc(item, previewURL);
   return (
-    <button
-      type="button"
+    <div
       className={`batch-grid-tile ${active ? "active" : ""} ${preview ? "previewing" : ""}`}
-      onClick={() => {
-        if (!preview) void onSelect(item);
-      }}
-      disabled={preview}
       title={item.prompt}
     >
-      <img
-        src={src}
-        alt={item.prompt || `batch result ${index + 1}`}
-        loading="eager"
-        decoding="async"
-        draggable={false}
-      />
-      <span className="batch-grid-index">{index + 1}</span>
-      {preview ? <span className="batch-grid-meta">预览中</span> : null}
-      {!preview && item.elapsedSec ? <span className="batch-grid-meta">{item.elapsedSec}s</span> : null}
-    </button>
+      <button
+        type="button"
+        className="batch-grid-tile-button"
+        onClick={() => {
+          if (!preview) void onSelect(item);
+        }}
+        disabled={preview}
+      >
+        <img
+          src={src}
+          alt={item.prompt || `batch result ${index + 1}`}
+          loading="eager"
+          decoding="async"
+          draggable={false}
+        />
+        <span className="batch-grid-index">{index + 1}</span>
+        {preview ? <span className="batch-grid-meta">预览中</span> : null}
+        {!preview && item.elapsedSec ? <span className="batch-grid-meta">{item.elapsedSec}s</span> : null}
+      </button>
+      {!preview ? <DragExportHandle item={item} className="batch-grid-drag-export" /> : null}
+    </div>
   );
 }
 

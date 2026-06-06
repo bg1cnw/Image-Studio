@@ -8,6 +8,7 @@ import (
 var (
 	uiIconAdd            = mustIcon(widget.NewIcon(mdicons.ContentAdd))
 	uiIconHistory        = mustIcon(widget.NewIcon(mdicons.ActionHistory))
+	uiIconCalendar       = mustIcon(widget.NewIcon(mdicons.ActionDateRange))
 	uiIconPanTool        = mustIcon(widget.NewIcon(mdicons.ActionPanTool))
 	uiIconCompare        = mustIcon(widget.NewIcon(mdicons.ActionCompareArrows))
 	uiIconSearch         = mustIcon(widget.NewIcon(mdicons.ActionSearch))

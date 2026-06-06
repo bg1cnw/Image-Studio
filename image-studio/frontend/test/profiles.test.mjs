@@ -12,6 +12,7 @@ function makeProfile(name) {
     baseURL: "",
     textModelID: "",
     imageModelID: "",
+    reasoningEffort: "xhigh",
     concurrencyLimit: 0,
     createdAt: 1,
   };
@@ -35,4 +36,23 @@ test("default profile names use the first available numeric slot", () => {
 test("blank profiles use sequential default names", () => {
   const existing = [makeProfile("配置1")];
   assert.equal(profiles.makeBlankProfile("images", existing).name, "配置2");
+});
+
+test("blank responses profile defaults reasoning effort to xhigh", () => {
+  assert.equal(profiles.makeBlankProfile("responses").reasoningEffort, "xhigh");
+});
+
+test("legacy profiles without reasoningEffort normalize to xhigh", () => {
+  const parsed = profiles.tryParseProfile({
+    id: "p1",
+    name: "配置1",
+    apiMode: "responses",
+    requestPolicy: "openai",
+    baseURL: "",
+    textModelID: "",
+    imageModelID: "",
+    concurrencyLimit: 0,
+    createdAt: 1,
+  });
+  assert.equal(parsed?.reasoningEffort, "xhigh");
 });

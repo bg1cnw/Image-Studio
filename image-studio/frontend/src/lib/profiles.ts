@@ -1,4 +1,10 @@
-import type { APIMode, RequestPolicy, UpstreamProfile } from "../types/domain";
+import type { APIMode, ReasoningEffortValue, RequestPolicy, UpstreamProfile } from "../types/domain";
+
+function normalizeReasoningEffort(value: unknown): ReasoningEffortValue {
+  return value === "low" || value === "medium" || value === "high" || value === "xhigh"
+    ? value
+    : "xhigh";
+}
 
 // localStorage 键名规范:
 //   gptcodex.profiles        —— UpstreamProfile[] JSON(无 apiKey,key 在 keyring)
@@ -51,12 +57,26 @@ export function tryParseProfile(raw: unknown): UpstreamProfile | null {
   const baseURL = typeof o.baseURL === "string" ? o.baseURL : "";
   const textModelID = typeof o.textModelID === "string" ? o.textModelID : "";
   const imageModelID = typeof o.imageModelID === "string" ? o.imageModelID : "";
+  const reasoningEffort = normalizeReasoningEffort(o.reasoningEffort);
   const concurrencyLimit = typeof o.concurrencyLimit === "number" && o.concurrencyLimit >= 0
     ? Math.floor(o.concurrencyLimit) : 0;
   const createdAt = typeof o.createdAt === "number" ? o.createdAt : Date.now();
   const lastUsedAt = typeof o.lastUsedAt === "number" ? o.lastUsedAt : undefined;
   if (!id || !name) return null;
-  return { id, name, apiMode, requestPolicy, imagesNewAPICompat, baseURL, textModelID, imageModelID, concurrencyLimit, createdAt, lastUsedAt };
+  return {
+    id,
+    name,
+    apiMode,
+    requestPolicy,
+    imagesNewAPICompat,
+    baseURL,
+    textModelID,
+    imageModelID,
+    reasoningEffort,
+    concurrencyLimit,
+    createdAt,
+    lastUsedAt,
+  };
 }
 
 // 列表里挑当前 active —— activeProfileId 命中时用它,否则用最近使用过的,
@@ -96,6 +116,7 @@ export function makeBlankProfile(apiMode: APIMode = "responses", profiles: Upstr
     baseURL: "",
     textModelID: "",
     imageModelID: "",
+    reasoningEffort: "xhigh",
     concurrencyLimit: 0,
     createdAt: Date.now(),
   };

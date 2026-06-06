@@ -401,6 +401,11 @@ html[data-platform="android"] .android-canvas-source-preview img {
   object-fit: cover;
 }
 
+html[data-platform="android"] .android-canvas-source-tile[data-active="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 14px 28px rgb(15 23 42 / 0.18);
+}
+
 html[data-platform="android"] .android-canvas-source-index,
 html[data-platform="android"] .android-canvas-source-remove,
 html[data-platform="android"] .android-canvas-source-move {
