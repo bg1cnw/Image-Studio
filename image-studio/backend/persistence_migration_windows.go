@@ -5,7 +5,6 @@ package backend
 import (
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 )
 
