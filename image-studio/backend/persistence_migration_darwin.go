@@ -1,21 +1,30 @@
-//go:build windows
+//go:build darwin
 
 package backend
 
 import (
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 )
 
-const windowsWebviewMigrationMarker = ".migrated-to-image-studio-documents"
+const (
+	macCurrentWebkitDirName = "top.gptcodex.imagestudio"
+	macLegacyWebkitDirName  = "com.wails.image-studio"
+)
 
-func MigrateWindowsWebviewDataDir(dst, legacy string) error {
-	return MigrateWindowsWebviewDataDirs(dst, []string{legacy})
+func MigrateMacWebkitDataDir() error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	root := filepath.Join(home, "Library", "WebKit")
+	current := filepath.Join(root, macCurrentWebkitDirName)
+	legacy := filepath.Join(root, macLegacyWebkitDirName)
+	return migrateMacWebkitDataDirs(current, []string{legacy})
 }
 
-func MigrateWindowsWebviewDataDirs(dst string, legacyPaths []string) error {
+func migrateMacWebkitDataDirs(dst string, legacyPaths []string) error {
 	dst = strings.TrimSpace(dst)
 	if dst == "" || len(legacyPaths) == 0 {
 		return nil
@@ -47,9 +56,5 @@ func MigrateWindowsWebviewDataDirs(dst string, legacyPaths []string) error {
 	if err := os.Rename(legacyAbs, dstAbs); err == nil {
 		return nil
 	}
-	if err := copyDir(legacyAbs, dstAbs); err != nil {
-		return err
-	}
-	marker := filepath.Join(legacyAbs, windowsWebviewMigrationMarker)
-	return os.WriteFile(marker, []byte(dstAbs), secureFileMode)
+	return copyDir(legacyAbs, dstAbs)
 }

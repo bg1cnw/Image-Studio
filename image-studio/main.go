@@ -39,6 +39,9 @@ func main() {
 	}
 
 	if runtime.GOOS == "darwin" {
+		if err := backend.MigrateMacWebkitDataDir(); err != nil {
+			println("Warning:", err.Error())
+		}
 		appOptions.Mac = &wailsmac.Options{
 			Appearance:           wailsmac.DefaultAppearance,
 			TitleBar:             wailsmac.TitleBarHiddenInset(),
