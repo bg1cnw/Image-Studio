@@ -167,8 +167,9 @@ import {
   streamPreviewStatePatch,
   type StreamPreviewPayload,
 } from "./studioStore.streamPreview";
+import type { GenerateOptionsLike } from "../platform/runtime/hostTypes";
 
-type RuntimeGenerateOptions = backend.GenerateOptions & {
+type RuntimeGenerateOptions = GenerateOptionsLike & {
   sourceImages?: SourceImage[];
 };
 
@@ -807,7 +808,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     } else if (key === "errorRawPath") {
       set({ workspaces: patchWorkspaceRuntime(get().workspaces, get().activeWorkspaceId, { errorRawPath: value as string | null }) });
     } else if (key === "lastPayload") {
-      set({ workspaces: patchWorkspaceRuntime(get().workspaces, get().activeWorkspaceId, { lastPayload: value as backend.GenerateOptions | null }) });
+      set({ workspaces: patchWorkspaceRuntime(get().workspaces, get().activeWorkspaceId, { lastPayload: value as GenerateOptionsLike | null }) });
     }
     if (key === "kernelRuntimeMode") {
       try { localStorage.setItem("gptcodex.kernelRuntimeMode", String(value)); } catch {}
@@ -1025,7 +1026,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     });
     const forceDisableStreamPreview = streamPreviewDisableReason !== null;
 
-    const basePayload: backend.GenerateOptions = {
+    const basePayload: GenerateOptionsLike = {
       apiKey: s.apiKey,
       mode: s.mode,
       requestedJobId: "",
@@ -2217,8 +2218,8 @@ async function launchOneJob(
       settle("error");
     });
     const started = mode === "edit"
-      ? await wailsEdit({ ...payload, requestedJobId: jobId } as backend.GenerateOptions)
-      : await wailsGenerate({ ...payload, requestedJobId: jobId } as backend.GenerateOptions);
+      ? await wailsEdit({ ...payload, requestedJobId: jobId })
+      : await wailsGenerate({ ...payload, requestedJobId: jobId });
     if (started.jobId && started.jobId !== jobId) {
       cleanup();
       throw new Error(`job id 不一致: expected ${jobId}, got ${started.jobId}`);

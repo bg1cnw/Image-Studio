@@ -1,4 +1,4 @@
-import type { backend } from "../../wailsjs/go/models";
+import type { GenerateOptionsLike } from "../platform/runtime/hostTypes";
 import type {
   Annotation,
   AppUpdateInfo,
@@ -106,7 +106,7 @@ export interface StudioState {
   errorCanRetry: boolean;
   errorRawPath: string | null;
   isRunning: boolean;
-  lastPayload: backend.GenerateOptions | null;
+  lastPayload: GenerateOptionsLike | null;
   runningJobMeta: Record<string, RunningJobMeta>;
   currentImage: HistoryItem | null;
   history: HistoryItem[];

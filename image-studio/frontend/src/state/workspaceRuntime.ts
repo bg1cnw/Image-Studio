@@ -1,4 +1,3 @@
-import type { backend } from "../../wailsjs/go/models";
 import type {
   LoopGenerationConfig,
   ProgressInfo,
@@ -6,6 +5,7 @@ import type {
   StreamPreviewMap,
   Workspace,
 } from "../types/domain";
+import type { GenerateOptionsLike } from "../platform/runtime/hostTypes";
 
 export type APIModeValue = "responses" | "images";
 
@@ -31,7 +31,7 @@ export interface WorkspaceRuntimeState {
   errorMessage: string | null;
   errorCanRetry: boolean;
   errorRawPath: string | null;
-  lastPayload: backend.GenerateOptions | null;
+  lastPayload: GenerateOptionsLike | null;
   workspaces: Workspace[];
 }
 
@@ -46,7 +46,7 @@ export interface WorkspaceRuntimeMirror {
   errorMessage: string | null;
   errorCanRetry: boolean;
   errorRawPath: string | null;
-  lastPayload: backend.GenerateOptions | null;
+  lastPayload: GenerateOptionsLike | null;
   isRunning: boolean;
 }
 

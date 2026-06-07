@@ -265,7 +265,7 @@ export interface Workspace {
   // 「查看日志」按钮调 OpenFile 直接打开。请求前期校验失败 / 早期 IO 错误时
   // 此字段为 null。跟 errorMessage 一对,workspace 隔离,切 tab 各自保持。
   errorRawPath?: string | null;
-  lastPayload?: import("../../wailsjs/go/models").backend.GenerateOptions | null;
+  lastPayload?: import("../platform/runtime/hostTypes").GenerateOptionsLike | null;
 }
 
 export interface Preset {
