@@ -4,6 +4,7 @@ import { submitShortcutLabel } from "../../platform";
 import { usePlatform } from "../../platform/context";
 import { useStudioStore } from "../../state/studioStore";
 import { ParameterPresetsSection } from "./ParameterPresetsSection";
+import { appendPromptTemplateText } from "../../lib/promptTemplateInsert";
 
 const PromptPopover = lazy(() => import("./PromptPopover").then((m) => ({ default: m.PromptPopover })));
 const PromptTemplateManagerModal = lazy(() => import("./PromptTemplateManagerModal").then((m) => ({ default: m.PromptTemplateManagerModal })));
@@ -36,7 +37,7 @@ export function PromptEditorSection({
 
   function appendTemplate(text: string) {
     const current = useStudioStore.getState().prompt;
-    onSetPrompt(current ? `${current}\n${text}` : text);
+    onSetPrompt(appendPromptTemplateText(current, text));
   }
 
   return (

@@ -14,6 +14,7 @@ import { AndroidPadSourceSection } from "./AndroidPadSourceSection";
 import { AndroidPromptTemplateModal } from "./AndroidPromptTemplateModal";
 import { PromptTemplateManagerModal } from "../../components/panel/PromptTemplateManagerModal";
 import { ParameterPresetsSection } from "../../components/panel/ParameterPresetsSection";
+import { appendPromptTemplateText } from "../../lib/promptTemplateInsert";
 import {
   aspectPresetLabel,
   availableResolutionPresets,
@@ -230,7 +231,7 @@ export function AndroidPadComposePanel({
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setField("prompt", prompt ? `${prompt}\n${item.text}` : item.text)}
+                  onClick={() => setField("prompt", appendPromptTemplateText(prompt, item.text))}
                   className="platform-pill inline-flex min-h-[36px] items-center px-3 text-[12px] text-zinc-500 hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
                   title={item.text}
                 >
@@ -359,7 +360,7 @@ export function AndroidPadComposePanel({
         onManageTemplates={() => setTemplateManagerOpen(true)}
         onPick={(text) => {
           const current = useStudioStore.getState().prompt;
-          setField("prompt", current ? `${current}\n${text}` : text);
+          setField("prompt", appendPromptTemplateText(current, text));
         }}
       />
       <PromptTemplateManagerModal open={templateManagerOpen} onClose={() => setTemplateManagerOpen(false)} />

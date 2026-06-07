@@ -269,6 +269,7 @@ export function createImageActions(store: StateAdapter) {
           batchResults: [],
           resultGridOpen: false,
           mode: "edit",
+          size: alreadyIn || existingSources.length > 0 ? store.getState().size : "auto",
           sources: alreadyIn
             ? existingSources
             : [...existingSources, {
@@ -278,6 +279,8 @@ export function createImageActions(store: StateAdapter) {
                 imageBlob: legacyBlob,
                 imageB64: legacyB64 || undefined,
                 previewUrl: importedItem.previewUrl,
+                previewWidth: importedItem.previewWidth,
+                previewHeight: importedItem.previewHeight,
           }],
           errorMessage: null,
           errorCanRetry: false,

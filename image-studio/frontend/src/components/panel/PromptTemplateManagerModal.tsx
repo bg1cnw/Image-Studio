@@ -32,6 +32,18 @@ export function PromptTemplateManagerModal({
 
   useEffect(() => {
     if (!open) return;
+    if (!selectedId) {
+      if (promptTemplates.length > 0) {
+        const first = promptTemplates[0];
+        setSelectedId(first.id);
+        setDraftLabel(first.label);
+        setDraftText(first.text);
+        return;
+      }
+      setDraftLabel(nextDefaultPromptTemplateLabel(promptTemplates));
+      setDraftText("");
+      return;
+    }
     if (selectedTemplate) {
       setDraftLabel(selectedTemplate.label);
       setDraftText(selectedTemplate.text);
@@ -47,7 +59,7 @@ export function PromptTemplateManagerModal({
     setSelectedId("");
     setDraftLabel(nextDefaultPromptTemplateLabel(promptTemplates));
     setDraftText("");
-  }, [open, promptTemplates, selectedTemplate]);
+  }, [open, promptTemplates, selectedId, selectedTemplate]);
 
   function startCreate(fromCurrentPrompt: boolean) {
     setSelectedId("");

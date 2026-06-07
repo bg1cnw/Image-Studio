@@ -234,6 +234,22 @@ test("all custom resolution presets keep OpenAI aspect and pixel limits", () => 
   assert.equal(caps.buildAspectSizeSelection(custom, "4k", input, customRatios), "3840x1280");
 });
 
+test("21:9 custom aspect supports 1K 2K and 4K presets", () => {
+  const input = {
+    apiMode: "responses",
+    requestPolicy: "openai",
+    imageModelID: "gpt-image-2",
+  };
+  const customRatios = [
+    { id: "7:3", label: "21:9", width: 21, height: 9, createdAt: 1 },
+  ];
+  const custom = caps.buildCustomAspectValue("7:3");
+  assert.equal(caps.buildAspectSizeSelection(custom, "1k", input, customRatios), "1536x656");
+  assert.equal(caps.buildAspectSizeSelection(custom, "2k", input, customRatios), "2048x880");
+  assert.equal(caps.buildAspectSizeSelection(custom, "4k", input, customRatios), "3840x1648");
+  assert.equal(caps.deriveResolutionPreset("2048x880"), "2k");
+});
+
 test("4K custom aspect sizing follows OpenAI max-side, max-ratio, max-pixels, and 16px alignment rules", () => {
   const input = {
     apiMode: "responses",

@@ -31,6 +31,7 @@ import {
 } from "./parameters/androidSizeSelection";
 import { vibrateForPlatform } from "./bridge";
 import { LoopGenerationSection } from "../../components/panel/LoopGenerationSection";
+import { appendPromptTemplateText } from "../../lib/promptTemplateInsert";
 
 export function AndroidPhoneComposePanel({
   onSubmitStart,
@@ -265,7 +266,7 @@ export function AndroidPhoneComposePanel({
             <button
               key={item.id}
               type="button"
-              onClick={() => setField("prompt", prompt ? `${prompt}\n${item.text}` : item.text)}
+              onClick={() => setField("prompt", appendPromptTemplateText(prompt, item.text))}
               className="platform-pill android-phone-action-pill inline-flex min-h-[34px] items-center px-3 text-[11px] text-zinc-500 hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
               title={item.text}
             >
@@ -405,7 +406,7 @@ export function AndroidPhoneComposePanel({
         onManageTemplates={() => setTemplateManagerOpen(true)}
         onPick={(text) => {
           const current = useStudioStore.getState().prompt;
-          setField("prompt", current ? `${current}\n${text}` : text);
+          setField("prompt", appendPromptTemplateText(current, text));
         }}
       />
       <PromptTemplateManagerModal open={templateManagerOpen} onClose={() => setTemplateManagerOpen(false)} />
