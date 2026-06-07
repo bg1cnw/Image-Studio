@@ -415,12 +415,12 @@ jobs:
             throw "makeappx.exe not found."
           }
           New-Item -ItemType Directory -Force -Path dist/msixbundle | Out-Null
-          $mapping = @"
-[Files]
-"dist/msix/image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-x64.msix\\image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-x64.msix" "image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-x64.msix"
-"dist/msix/image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-arm64.msix\\image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-arm64.msix" "image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-arm64.msix"
-"@
-          Set-Content -LiteralPath dist/msixbundle/bundle.map -Value $mapping -Encoding ASCII
+          $mappingLines = @(
+            "[Files]"
+            '"dist/msix/image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-x64.msix\image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-x64.msix" "image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-x64.msix"'
+            '"dist/msix/image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-arm64.msix\image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-arm64.msix" "image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-arm64.msix"'
+          )
+          Set-Content -LiteralPath dist/msixbundle/bundle.map -Value $mappingLines -Encoding ASCII
           & $makeAppx.FullName bundle /f dist/msixbundle/bundle.map /p "dist/msixbundle/image-studio-${{ needs.prepare-version.outputs.app_version }}-windows.msixbundle" /o
           if ($LASTEXITCODE -ne 0) {
             throw "makeappx bundle failed with exit code $LASTEXITCODE."
