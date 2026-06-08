@@ -28,6 +28,7 @@ export function readPreviewScenario(): PreviewScenario | null {
   }
 }
 
+
 function buildHistory(now: number): HistoryItem[] {
   const batchPrompt = "赛博雨夜角色海报，湿地街道反光，红青霓虹边缘光，35mm，电影感，超细节";
   const batchDefs = Array.from({ length: 9 }, (_, index) => ({

@@ -1,4 +1,5 @@
 import type { GenerateOptionsLike } from "../platform/runtime/hostTypes";
+import type { SavePromptRequest } from "../lib/savePromptState";
 import type {
   Annotation,
   AppUpdateInfo,
@@ -212,8 +213,8 @@ export interface StudioState {
   resultDetail: HistoryItem | null;
   openResultDetail: (item: HistoryItem) => Promise<void>;
   closeResultDetail: () => void;
-  savePromptItem: HistoryItem | null;
-  savePromptQueue: HistoryItem[];
+  savePromptRequest: SavePromptRequest | null;
+  savePromptQueue: SavePromptRequest[];
   savePromptSuppressed: boolean;
   keepLogs: boolean;
   cleanupPreviewCacheOnExit: boolean;
@@ -223,7 +224,7 @@ export interface StudioState {
   ignoredReleaseTag: string;
   appUpdate: AppUpdateInfo | null;
   appUpdateModalOpen: boolean;
-  enqueueSavePrompt: (item: HistoryItem) => void;
+  enqueueSavePrompt: (request: SavePromptRequest) => void;
   closeSavePrompt: () => void;
   setSavePromptSuppressed: (value: boolean) => void;
   setKeepLogs: (value: boolean) => Promise<void>;

@@ -512,8 +512,15 @@ html.dark .stream-preview-badge {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent), 0 12px 34px rgb(0 0 0 / 0.16);
 }
+.batch-grid-tile.selected {
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 70%, transparent), 0 12px 34px rgb(0 0 0 / 0.16);
+}
 .batch-grid-tile:disabled {
   cursor: default;
+}
+.batch-grid-tile.selection-mode .batch-grid-drag-export {
+  display: none;
 }
 .batch-grid-tile.previewing {
   cursor: default;
@@ -541,7 +548,8 @@ html.dark .stream-preview-badge {
   background: var(--canvas-bg);
 }
 .batch-grid-index,
-.batch-grid-meta {
+.batch-grid-meta,
+.batch-grid-check {
   position: absolute;
   top: 8px;
   background: rgb(0 0 0 / 0.62);
@@ -554,6 +562,12 @@ html.dark .stream-preview-badge {
 }
 .batch-grid-index { left: 8px; }
 .batch-grid-meta { right: 8px; font-family: var(--mono-font); }
+.batch-grid-check {
+  top: auto;
+  right: 8px;
+  bottom: 8px;
+  background: color-mix(in srgb, var(--accent) 82%, black 18%);
+}
 .batch-grid-drag-export {
   right: 8px;
   bottom: 8px;

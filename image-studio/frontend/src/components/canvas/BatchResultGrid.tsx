@@ -15,6 +15,9 @@ export function BatchResultGrid({
   onClose,
   showClose = true,
   title,
+  selectedIds,
+  onToggleSelect,
+  selectionMode = false,
 }: {
   items: HistoryItem[];
   slots?: BatchGridSlot[];
@@ -23,6 +26,9 @@ export function BatchResultGrid({
   onClose: () => void;
   showClose?: boolean;
   title?: string;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (item: HistoryItem) => void;
+  selectionMode?: boolean;
 }) {
   const gridSlots = slots ?? items.map((item) => ({ type: "result", item }) satisfies BatchGridSlot);
   const columns = gridSlots.length <= 2 ? 2 : gridSlots.length <= 4 ? 2 : 3;
@@ -52,6 +58,9 @@ export function BatchResultGrid({
               active={slot.type === "result" && slot.item.id === currentId}
               preview={slot.type === "preview"}
               onSelect={onSelect}
+              selected={slot.type === "result" && !!selectedIds?.has(slot.item.id)}
+              onToggleSelect={onToggleSelect}
+              selectionMode={selectionMode}
             />
           );
         })}
@@ -66,24 +75,34 @@ function BatchGridTile({
   active,
   preview,
   onSelect,
+  selected,
+  onToggleSelect,
+  selectionMode,
 }: {
   item: HistoryItem;
   index: number;
   active: boolean;
   preview: boolean;
   onSelect: (item: HistoryItem) => void | Promise<void>;
+  selected: boolean;
+  onToggleSelect?: (item: HistoryItem) => void;
+  selectionMode: boolean;
 }) {
   const previewURL = useBlobURL(item.imageBlob ?? item.previewBlob ?? null, item.imageB64 ?? null);
   const src = historyPreviewSrc(item, previewURL);
   return (
     <div
-      className={`batch-grid-tile ${active ? "active" : ""} ${preview ? "previewing" : ""}`}
+      className={`batch-grid-tile ${active ? "active" : ""} ${preview ? "previewing" : ""} ${selected ? "selected" : ""} ${selectionMode ? "selection-mode" : ""}`}
       title={item.prompt}
     >
       <button
         type="button"
         className="batch-grid-tile-button"
         onClick={() => {
+          if (selectionMode && !preview) {
+            onToggleSelect?.(item);
+            return;
+          }
           if (!preview) void onSelect(item);
         }}
         disabled={preview}
@@ -96,6 +115,7 @@ function BatchGridTile({
           draggable={false}
         />
         <span className="batch-grid-index">{index + 1}</span>
+        {selectionMode && !preview ? <span className="batch-grid-check">{selected ? "已选" : "未选"}</span> : null}
         {preview ? <span className="batch-grid-meta">预览中</span> : null}
         {!preview && item.elapsedSec ? <span className="batch-grid-meta">{item.elapsedSec}s</span> : null}
       </button>

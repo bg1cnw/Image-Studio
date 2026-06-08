@@ -69,6 +69,7 @@ import {
 } from "../lib/compatState";
 import { normalizeAppUpdateInfo } from "../lib/appUpdate.ts";
 import { appVersion } from "../lib/version.ts";
+import { normalizeSavePromptRequest, type SavePromptRequest } from "../lib/savePromptState";
 import {
   readSavePromptSuppressed,
   writeSavePromptSuppressed,
@@ -167,6 +168,7 @@ import type { ModeConfig, PromptOptimizeRequest, Stroke, StudioState, UndoEntry 
 import {
   cryptoIDFallback,
   ensureFullHistoryItem as ensureFullHistoryItemRuntime,
+  historyItemsByIds,
   materializeHistoryItem as materializeHistoryItemRuntime,
   STYLE_SUFFIXES,
   withMediaAssetRef,
@@ -448,6 +450,36 @@ function mergeHistoryMediaRef(current: HistoryItem | null, nextById: Map<string,
   return next ? withMediaAssetRef(current, next) : current;
 }
 
+function batchSavePromptRequestFromState(state: StudioState, workspaceId: string): SavePromptRequest | null {
+  const workspace = state.workspaces.find((entry) => entry.id === workspaceId);
+  const items = historyItemsByIds(state.history, workspace?.batchResultIds ?? []).sort((a, b) => {
+    const aIndex = typeof a.batchIndex === "number" ? a.batchIndex : Number.MAX_SAFE_INTEGER;
+    const bIndex = typeof b.batchIndex === "number" ? b.batchIndex : Number.MAX_SAFE_INTEGER;
+    if (aIndex !== bIndex) return aIndex - bIndex;
+    if (a.createdAt !== b.createdAt) return a.createdAt - b.createdAt;
+    return a.id.localeCompare(b.id);
+  });
+  if (items.length === 0) return null;
+  return {
+    kind: "batch",
+    items,
+    workspaceId,
+  };
+}
+
+function maybeEnqueueBatchSavePrompt(
+  store: typeof useStudioStore,
+  workspaceId: string,
+  completedNow: number,
+  totalNow: number,
+): void {
+  if (totalNow <= 1 || completedNow !== totalNow) return;
+  const batchRequest = batchSavePromptRequestFromState(store.getState(), workspaceId);
+  if (batchRequest) {
+    store.getState().enqueueSavePrompt(batchRequest);
+  }
+}
+
 async function hydrateHistoryPreviewRefs(items: HistoryItem[]): Promise<HistoryItem[]> {
   return mapWithConcurrency(items, HISTORY_MEDIA_HYDRATE_CONCURRENCY, async (item) => {
     if (!needsHistoryPreviewHydration(item)) return item;
@@ -603,7 +635,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   fullscreen: false,
   starPromptOpen: false,
   starPromptSource: "auto",
-  savePromptItem: null,
+  savePromptRequest: null,
   savePromptQueue: [],
   savePromptSuppressed: readSavePromptSuppressed(),
   keepLogs: readKeepLogs(),
@@ -725,25 +757,34 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     set({ starPromptOpen: false });
     try { localStorage.setItem("gptcodex.starPrompted", "1"); } catch {}
   },
-  enqueueSavePrompt: (item) => {
+  enqueueSavePrompt: (request) => {
     if (get().savePromptSuppressed) return;
+    const normalized = normalizeSavePromptRequest(request);
+    if (!normalized) return;
+    const hydrated = normalized.kind === "batch"
+      ? {
+          ...normalized,
+          items: historyItemsByIds(normalized.items, normalized.items.map((item) => item.id)),
+        }
+      : normalized;
+    if (hydrated.kind === "batch" && hydrated.items.length === 0) return;
     set((state) => {
-      if (!state.savePromptItem) return { savePromptItem: item };
-      return { savePromptQueue: [...state.savePromptQueue, item].slice(-12) };
+      if (!state.savePromptRequest) return { savePromptRequest: hydrated };
+      return { savePromptQueue: [...state.savePromptQueue, hydrated].slice(-12) };
     });
   },
   closeSavePrompt: () => {
     set((state) => {
       const [next, ...rest] = state.savePromptQueue;
       return {
-        savePromptItem: next ?? null,
+        savePromptRequest: next ?? null,
         savePromptQueue: rest,
       };
     });
   },
   setSavePromptSuppressed: (value) => {
     writeSavePromptSuppressed(value);
-    set(value ? { savePromptSuppressed: true, savePromptQueue: [] } : { savePromptSuppressed: false });
+    set(value ? { savePromptSuppressed: true, savePromptRequest: null, savePromptQueue: [] } : { savePromptSuppressed: false });
   },
   setKeepLogs: async (value) => {
     writeKeepLogs(value);
@@ -1434,7 +1475,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         starPromptOpen: false,
         starPromptSource: "auto",
         autoRetryEnabled: readAutoRetryEnabled(),
-        savePromptItem: null,
+        savePromptRequest: null,
         savePromptQueue: [],
         savePromptSuppressed: readSavePromptSuppressed(),
         keepLogs: readKeepLogs(),
@@ -1729,7 +1770,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       customSizeModalOpen: false,
       upstreamModalOpen: false,
       upstreamReturnTarget: shouldAutoOpenSettings ? "settings" : "app",
-      savePromptItem: null,
+      savePromptRequest: null,
       savePromptQueue: [],
       savePromptSuppressed: readSavePromptSuppressed(),
       keepLogs,
@@ -2318,7 +2359,10 @@ async function launchOneJob(
               6000,
               { label: "查看详情", onClick: () => store.getState().openResultDetail(historyItem) },
             );
-            store.getState().enqueueSavePrompt(historyItem);
+            if (totalNow <= 1) {
+              store.getState().enqueueSavePrompt({ kind: "single", item: historyItem });
+            }
+            maybeEnqueueBatchSavePrompt(store, snapshot.workspaceId, completedNow, totalNow);
           } else if (isFinalLoopResult) {
             store.getState().pushToast(
               `循环出图完成 · ${completedNow} 张`,
@@ -2376,7 +2420,8 @@ async function launchOneJob(
             workspaces: patchWorkspaceRuntime(state.workspaces, snapshot.workspaceId, patch),
             ...(state.activeWorkspaceId === snapshot.workspaceId ? activeRuntimePatch(patch) : {}),
           } as Partial<StudioState>));
-          removeFromRunning();
+          const { completed: completedNow, total: totalNow } = removeFromRunning();
+          maybeEnqueueBatchSavePrompt(store, snapshot.workspaceId, completedNow, totalNow);
           settle("error");
         }
       })();
@@ -2411,7 +2456,8 @@ async function launchOneJob(
             : {}),
         } as Partial<StudioState>;
       });
-      removeFromRunning();
+      const { completed: completedNow, total: totalNow } = removeFromRunning();
+      maybeEnqueueBatchSavePrompt(store, snapshot.workspaceId, completedNow, totalNow);
       settle("error");
     });
     const started = mode === "edit"
@@ -2428,8 +2474,12 @@ async function launchOneJob(
       errorCanRetry: true,
       errorRawPath: null,
     };
+    let completedNow = 0;
+    let totalNow = 0;
     store.setState((state) => {
       const runtime = workspaceRuntimeFromState(state, snapshot.workspaceId);
+      completedNow = runtime.jobsCompleted + 1;
+      totalNow = runtime.jobsTotal;
       const nextMeta = { ...state.runningJobMeta };
       delete nextMeta[jobId];
       const remaining = runtime.runningJobs.filter((id) => id !== jobId);
@@ -2450,6 +2500,7 @@ async function launchOneJob(
         ...(state.activeWorkspaceId === snapshot.workspaceId ? activeRuntimePatch(nextPatch) : {}),
       } as Partial<StudioState>;
     });
+    maybeEnqueueBatchSavePrompt(store, snapshot.workspaceId, completedNow, totalNow);
     settle("error");
   }
 }

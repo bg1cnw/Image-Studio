@@ -22,3 +22,11 @@ export async function saveHistoryItemToDirectoryAs(item: HistoryItem, directory:
   if (item.imageB64) return SaveImageToDir(item.imageB64, directory, suggestedName);
   throw new Error("当前图片没有可保存内容");
 }
+
+export async function saveHistoryItemsToDirectory(items: HistoryItem[], directory: string): Promise<string[]> {
+  const saved: string[] = [];
+  for (const item of items) {
+    saved.push(await saveHistoryItemToDirectory(item, directory));
+  }
+  return saved;
+}
