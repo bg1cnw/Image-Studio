@@ -18,7 +18,7 @@ import {
   buildPresetPatch,
   pickPresetStateSnapshot,
 } from "../lib/presets";
-import { base64ToBlob } from "../lib/images";
+import { base64ToBlob, orderedNavigationItemsForCurrent } from "../lib/images";
 import { persistHistoryItems } from "../lib/storage";
 import type { HistoryItem, Preset, Toast } from "../types/domain";
 import type { StudioState } from "./studioStore.types";
@@ -104,11 +104,17 @@ export function createMediaActions(store: StateAdapter) {
 
     async stepBatchResult(delta: -1 | 1) {
       const state = store.getState();
-      if (state.batchResults.length <= 1 || !state.currentImage) return;
-      const currentIndex = state.batchResults.findIndex((item) => item.id === state.currentImage?.id);
+      if (!state.currentImage) return;
+      const navigationItems = orderedNavigationItemsForCurrent(
+        state.currentImage.id,
+        state.history,
+        state.batchResults,
+      );
+      if (navigationItems.length <= 1) return;
+      const currentIndex = navigationItems.findIndex((item) => item.id === state.currentImage?.id);
       if (currentIndex < 0) return;
-      const nextIndex = (currentIndex + delta + state.batchResults.length) % state.batchResults.length;
-      const nextItem = state.batchResults[nextIndex];
+      const nextIndex = (currentIndex + delta + navigationItems.length) % navigationItems.length;
+      const nextItem = navigationItems[nextIndex];
       if (!nextItem) return;
       await store.getState().selectBatchResult(nextItem);
     },

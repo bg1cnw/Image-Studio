@@ -14,7 +14,7 @@ import { AnnotationShape } from "./AnnotationShape";
 import { useCanvasShortcuts } from "./useCanvasShortcuts";
 import { StreamPreviewBadge } from "./StreamPreviewBadge";
 import { streamPreviewItemsFromPreviews } from "../../state/studioStore.streamPreview";
-import { historyFullSrc } from "../../lib/images";
+import { historyFullSrc, orderedNavigationItemsForCurrent, sortHistoryItemsByCreatedAtAsc } from "../../lib/images";
 import { DragExportHandle } from "./DragExportHandle";
 
 export function CanvasStage() {
@@ -34,6 +34,7 @@ export function CanvasStage() {
     jobsTotal,
     jobsCompleted,
     toggleFullscreen,
+    history,
     batchResults, resultGridOpen, selectBatchResult, closeResultGrid,
     canvasViewResetTick,
     stepBatchResult,
@@ -48,6 +49,8 @@ export function CanvasStage() {
     outputFormat: useStudioStore.getState().outputFormat,
     currentImage,
   });
+  const orderedBatchResults = sortHistoryItemsByCreatedAtAsc(batchResults);
+  const navigationItems = orderedNavigationItemsForCurrent(currentImage?.id, history, batchResults);
   const liveBatchSlotCount = Math.max(jobsTotal, batchResults.length + runningJobs.length, batchResults.length + streamPreviewItems.length);
   const liveBatchSlots: BatchGridSlot[] = Array.from({ length: liveBatchSlotCount }, (_, index) => ({ type: "pending", id: `pending-${index}` }));
   for (const item of batchResults) {
@@ -62,8 +65,8 @@ export function CanvasStage() {
   }
   const showingLiveBatchGrid = isRunning && liveBatchSlotCount > 1;
   const showingResultGrid = showingLiveBatchGrid || (resultGridOpen && batchResults.length > 1);
-  const currentBatchIndex = currentImage ? batchResults.findIndex((item) => item.id === currentImage.id) : -1;
-  const canNavigateBatchResults = currentBatchIndex >= 0 && batchResults.length > 1;
+  const currentBatchIndex = currentImage ? navigationItems.findIndex((item) => item.id === currentImage.id) : -1;
+  const canNavigateBatchResults = currentBatchIndex >= 0 && navigationItems.length > 1;
 
   // Hold-space-for-pan: while space is held, override tool to "pan".
   const [spacePan, setSpacePan] = useState(false);
@@ -465,7 +468,7 @@ export function CanvasStage() {
         ) : null}
         {showingResultGrid && (
           <BatchResultGrid
-            items={batchResults}
+            items={orderedBatchResults}
             slots={showingLiveBatchGrid ? liveBatchSlots : undefined}
             currentId={currentImage?.id ?? null}
             onSelect={selectBatchResult}
