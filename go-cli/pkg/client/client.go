@@ -167,6 +167,10 @@ func responsesAPIWithRetries(
 
 	var lastErr error
 	var lastPath string
+	autoRetryEnabled := true
+	if opts.AutoRetryEnabled != nil && !*opts.AutoRetryEnabled {
+		autoRetryEnabled = false
+	}
 
 	for attempt := 1; attempt <= MaxAttempts; attempt++ {
 		rawPath := filepath.Join(outputDir, fmt.Sprintf("sse-response-%s-attempt%d.txt", timestamp, attempt))
@@ -192,7 +196,7 @@ func responsesAPIWithRetries(
 		if errors.Is(reqErr, ErrNoImageInResponse) {
 			lastErr = reqErr
 			reason := DescribeProblem(raw)
-			if attempt < MaxAttempts && IsRetryable(raw) {
+			if autoRetryEnabled && attempt < MaxAttempts && IsRetryable(raw) {
 				onLog(reason)
 				onLog(fmt.Sprintf("这是可重试错误,%d 秒后自动重试...", RetryBackoffSeconds))
 				if !sleepCtx(ctx, time.Duration(RetryBackoffSeconds)*time.Second) {
@@ -207,7 +211,7 @@ func responsesAPIWithRetries(
 
 		// Transport-level error (network / native HTTP failure). Retry up to MaxAttempts.
 		lastErr = reqErr
-		if attempt < MaxAttempts {
+		if autoRetryEnabled && attempt < MaxAttempts {
 			onLog(fmt.Sprintf("%v", reqErr))
 			onLog(fmt.Sprintf("%d 秒后自动重试...", RetryBackoffSeconds))
 			if !sleepCtx(ctx, time.Duration(RetryBackoffSeconds)*time.Second) {
@@ -257,6 +261,10 @@ func imagesAPIWithRetries(
 
 	var lastErr error
 	var lastPath string
+	autoRetryEnabled := true
+	if opts.AutoRetryEnabled != nil && !*opts.AutoRetryEnabled {
+		autoRetryEnabled = false
+	}
 
 	for attempt := 1; attempt <= MaxAttempts; attempt++ {
 		rawPath := filepath.Join(outputDir, fmt.Sprintf("images-response-%s-attempt%d.json", timestamp, attempt))
@@ -280,7 +288,7 @@ func imagesAPIWithRetries(
 		lastErr = reqErr
 		// Images API has no SSE / no partial — only retry on transport-level
 		// errors and Cloudflare 5xx HTML pages.
-		if attempt < MaxAttempts && (IsRetryable(raw) || isTransportishError(reqErr)) {
+		if autoRetryEnabled && attempt < MaxAttempts && (IsRetryable(raw) || isTransportishError(reqErr)) {
 			onLog(fmt.Sprintf("%v", reqErr))
 			onLog(fmt.Sprintf("%d 秒后自动重试...", RetryBackoffSeconds))
 			if !sleepCtx(ctx, time.Duration(RetryBackoffSeconds)*time.Second) {

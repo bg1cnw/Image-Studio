@@ -7,7 +7,9 @@ import type {
   SizeValue,
 } from "../../types/domain";
 import { useBlobURL } from "../../lib/images";
+import type { BatchProcessConfig, EditSourceMode } from "../../types/domain";
 import { STYLE_CHIPS } from "./panelOptions";
+import { BatchProcessSection } from "./BatchProcessSection";
 import { Section, Seg, SegItem } from "./panelChrome";
 import {
   RESOLUTION_PRESETS,
@@ -26,13 +28,18 @@ export function DesktopComposeSections({
   allowPreciseSizeControl,
   apiMode,
   batchCount,
+  batchProcess,
+  chooseBatchInputDir,
+  chooseBatchOutputDir,
   clearSources,
   currentImageSavedPath,
+  editSourceMode,
   handleAspectSelect,
   handleResolutionSelect,
   imageModelID,
   onOpenCustomAspectRatioModal,
   onOpenCustomSizeModal,
+  onRefreshBatchInputDir,
   onRemoveSource,
   onPreviewSource,
   mode,
@@ -55,13 +62,18 @@ export function DesktopComposeSections({
   allowPreciseSizeControl: boolean;
   apiMode: "responses" | "images";
   batchCount: number;
+  batchProcess: BatchProcessConfig;
+  chooseBatchInputDir: () => void;
+  chooseBatchOutputDir: () => void;
   clearSources: () => void;
   currentImageSavedPath?: string | null;
+  editSourceMode: EditSourceMode;
   handleAspectSelect: (aspect: AspectPreset) => void;
   handleResolutionSelect: (resolution: ResolutionPreset) => void;
   imageModelID: string;
   onOpenCustomAspectRatioModal: () => void;
   onOpenCustomSizeModal: () => void;
+  onRefreshBatchInputDir: () => void;
   usesFluentUI: boolean;
   mode: Mode;
   onRemoveSource: (index: number) => void;
@@ -225,7 +237,20 @@ export function DesktopComposeSections({
       </Section>
 
       {mode === "edit" ? (
-        <Section label={`源图片 / 参考图${sources.length > 0 ? ` · ${sources.length} 张` : ""}`}>
+        <>
+          <BatchProcessSection
+            currentImageSavedPath={currentImageSavedPath}
+            editSourceMode={editSourceMode}
+            batchProcess={batchProcess}
+            setEditSourceMode={(next) => setField("editSourceMode" as any, next)}
+            setBatchProcess={(next) => setField("batchProcess" as any, next)}
+            onChooseInputDir={chooseBatchInputDir}
+            onChooseOutputDir={chooseBatchOutputDir}
+            onRefreshInputDir={onRefreshBatchInputDir}
+            usesFluentUI={usesFluentUI}
+          />
+          {editSourceMode === "manual" ? (
+            <Section label={`手动参考图${sources.length > 0 ? ` · ${sources.length} 张` : ""}`}>
           <div className="flex flex-col gap-1.5">
             {sources.length === 0 && currentImageSavedPath ? (
               <div className={`border border-black/[0.06] bg-[var(--surface)] px-3 py-2 text-xs italic text-zinc-500 dark:border-white/[0.04] dark:text-zinc-500 ${usesFluentUI ? "rounded-[10px]" : "rounded-[14px]"}`}>
@@ -262,7 +287,9 @@ export function DesktopComposeSections({
               ) : null}
             </div>
           </div>
-        </Section>
+            </Section>
+          ) : null}
+        </>
       ) : null}
     </>
   );

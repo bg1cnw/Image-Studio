@@ -58,6 +58,23 @@ type GenerateOptions struct {
 	// DisablePreview forces partial_images = 0 for this request, regardless of
 	// the default partial-image setting.
 	DisablePreview bool `json:"disablePreview,omitempty"`
+	// AutoRetryEnabled controls whether retryable upstream failures should be
+	// re-issued automatically. Default true.
+	AutoRetryEnabled bool `json:"autoRetryEnabled"`
+	// FallbackProfile is an optional backup upstream used only after the main
+	// upstream exhausted its own automatic retries and still failed.
+	FallbackProfile *FallbackProfileOptions `json:"fallbackProfile,omitempty"`
+}
+
+type FallbackProfileOptions struct {
+	BaseURL            string `json:"baseURL"`
+	APIKey             string `json:"apiKey"`
+	TextModelID        string `json:"textModelID"`
+	ImageModelID       string `json:"imageModelID"`
+	ReasoningEffort    string `json:"reasoningEffort"`
+	APIMode            string `json:"apiMode"`
+	RequestPolicy      string `json:"requestPolicy"`
+	ImagesNewAPICompat bool   `json:"imagesNewAPICompat,omitempty"`
 }
 
 // PromptOptimizeOptions is the request shape for one-click prompt revision.
@@ -84,7 +101,7 @@ type ProbeUpstreamOptions struct {
 }
 
 type ProbeUpstreamResult struct {
-	ModelCount int `json:"modelCount"`
+	ModelCount int                       `json:"modelCount"`
 	Models     []UpstreamModelDescriptor `json:"models,omitempty"`
 }
 
@@ -180,6 +197,20 @@ type SelectFileResponse struct {
 	PreviewURL    string `json:"previewUrl,omitempty"`
 	PreviewWidth  int    `json:"previewWidth,omitempty"`
 	PreviewHeight int    `json:"previewHeight,omitempty"`
+}
+
+type BatchInputImage struct {
+	Path          string `json:"path"`
+	Name          string `json:"name"`
+	Size          int64  `json:"size"`
+	PreviewURL    string `json:"previewUrl,omitempty"`
+	PreviewWidth  int    `json:"previewWidth,omitempty"`
+	PreviewHeight int    `json:"previewHeight,omitempty"`
+}
+
+type BatchInputDirectory struct {
+	Directory string            `json:"directory"`
+	Images    []BatchInputImage `json:"images"`
 }
 
 // ImportedImage describes a freshly imported (drag-dropped or pasted) image.

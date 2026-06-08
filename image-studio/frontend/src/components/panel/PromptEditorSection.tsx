@@ -1,11 +1,13 @@
-import { lazy, Suspense, useRef } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { ListPlus, Sparkles } from "lucide-react";
 import { submitShortcutLabel } from "../../platform";
 import { usePlatform } from "../../platform/context";
 import { useStudioStore } from "../../state/studioStore";
 import { ParameterPresetsSection } from "./ParameterPresetsSection";
+import { appendPromptTemplateText } from "../../lib/promptTemplateInsert";
 
 const PromptPopover = lazy(() => import("./PromptPopover").then((m) => ({ default: m.PromptPopover })));
+const PromptTemplateManagerModal = lazy(() => import("./PromptTemplateManagerModal").then((m) => ({ default: m.PromptTemplateManagerModal })));
 
 export function PromptEditorSection({
   mode,
@@ -29,7 +31,14 @@ export function PromptEditorSection({
   onOptimizePrompt: () => void;
 }) {
   const { isMac, usesFluentUI } = usePlatform();
+  const promptTemplates = useStudioStore((s) => s.promptTemplates);
   const promptPopoverAnchorRef = useRef<HTMLButtonElement | null>(null);
+  const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
+
+  function appendTemplate(text: string) {
+    const current = useStudioStore.getState().prompt;
+    onSetPrompt(appendPromptTemplateText(current, text));
+  }
 
   return (
     <section className={`platform-card relative overflow-visible ${promptPopover ? "z-30" : "z-0"} ${isMac ? "p-5" : "p-4"}`}>
@@ -55,6 +64,26 @@ export function PromptEditorSection({
         onChange={(e) => onSetPrompt(e.target.value)}
         className={`focus-ring w-full resize-y border border-black/[0.08] bg-[var(--surface)] text-zinc-900 placeholder:text-zinc-400 dark:border-white/[0.08] dark:text-zinc-100 dark:placeholder:text-zinc-500 ${usesFluentUI ? "min-h-[124px] rounded-[10px] px-3.5 py-3 text-[14px] leading-[1.65]" : isMac ? "min-h-[176px] rounded-[18px] px-4 py-3.5 text-[15px] leading-[1.72]" : "min-h-[124px] rounded-[14px] px-3.5 py-3 text-[14px] leading-[1.65]"}`}
       />
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setTemplateManagerOpen(true)}
+          className={`platform-pill inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] text-zinc-500 transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
+        >
+          <ListPlus className="w-3 h-3" /> 管理模板
+        </button>
+        {promptTemplates.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => appendTemplate(item.text)}
+            title={item.text}
+            className={`platform-pill inline-flex max-w-full items-center justify-center px-3 py-1.5 text-[11px] text-zinc-600 transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] dark:text-zinc-300 ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
       <div className={`mt-3 ${isMac ? "flex flex-col gap-3" : "flex gap-2.5 items-center justify-between"}`}>
         <div className={`${isMac ? "grid grid-cols-2 gap-2.5" : "flex gap-2.5 items-center"}`}>
           <div className={`relative ${isMac ? "min-w-0" : "shrink-0"}`}>
@@ -76,10 +105,8 @@ export function PromptEditorSection({
                 <PromptPopover
                   anchorRef={promptPopoverAnchorRef}
                   onClose={() => setPromptPopover(false)}
-                  onPick={(text) => {
-                    const current = useStudioStore.getState().prompt;
-                    onSetPrompt(current ? `${current}\n${text}` : text);
-                  }}
+                  onManageTemplates={() => setTemplateManagerOpen(true)}
+                  onPick={appendTemplate}
                 />
               </Suspense>
             )}
@@ -103,6 +130,11 @@ export function PromptEditorSection({
           <span className={`${isMac ? "ml-auto rounded-full bg-black/[0.03] px-2.5 py-1.5 text-[11px] dark:bg-white/[0.04]" : "text-[10px]"} text-zinc-400 dark:text-zinc-500`}>{submitShortcutLabel}</span>
         </div>
       </div>
+      {templateManagerOpen ? (
+        <Suspense fallback={null}>
+          <PromptTemplateManagerModal open={templateManagerOpen} onClose={() => setTemplateManagerOpen(false)} />
+        </Suspense>
+      ) : null}
     </section>
   );
 }

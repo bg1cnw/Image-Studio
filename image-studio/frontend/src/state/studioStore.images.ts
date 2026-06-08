@@ -1,4 +1,6 @@
 import {
+  ChooseBatchInputDir,
+  ListBatchInputImages,
   OpenImageDialog,
   ImportImageFromB64,
   RegisterImportedImageAsset,
@@ -8,7 +10,7 @@ import {
 import { saveImageForPlatform } from "../platform/android/bridge";
 import { base64ToBlob } from "../lib/images";
 import { removeHistoryItem } from "../lib/storage";
-import type { HistoryItem, SourceImage } from "../types/domain";
+import type { BatchProcessSourceImage, HistoryItem, SourceImage } from "../types/domain";
 import type { StudioState } from "./studioStore.types";
 import {
   ensureFullHistoryItem,
@@ -62,6 +64,24 @@ function buildSourceCanvasItem(
 }
 
 export function createImageActions(store: StateAdapter) {
+  function mapBatchSource(source: {
+    path: string;
+    name: string;
+    size: number;
+    previewUrl?: string;
+    previewWidth?: number;
+    previewHeight?: number;
+  }): BatchProcessSourceImage {
+    return {
+      path: source.path,
+      name: source.name,
+      size: source.size,
+      previewUrl: source.previewUrl,
+      previewWidth: source.previewWidth,
+      previewHeight: source.previewHeight,
+    };
+  }
+
   return {
     async selectSourceImage() {
       try {
@@ -81,8 +101,12 @@ export function createImageActions(store: StateAdapter) {
             imageB64: res.imageB64 || undefined,
             imageBlob: res.imageB64 ? base64ToBlob(res.imageB64) : null,
             previewUrl: res.previewUrl,
+            previewWidth: res.previewWidth,
+            previewHeight: res.previewHeight,
           }],
           mode: "edit",
+          editSourceMode: "manual",
+          size: existing.length === 0 ? "auto" : store.getState().size,
           errorMessage: null,
           errorCanRetry: false,
           errorRawPath: null,
@@ -94,11 +118,11 @@ export function createImageActions(store: StateAdapter) {
 
     removeSource(index: number) {
       const next = store.getState().sources.filter((_, i) => i !== index);
-      store.setState({ sources: next, mode: next.length > 0 ? "edit" : "generate" });
+      store.setState({ sources: next, mode: next.length > 0 ? "edit" : "generate", editSourceMode: "manual" });
     },
 
     clearSources() {
-      store.setState({ sources: [], mode: "generate" });
+      store.setState({ sources: [], mode: "generate", editSourceMode: "manual" });
     },
 
     reorderSources(from: number, to: number) {
@@ -116,6 +140,24 @@ export function createImageActions(store: StateAdapter) {
       const item = buildSourceCanvasItem(source, ref);
       store.setState({ mode: "edit", errorMessage: null, errorCanRetry: false, errorRawPath: null });
       store.getState().setField("currentImage", item);
+    },
+
+    async compareSourceOnCanvas(index: number) {
+      const state = store.getState();
+      const source = state.sources[index];
+      if (!source) return;
+      if (!state.currentImage) {
+        state.pushToast("先在画布显示结果图后再对比参考图", "warn");
+        return;
+      }
+      if (state.compareB?.savedPath === source.path) {
+        state.setCompareB(null);
+        return;
+      }
+      const ref = await RegisterImportedImageAsset(source.path).catch(() => null);
+      const item = buildSourceCanvasItem(source, ref);
+      store.setState({ mode: "edit", errorMessage: null, errorCanRetry: false, errorRawPath: null });
+      await state.setCompareB(item);
     },
 
     async reuseAsSource(item: HistoryItem) {
@@ -136,6 +178,7 @@ export function createImageActions(store: StateAdapter) {
       const alreadyIn = existing.some((source) => source.path === savedPath);
       store.setState({
         mode: "edit",
+        editSourceMode: "manual",
         currentImage: toPreviewOnlyHistoryItem(localItem),
         resultGridOpen: false,
         sources: alreadyIn
@@ -147,7 +190,10 @@ export function createImageActions(store: StateAdapter) {
               imageBlob: localItem.previewUrl ? null : (localItem.previewBlob ?? localItem.imageBlob ?? null),
               imageB64: localItem.previewUrl ? undefined : localItem.imageB64,
               previewUrl: localItem.previewUrl,
+              previewWidth: localItem.previewWidth,
+              previewHeight: localItem.previewHeight,
             }],
+        size: alreadyIn || existing.length > 0 ? store.getState().size : "auto",
       });
     },
 
@@ -245,6 +291,8 @@ export function createImageActions(store: StateAdapter) {
           batchResults: [],
           resultGridOpen: false,
           mode: "edit",
+          editSourceMode: "manual",
+          size: alreadyIn || existingSources.length > 0 ? store.getState().size : "auto",
           sources: alreadyIn
             ? existingSources
             : [...existingSources, {
@@ -254,6 +302,8 @@ export function createImageActions(store: StateAdapter) {
                 imageBlob: legacyBlob,
                 imageB64: legacyB64 || undefined,
                 previewUrl: importedItem.previewUrl,
+                previewWidth: importedItem.previewWidth,
+                previewHeight: importedItem.previewHeight,
           }],
           errorMessage: null,
           errorCanRetry: false,
@@ -261,6 +311,48 @@ export function createImageActions(store: StateAdapter) {
         });
       } catch (e: any) {
         store.setState({ errorMessage: `导入失败:${e?.message ?? e}`, errorCanRetry: false, errorRawPath: null });
+      }
+    },
+
+    async chooseBatchInputDir() {
+      try {
+        const result = await ChooseBatchInputDir();
+        if (!result?.directory) return;
+        store.setState((state) => ({
+          mode: "edit",
+          editSourceMode: "batch",
+          batchProcess: {
+            ...state.batchProcess,
+            enabled: true,
+            inputDir: result.directory,
+            discoveredSources: result.images.map(mapBatchSource),
+          },
+          errorMessage: null,
+          errorCanRetry: false,
+          errorRawPath: null,
+        }));
+      } catch (error: any) {
+        store.setState({ errorMessage: `选择批处理目录失败:${error?.message ?? error}`, errorCanRetry: false, errorRawPath: null });
+      }
+    },
+
+    async refreshBatchInputDir() {
+      const { batchProcess } = store.getState();
+      if (!batchProcess.inputDir.trim()) return;
+      try {
+        const result = await ListBatchInputImages(batchProcess.inputDir);
+        store.setState((state) => ({
+          batchProcess: {
+            ...state.batchProcess,
+            inputDir: result.directory || state.batchProcess.inputDir,
+            discoveredSources: result.images.map(mapBatchSource),
+          },
+          errorMessage: null,
+          errorCanRetry: false,
+          errorRawPath: null,
+        }));
+      } catch (error: any) {
+        store.setState({ errorMessage: `刷新批处理目录失败:${error?.message ?? error}`, errorCanRetry: false, errorRawPath: null });
       }
     },
   };

@@ -18,16 +18,19 @@ const ANDROID_PROMPT_TEMPLATES: { label: string; text: string }[] = [
 export function AndroidPromptTemplateModal({
   open,
   onClose,
+  onManageTemplates,
   onPick,
 }: {
   open: boolean;
   onClose: () => void;
+  onManageTemplates: () => void;
   onPick: (text: string) => void;
 }) {
   const history = useStudioStore((s) => s.promptHistory);
+  const promptTemplates = useStudioStore((s) => s.promptTemplates);
   const [tab, setTab] = useState<"templates" | "history">("templates");
   const items = tab === "templates"
-    ? ANDROID_PROMPT_TEMPLATES
+    ? [...promptTemplates.map((item) => ({ label: item.label, text: item.text })), ...ANDROID_PROMPT_TEMPLATES]
     : history.map((text, index) => ({ label: `历史 ${index + 1}`, text }));
 
   const pick = (text: string) => {
@@ -64,6 +67,16 @@ export function AndroidPromptTemplateModal({
 
         {items.length > 0 ? (
           <div className="android-template-list">
+            {tab === "templates" ? (
+              <button
+                type="button"
+                className="android-template-item"
+                onClick={() => { vibrateForPlatform(8); onClose(); onManageTemplates(); }}
+              >
+                <strong>管理自定义模板</strong>
+                <span>{promptTemplates.length > 0 ? `当前已保存 ${promptTemplates.length} 个模板` : "新建、编辑、删除你的常用模板"}</span>
+              </button>
+            ) : null}
             {items.map((item, index) => (
               <button
                 key={`${tab}-${index}-${item.label}`}

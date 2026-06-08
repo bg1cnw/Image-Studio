@@ -74,6 +74,7 @@ export function isTransportishError(error: unknown): boolean {
     "econnreset",
     "econnrefused",
     "gateway",
+    "只返回了流式预览帧",
   ].some((marker) => message.includes(marker));
 }
 

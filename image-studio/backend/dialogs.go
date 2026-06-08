@@ -13,6 +13,13 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+var supportedBatchInputExtensions = map[string]struct{}{
+	".png":  {},
+	".jpg":  {},
+	".jpeg": {},
+	".webp": {},
+}
+
 func (s *Service) BeginNativeFileDrag(path string) error {
 	allowed, err := s.ensureManagedReadablePath(path, managedImageFile)
 	if err != nil {
@@ -57,6 +64,76 @@ func (s *Service) OpenImageDialog() (SelectFileResponse, error) {
 		}
 	}
 	return resp, nil
+}
+
+func (s *Service) ChooseBatchInputDir() (BatchInputDirectory, error) {
+	if s.ctx == nil {
+		return BatchInputDirectory{}, errors.New("服务未启动")
+	}
+	chosen, err := runtime.OpenDirectoryDialog(s.ctx, runtime.OpenDialogOptions{
+		Title: "选择批处理输入目录",
+	})
+	if err != nil {
+		return BatchInputDirectory{}, err
+	}
+	if chosen == "" {
+		return BatchInputDirectory{}, nil
+	}
+	return s.ListBatchInputImages(chosen)
+}
+
+func (s *Service) ListBatchInputImages(directory string) (BatchInputDirectory, error) {
+	clean := strings.TrimSpace(directory)
+	if clean == "" {
+		return BatchInputDirectory{}, errors.New("目标目录不能为空")
+	}
+	root, err := filepath.Abs(clean)
+	if err != nil {
+		return BatchInputDirectory{}, err
+	}
+	info, err := os.Stat(root)
+	if err != nil {
+		return BatchInputDirectory{}, fmt.Errorf("读取目录失败: %w", err)
+	}
+	if !info.IsDir() {
+		return BatchInputDirectory{}, fmt.Errorf("不是目录: %s", root)
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return BatchInputDirectory{}, fmt.Errorf("读取目录失败: %w", err)
+	}
+	images := make([]BatchInputImage, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(entry.Name()))
+		if _, ok := supportedBatchInputExtensions[ext]; !ok {
+			continue
+		}
+		path := filepath.Join(root, entry.Name())
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		item := BatchInputImage{
+			Path: path,
+			Name: entry.Name(),
+			Size: info.Size(),
+		}
+		if info.Size() > 0 && info.Size() <= maxDialogReadBytes {
+			if preview, previewErr := s.registerImportedPreview(path); previewErr == nil {
+				item.PreviewURL = preview.PreviewURL
+				item.PreviewWidth = preview.PreviewWidth
+				item.PreviewHeight = preview.PreviewHeight
+			}
+		}
+		images = append(images, item)
+	}
+	return BatchInputDirectory{
+		Directory: root,
+		Images:    images,
+	}, nil
 }
 
 // SaveImageAs prompts the user for a destination and writes the base64 PNG to disk.
@@ -208,6 +285,15 @@ func uniqueTargetPath(dir, fileName string) (string, error) {
 	return "", fmt.Errorf("目标目录中同名文件过多:%s", fileName)
 }
 
+func uniquePrefixedTargetPath(dir, sourceName, prefix string) (string, error) {
+	base := ensureTargetFileName(sourceName, "image.png")
+	trimmedPrefix := strings.TrimSpace(prefix)
+	if trimmedPrefix == "" {
+		return uniqueTargetPath(dir, base)
+	}
+	return uniqueTargetPath(dir, trimmedPrefix+base)
+}
+
 // OpenOutputDir reveals the output directory in the OS file explorer.
 // 兜底:用户在第一次生成前就点「打开输出目录」,默认路径还不存在 ——
 // `open` / `xdg-open` / `explorer` 拿到不存在的路径都会失败(macOS / Linux
@@ -311,11 +397,51 @@ func (s *Service) ExportHistoryToFile(jsonContent string) (string, error) {
 	return dst, nil
 }
 
+// ExportUpstreamConfigToFile writes an upstream-config JSON dump to a
+// user-selected path so profile metadata and API keys can survive upgrades or
+// manual reinstalls.
+func (s *Service) ExportUpstreamConfigToFile(jsonContent string) (string, error) {
+	dst, err := runtime.SaveFileDialog(s.ctx, runtime.SaveDialogOptions{
+		Title:           "导出上游配置",
+		DefaultFilename: fmt.Sprintf("image-studio-upstream-config-%s.json", time.Now().Format("20060102-150405")),
+		Filters: []runtime.FileFilter{
+			{DisplayName: "JSON (*.json)", Pattern: "*.json"},
+		},
+	})
+	if err != nil || dst == "" {
+		return "", err
+	}
+	if err := os.WriteFile(dst, []byte(jsonContent), secureFileMode); err != nil {
+		return "", err
+	}
+	return dst, nil
+}
+
 // ImportHistoryFromFile opens a file picker and returns the JSON content as a
 // string. The frontend then parses and merges the entries into IndexedDB.
 func (s *Service) ImportHistoryFromFile() (string, error) {
 	src, err := runtime.OpenFileDialog(s.ctx, runtime.OpenDialogOptions{
 		Title: "选择历史 JSON 文件",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "JSON (*.json)", Pattern: "*.json"},
+		},
+	})
+	if err != nil || src == "" {
+		return "", err
+	}
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+// ImportUpstreamConfigFromFile opens a JSON file picker and returns the file
+// contents so the frontend can merge the imported upstream profiles and
+// restore any bundled API keys into the system credential store.
+func (s *Service) ImportUpstreamConfigFromFile() (string, error) {
+	src, err := runtime.OpenFileDialog(s.ctx, runtime.OpenDialogOptions{
+		Title: "选择上游配置 JSON 文件",
 		Filters: []runtime.FileFilter{
 			{DisplayName: "JSON (*.json)", Pattern: "*.json"},
 		},

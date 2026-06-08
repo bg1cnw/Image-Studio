@@ -4,6 +4,7 @@ import { useBlobURL } from "../../lib/images";
 import { vibrateForPlatform } from "./bridge";
 
 export function AndroidPhoneSourceSection({
+  onCompareSource,
   clearSources,
   currentImage,
   editSourceLabel,
@@ -12,6 +13,7 @@ export function AndroidPhoneSourceSection({
   removeSource,
   sources,
 }: {
+  onCompareSource: (index: number) => void;
   clearSources: () => void;
   currentImage: HistoryItem | null;
   editSourceLabel: string;
@@ -85,6 +87,15 @@ export function AndroidPhoneSourceSection({
         >
           <ImagePlus className="h-3.5 w-3.5" /> 从相册添加
         </button>
+        {sources.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => { vibrateForPlatform(5); onCompareSource(0); }}
+            className="platform-action-btn android-source-primary-action"
+          >
+            对比主参考
+          </button>
+        ) : null}
         {sources.length > 0 ? (
           <button
             type="button"

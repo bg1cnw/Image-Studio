@@ -26,11 +26,12 @@ node -e '
 
 APP_NAME="$(sed -n '1p' "$WAILS_META_FILE")"
 OUTPUT_FILENAME="$(sed -n '2p' "$WAILS_META_FILE")"
-APP_VERSION="$(sed -n '3p' "$WAILS_META_FILE")"
+APP_PRODUCT_VERSION="$(sed -n '3p' "$WAILS_META_FILE")"
+APP_VERSION="${VITE_APP_VERSION:-$APP_PRODUCT_VERSION}"
 BUNDLE_ID="top.gptcodex.imagestudio"
 APP_COMMENTS="$(sed -n '5p' "$WAILS_META_FILE")"
 APP_COPYRIGHT="$(sed -n '6p' "$WAILS_META_FILE")"
-CLIENT_VERSION_LDFLAG="${CLIENT_VERSION_LDFLAG:--X github.com/yuanhua/image-gptcodex/pkg/client.Version=${VITE_APP_VERSION:-$APP_VERSION}}"
+CLIENT_VERSION_LDFLAG="${CLIENT_VERSION_LDFLAG:--X github.com/yuanhua/image-gptcodex/pkg/client.Version=${APP_VERSION}}"
 
 APP_BUNDLE="$PROJECT_DIR/build/bin/${APP_NAME}.app"
 EXECUTABLE_SRC="$PROJECT_DIR/build/bin/${OUTPUT_FILENAME}"
@@ -48,6 +49,28 @@ cleanup() {
   rm -rf "$ICON_ENCODER_DIR"
 }
 trap cleanup EXIT
+
+run_with_retry() {
+  local attempts="$1"
+  shift
+  local delay_seconds="$1"
+  shift
+
+  local try=1
+  local exit_code=0
+  while true; do
+    if "$@"; then
+      return 0
+    fi
+    exit_code=$?
+    if (( try >= attempts )); then
+      return "$exit_code"
+    fi
+    echo "command failed (exit ${exit_code}), retrying ${try}/${attempts}: $*" >&2
+    sleep "$delay_seconds"
+    try=$((try + 1))
+  done
+}
 
 ensure_frontend_deps() {
   if [[ -d "$PROJECT_DIR/frontend/node_modules" ]]; then
@@ -69,7 +92,7 @@ ensure_frontend_deps
 
 (
   cd "$PROJECT_DIR/frontend"
-  npm run build:macos
+  run_with_retry 3 1 npm run build:macos
 )
 
 perl -0pi -e 's/[ \t]+\n/\n/g; s/\n+\z/\n/' "$PROJECT_DIR/frontend/wailsjs/go/models.ts"
@@ -154,61 +177,32 @@ func main() {
 EOF
 (
   cd "$PROJECT_DIR"
-  GOPATH="$ROOT_DIR/.gopath" \
-  GOMODCACHE="$ROOT_DIR/.gomodcache" \
-  GOCACHE="$ROOT_DIR/.gocache" \
-  go run "$ICON_ENCODER" "$ICON_SRC" "$RESOURCES_DIR/iconfile.icns"
+  export GOPATH="$ROOT_DIR/.gopath"
+  export GOMODCACHE="$ROOT_DIR/.gomodcache"
+  export GOCACHE="$ROOT_DIR/.gocache"
+  run_with_retry 3 1 go run "$ICON_ENCODER" "$ICON_SRC" "$RESOURCES_DIR/iconfile.icns"
 )
 
 cat >"$PLIST_PATH" <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-  <dict>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleName</key>
-    <string>__APP_NAME__</string>
-    <key>CFBundleExecutable</key>
-    <string>__OUTPUT_FILENAME__</string>
-    <key>CFBundleIdentifier</key>
-    <string>__BUNDLE_ID__</string>
-    <key>CFBundleVersion</key>
-    <string>__APP_VERSION__</string>
-    <key>CFBundleGetInfoString</key>
-    <string>__APP_COMMENTS__</string>
-    <key>CFBundleShortVersionString</key>
-    <string>__APP_VERSION__</string>
-    <key>CFBundleIconFile</key>
-    <string>iconfile</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>10.13.0</string>
-    <key>NSHighResolutionCapable</key>
-    <string>true</string>
-    <key>NSHumanReadableCopyright</key>
-    <string>__APP_COPYRIGHT__</string>
-  </dict>
+  <dict/>
 </plist>
 EOF
 
-python3 - <<'PY' "$PLIST_PATH" "$APP_NAME" "$OUTPUT_FILENAME" "$BUNDLE_ID" "$APP_VERSION" "$APP_COMMENTS" "$APP_COPYRIGHT"
-from pathlib import Path
-import sys
-
-plist_path, app_name, output_filename, bundle_id, app_version, app_comments, app_copyright = sys.argv[1:]
-content = Path(plist_path).read_text()
-replacements = {
-    "__APP_NAME__": app_name,
-    "__OUTPUT_FILENAME__": output_filename,
-    "__BUNDLE_ID__": bundle_id,
-    "__APP_VERSION__": app_version,
-    "__APP_COMMENTS__": app_comments,
-    "__APP_COPYRIGHT__": app_copyright,
-}
-for key, value in replacements.items():
-    content = content.replace(key, value)
-Path(plist_path).write_text(content)
-PY
+/usr/bin/plutil -insert CFBundlePackageType -string "APPL" "$PLIST_PATH"
+/usr/bin/plutil -insert CFBundleName -string "$APP_NAME" "$PLIST_PATH"
+/usr/bin/plutil -insert CFBundleExecutable -string "$OUTPUT_FILENAME" "$PLIST_PATH"
+/usr/bin/plutil -insert CFBundleIdentifier -string "$BUNDLE_ID" "$PLIST_PATH"
+/usr/bin/plutil -insert CFBundleVersion -string "$APP_VERSION" "$PLIST_PATH"
+/usr/bin/plutil -insert CFBundleGetInfoString -string "$APP_COMMENTS" "$PLIST_PATH"
+/usr/bin/plutil -insert CFBundleShortVersionString -string "$APP_VERSION" "$PLIST_PATH"
+/usr/bin/plutil -insert CFBundleIconFile -string "iconfile" "$PLIST_PATH"
+/usr/bin/plutil -insert LSMinimumSystemVersion -string "10.13.0" "$PLIST_PATH"
+/usr/bin/plutil -insert NSHighResolutionCapable -bool YES "$PLIST_PATH"
+/usr/bin/plutil -insert NSHumanReadableCopyright -string "$APP_COPYRIGHT" "$PLIST_PATH"
+/usr/bin/plutil -lint "$PLIST_PATH" >/dev/null
 
 chmod +x "$EXECUTABLE_DST"
 /usr/bin/xattr -rc "$APP_BUNDLE"

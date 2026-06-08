@@ -26,4 +26,26 @@ jobs:
           IMAGE_STUDIO_API_KEY: ${{ secrets.IMAGE_STUDIO_API_KEY }}
           IMAGE_STUDIO_TEXT_MODEL_ID: ${{ secrets.IMAGE_STUDIO_TEXT_MODEL_ID }}
           IMAGE_STUDIO_IMAGE_MODEL_ID: ${{ secrets.IMAGE_STUDIO_IMAGE_MODEL_ID }}
+          IMAGE_STUDIO_VERIFY_RESULTS_DIR: .tmp/live-verify-results
         run: node ./scripts/live-verify.mjs
+
+      - name: Upload live verify results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-verify-platform-kernel-results
+          path: .tmp/live-verify-results
+          if-no-files-found: warn
+
+      - name: Render live verify job summary
+        if: always()
+        run: |
+          if [ -f .tmp/live-verify-results/live-verify.json ]; then
+            node ./scripts/render-live-verify-summary.mjs .tmp/live-verify-results/live-verify.json >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "## Live Verify Platform Kernel"
+              echo
+              echo "- result file missing: \`.tmp/live-verify-results/live-verify.json\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi

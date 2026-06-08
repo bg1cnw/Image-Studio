@@ -5,6 +5,7 @@ type Tool = "pan" | "mask" | "annotate";
 
 type UseCanvasShortcutsArgs = {
   brushSize: number;
+  canNavigateBatchResults?: boolean;
   cancel: () => void;
   compareB: HistoryItem | null;
   copyCurrentImage: () => void;
@@ -12,6 +13,7 @@ type UseCanvasShortcutsArgs = {
   errorMessage: string | null;
   isMac: boolean;
   isRunning: boolean;
+  navigateBatchResult?: (delta: -1 | 1) => void;
   redo: () => void;
   removeAnnotation: (id: string) => void;
   resetView: () => void;
@@ -27,6 +29,7 @@ type UseCanvasShortcutsArgs = {
 
 export function useCanvasShortcuts({
   brushSize,
+  canNavigateBatchResults = false,
   cancel,
   compareB,
   copyCurrentImage,
@@ -34,6 +37,7 @@ export function useCanvasShortcuts({
   errorMessage,
   isMac,
   isRunning,
+  navigateBatchResult,
   redo,
   removeAnnotation,
   resetView,
@@ -90,6 +94,11 @@ export function useCanvasShortcuts({
         copyCurrentImage();
         return;
       }
+      if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && canNavigateBatchResults && navigateBatchResult) {
+        e.preventDefault();
+        navigateBatchResult(e.key === "ArrowLeft" ? -1 : 1);
+        return;
+      }
       if (k === "f") {
         e.preventDefault();
         resetView();
@@ -123,6 +132,7 @@ export function useCanvasShortcuts({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
     brushSize,
+    canNavigateBatchResults,
     cancel,
     compareB,
     copyCurrentImage,
@@ -130,6 +140,7 @@ export function useCanvasShortcuts({
     errorMessage,
     isMac,
     isRunning,
+    navigateBatchResult,
     redo,
     removeAnnotation,
     resetView,

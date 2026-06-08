@@ -31,11 +31,13 @@ export function buildAndroidResolutionSizeSelection(
   resolution: ResolutionPreset,
   input: AndroidSizeSelectionInput,
   customRatios: CustomAspectRatio[] = [],
+  referenceAspect: AspectPreset | null = null,
 ): SizeValue {
   return buildResolutionSizeSelection(
     currentAspect,
     resolution,
     input,
     customRatios,
+    referenceAspect,
   );
 }

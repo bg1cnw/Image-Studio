@@ -27,10 +27,20 @@ export interface UpstreamProfile {
   reasoningEffort: ReasoningEffortValue;
   // 0 = 不限。同一 profile 跨所有 workspace 共享并发计数。
   concurrencyLimit: number;
+  // 失败重试路由到的备用 profile。空 = 不自动切备用上游。
+  fallbackProfileId?: string;
   createdAt: number;
   // 最近一次被 setActive / 提交生成 时更新;用于把最近使用过的 profile 在
   // 下拉里排到前面,以及下次启动默认 active。
   lastUsedAt?: number;
+}
+
+export interface PromptTemplate {
+  id: string;
+  label: string;
+  text: string;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export type SizeValue = "auto" | `${number}x${number}`;
@@ -45,6 +55,8 @@ export type ImageStyleValue = "default" | "vivid" | "natural";
 export type ModerationValue = "low" | "auto";
 export type ThemeMode = "system" | "light" | "dark";
 export type CompletionSoundMode = "default" | "custom";
+export type EditSourceMode = "manual" | "batch";
+export type BatchProcessOutputMode = "source_dir" | "custom_dir";
 
 export interface CompletionSoundConfig {
   enabled: boolean;
@@ -136,10 +148,31 @@ export interface SourceImage {
   name: string;
   size: number;       // bytes; 0 when unknown (e.g. reused-from-history)
   previewUrl?: string;
+  previewWidth?: number;
+  previewHeight?: number;
   imageBlob?: Blob | null;
   // Legacy/browser fallback for canvas preview. Wails source previews should
   // prefer previewUrl so selected files do not cross the bridge as base64.
   imageB64?: string;
+}
+
+export interface BatchProcessSourceImage {
+  path: string;
+  name: string;
+  size: number;
+  previewUrl?: string;
+  previewWidth?: number;
+  previewHeight?: number;
+}
+
+export interface BatchProcessConfig {
+  enabled: boolean;
+  inputDir: string;
+  outputMode: BatchProcessOutputMode;
+  outputDir: string;
+  concurrency: number;
+  fileNamePrefix: string;
+  discoveredSources: BatchProcessSourceImage[];
 }
 
 export interface HistoryItem {
@@ -212,6 +245,12 @@ export interface LoopGenerationConfig {
   livePreview: boolean;
 }
 
+export interface BatchProcessResultLink {
+  sourcePath: string;
+  outputDir: string;
+  outputNamePrefix: string;
+}
+
 export interface Workspace {
   id: string;
   name: string;
@@ -231,6 +270,8 @@ export interface Workspace {
   userIdentifier: string;
   partialImages: number;
   batchCount: number;
+  editSourceMode: EditSourceMode;
+  batchProcess: BatchProcessConfig;
   loopGeneration: LoopGenerationConfig;
   sources: SourceImage[];
   // We store currentImageId rather than the full HistoryItem so we don't
@@ -253,7 +294,7 @@ export interface Workspace {
   // 「查看日志」按钮调 OpenFile 直接打开。请求前期校验失败 / 早期 IO 错误时
   // 此字段为 null。跟 errorMessage 一对,workspace 隔离,切 tab 各自保持。
   errorRawPath?: string | null;
-  lastPayload?: import("../../wailsjs/go/models").backend.GenerateOptions | null;
+  lastPayload?: import("../platform/runtime/hostTypes").GenerateOptionsLike | null;
 }
 
 export interface Preset {

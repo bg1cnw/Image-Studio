@@ -141,6 +141,74 @@ func TestRequestAndExtractWithRetriesEmitsPartialImages(t *testing.T) {
 	}
 }
 
+func TestRequestAndExtractWithRetriesRetriesWhenOnlyPartialPreviewArrives(t *testing.T) {
+	finalB64 := base64.StdEncoding.EncodeToString([]byte("\x89PNG\r\n\x1a\nfinal"))
+	hits := 0
+	ev := func(m map[string]any) string {
+		b, _ := json.Marshal(m)
+		return "data: " + string(b)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		flusher, _ := w.(http.Flusher)
+		if hits == 1 {
+			fmt.Fprintln(w, ev(map[string]any{
+				"type":                "response.image_generation_call.partial_image",
+				"partial_image_index": 0,
+				"partial_image_b64":   base64.StdEncoding.EncodeToString([]byte("\x89PNG\r\n\x1a\npartial")),
+			}))
+			fmt.Fprintln(w, ev(map[string]any{"type": "response.completed", "response": map[string]any{"status": "completed"}}))
+			if flusher != nil {
+				flusher.Flush()
+			}
+			return
+		}
+		fmt.Fprintln(w, ev(map[string]any{
+			"type": "response.output_item.done",
+			"item": map[string]any{
+				"type":   "image_generation_call",
+				"result": finalB64,
+			},
+		}))
+		if flusher != nil {
+			flusher.Flush()
+		}
+	}))
+	defer srv.Close()
+
+	original := RetryBackoffSeconds
+	RetryBackoffSeconds = 0
+	t.Cleanup(func() { RetryBackoffSeconds = original })
+
+	transport := &injectingTransport{
+		inner: &NativeTransport{},
+		url:   srv.URL,
+	}
+	dir := t.TempDir()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res, _, err := RequestAndExtractWithRetries(
+		ctx,
+		transport,
+		Options{APIKey: "sk-test", Prompt: "hello", Size: "1024x1024", Quality: "auto", BaseURL: "https://test.local"},
+		dir,
+		"20260518-200003",
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if hits != 2 {
+		t.Fatalf("hits = %d, want 2", hits)
+	}
+	if res.ImageB64 != finalB64 || res.SourceEvent != "final" {
+		t.Fatalf("unexpected result: %+v", res)
+	}
+}
+
 func TestRequestAndExtractWithRetries_RetryOn524(t *testing.T) {
 	// First attempt returns Cloudflare 524 HTML (retryable); second attempt succeeds.
 	pngB64 := base64.StdEncoding.EncodeToString([]byte("\x89PNG\r\n\x1a\nfake"))
@@ -196,6 +264,46 @@ func TestRequestAndExtractWithRetries_RetryOn524(t *testing.T) {
 	}
 	if hits != 2 {
 		t.Errorf("hits = %d, want 2", hits)
+	}
+}
+
+func TestRequestAndExtractWithRetriesCanDisableAutoRetry(t *testing.T) {
+	hits := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "<html>Error code 524 | 524: A timeout occurred</html>")
+	}))
+	defer srv.Close()
+
+	original := RetryBackoffSeconds
+	RetryBackoffSeconds = 0
+	t.Cleanup(func() { RetryBackoffSeconds = original })
+
+	transport := &injectingTransport{inner: &NativeTransport{}, url: srv.URL}
+	dir := t.TempDir()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	_, _, err := RequestAndExtractWithRetries(
+		ctx, transport,
+		Options{
+			APIKey:           "sk-test",
+			Prompt:           "p",
+			Size:             "1024x1024",
+			Quality:          "auto",
+			BaseURL:          "https://test.local",
+			AutoRetryEnabled: func() *bool { v := false; return &v }(),
+		},
+		dir, "20260518-200002",
+		nil, nil,
+	)
+	if err == nil {
+		t.Fatal("expected error when auto retry is disabled")
+	}
+	if hits != 1 {
+		t.Errorf("hits = %d, want 1", hits)
 	}
 }
 

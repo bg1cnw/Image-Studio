@@ -36,6 +36,7 @@ export function CanvasStage() {
     toggleFullscreen,
     batchResults, resultGridOpen, selectBatchResult, closeResultGrid,
     canvasViewResetTick,
+    stepBatchResult,
   } = useStudioStore();
   const { isMac } = usePlatform();
   const streamPreviewItems = streamPreviewItemsFromPreviews(streamPreviews, {
@@ -61,6 +62,8 @@ export function CanvasStage() {
   }
   const showingLiveBatchGrid = isRunning && liveBatchSlotCount > 1;
   const showingResultGrid = showingLiveBatchGrid || (resultGridOpen && batchResults.length > 1);
+  const currentBatchIndex = currentImage ? batchResults.findIndex((item) => item.id === currentImage.id) : -1;
+  const canNavigateBatchResults = currentBatchIndex >= 0 && batchResults.length > 1;
 
   // Hold-space-for-pan: while space is held, override tool to "pan".
   const [spacePan, setSpacePan] = useState(false);
@@ -379,6 +382,7 @@ export function CanvasStage() {
 
   useCanvasShortcuts({
     brushSize,
+    canNavigateBatchResults,
     cancel,
     compareB,
     copyCurrentImage: () => {
@@ -398,6 +402,9 @@ export function CanvasStage() {
     errorMessage,
     isMac,
     isRunning,
+    navigateBatchResult: (delta) => {
+      void stepBatchResult(delta);
+    },
     redo,
     removeAnnotation,
     resetView,
@@ -477,6 +484,8 @@ export function CanvasStage() {
             bUrl={compareB.fullUrl}
             split={compareSplit}
             onSplit={setCompareSplit}
+            aLabel="当前图"
+            bLabel={compareB.id.startsWith("source-preview:") ? "参考图" : "对比图"}
           />
         )}
         {!showingResultGrid && currentImage && !compareB && hostSize.w > 0 && hostSize.h > 0 && (

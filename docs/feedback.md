@@ -2,7 +2,11 @@
 
 如果你在使用 Image Studio 时遇到问题，或希望讨论新功能、使用方式与兼容性，可以通过下面的渠道反馈。
 
-提 Issue 前请先看 [docs/troubleshooting.md](./troubleshooting.md)。
+提 Issue 前请先看：
+
+- [docs/troubleshooting.md](./troubleshooting.md)
+- [docs/issue-progress.md](./issue-progress.md)
+- [docs/issue-close-comments.md](./issue-close-comments.md)
 
 很多看起来像“软件故障”的问题，实际来自:
 
@@ -12,6 +16,15 @@
 - Android 系统相册 / `MediaStore` 与桌面文件目录行为差异
 
 如果这些因素还没有排除，先不要提交 Bug Issue。
+
+另外：
+
+- `issue-progress.md` 会记录当前仓库里哪些 GitHub issue 已经有代码覆盖、哪些还只缺实机验证。
+- `issue-close-comments.md` 会整理那些“当前代码已覆盖，但 GitHub 还没关”的 issue 关单评论模板。
+- `scripts/issue-close-helper.mjs export ...` 可以把这些评论、manifest 和处理计划一起导出成文件包，便于一次性处理。
+- `scripts/issue-close-helper.mjs plan` 可以先做 dry-run，确认哪些 issue 会被评论或关闭。
+
+提交前先看一眼，可以避免重复反馈已经落地但 issue 还没关闭的条目。
 
 ## GitHub Issues
 

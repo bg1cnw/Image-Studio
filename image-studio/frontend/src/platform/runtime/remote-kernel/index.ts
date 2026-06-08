@@ -32,38 +32,66 @@ export async function runRemoteImageJob(
   callbacks: RemoteJobCallbacks,
 ): Promise<RemoteJobResult> {
   let lastError: RemoteKernelError | null = null;
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    try {
-      const apiMode = normalizeAPIMode(request.payload.apiMode);
-      if (apiMode === "images") {
-        return await requestImagesOnce(request, attempt, callbacks);
-      }
-      return await requestResponsesOnce(request, attempt, callbacks);
-    } catch (error) {
-      if (callbacks.signal.aborted) throw error;
-      const typed = error instanceof RemoteKernelError
-        ? error
-        : new RemoteKernelError(String((error as any)?.message || error));
-      lastError = typed;
-      let retryableRaw = false;
-      if (typed.rawPath) {
-        try {
-          retryableRaw = isRetryableRaw(readRegisteredText(typed.rawPath));
-        } catch {
-          retryableRaw = false;
+  const autoRetryEnabled = request.payload.autoRetryEnabled !== false;
+  const requestVariants: RemoteJobRequest[] = [request];
+  if (request.payload.fallbackProfile?.baseURL?.trim() && request.payload.fallbackProfile?.apiKey?.trim()) {
+    requestVariants.push({
+      ...request,
+      payload: {
+        ...request.payload,
+        baseURL: request.payload.fallbackProfile.baseURL,
+        apiKey: request.payload.fallbackProfile.apiKey,
+        textModelID: request.payload.fallbackProfile.textModelID || request.payload.textModelID,
+        imageModelID: request.payload.fallbackProfile.imageModelID || request.payload.imageModelID,
+        reasoningEffort: request.payload.fallbackProfile.reasoningEffort || request.payload.reasoningEffort,
+        apiMode: request.payload.fallbackProfile.apiMode || request.payload.apiMode,
+        requestPolicy: request.payload.fallbackProfile.requestPolicy || request.payload.requestPolicy,
+        imagesNewAPICompat: request.payload.fallbackProfile.imagesNewAPICompat === true,
+      },
+    });
+  }
+  for (let variantIndex = 0; variantIndex < requestVariants.length; variantIndex++) {
+    const activeRequest = requestVariants[variantIndex];
+    if (variantIndex > 0) {
+      callbacks.onLog?.("主上游自动重试失败，切换到备用上游再试一次...");
+    }
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const apiMode = normalizeAPIMode(activeRequest.payload.apiMode);
+        if (apiMode === "images") {
+          return await requestImagesOnce(activeRequest, attempt, callbacks);
         }
+        return await requestResponsesOnce(activeRequest, attempt, callbacks);
+      } catch (error) {
+        if (callbacks.signal.aborted) throw error;
+        const typed = error instanceof RemoteKernelError
+          ? error
+          : new RemoteKernelError(String((error as any)?.message || error));
+        lastError = typed;
+        let retryableRaw = false;
+        if (typed.rawPath) {
+          try {
+            retryableRaw = isRetryableRaw(readRegisteredText(typed.rawPath));
+          } catch {
+            retryableRaw = false;
+          }
+        }
+        const retryable = retryableRaw || isTransportishError(typed);
+        if (autoRetryEnabled && attempt < MAX_ATTEMPTS && retryable) {
+          callbacks.onLog?.(typed.message);
+          callbacks.onLog?.(`${Math.floor(RETRY_BACKOFF_MS / 1000)} 秒后自动重试...`);
+          await sleepWithSignal(callbacks.signal, RETRY_BACKOFF_MS);
+          continue;
+        }
+        lastError = typed;
+        break;
       }
-      const retryable = retryableRaw || isTransportishError(typed);
-      if (attempt < MAX_ATTEMPTS && retryable) {
-        callbacks.onLog?.(typed.message);
-        callbacks.onLog?.(`${Math.floor(RETRY_BACKOFF_MS / 1000)} 秒后自动重试...`);
-        await sleepWithSignal(callbacks.signal, RETRY_BACKOFF_MS);
-        continue;
-      }
-      throw typed;
     }
   }
-  throw lastError ?? new RemoteKernelError("多次请求后仍未成功");
+  if (lastError) {
+    throw lastError;
+  }
+  throw new RemoteKernelError("多次请求后仍未成功");
 }
 
 export async function optimizePromptRemote(

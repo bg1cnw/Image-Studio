@@ -319,7 +319,7 @@ export function AdvancedPartialImagesField({
           </SegItem>
         ))}
       </Seg>
-      <p className={`mt-1 ${noteClassName}`}>官方 `partial_images` 范围 `0-3`。`0` 只返回最终图，`1-3` 会流式返回预览帧。</p>
+      <p className={`mt-1 ${noteClassName}`}>官方 `partial_images` 范围 `0-3`。`0` 只返回最终图，`1-3` 会流式返回预览帧。高并发批量生成时，应用可能自动关闭预览以优先保证最终图完整。</p>
     </>
   );
 }

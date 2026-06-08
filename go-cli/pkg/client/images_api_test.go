@@ -65,6 +65,60 @@ func TestRequestImagesAPIWithPartialStreamsPreviews(t *testing.T) {
 	}
 }
 
+func TestRequestImagesAPIWithRetriesRetriesWhenOnlyPartialPreviewArrives(t *testing.T) {
+	partialB64 := base64.StdEncoding.EncodeToString([]byte("partial"))
+	finalB64 := base64.StdEncoding.EncodeToString([]byte("final"))
+	hits := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		if hits == 1 {
+			fmt.Fprintf(w, "data: {\"type\":\"image_generation.partial_image\",\"partial_image_index\":0,\"b64_json\":\"%s\"}\n", partialB64)
+			fmt.Fprintln(w, `data: {"type":"response.completed","response":{"status":"completed"}}`)
+			return
+		}
+		fmt.Fprintf(w, "data: {\"type\":\"image_generation.completed\",\"b64_json\":\"%s\"}\n", finalB64)
+	}))
+	defer srv.Close()
+
+	original := RetryBackoffSeconds
+	RetryBackoffSeconds = 0
+	t.Cleanup(func() { RetryBackoffSeconds = original })
+
+	var partials []PartialImage
+	res, _, err := RequestAndExtractWithRetriesAndPartial(
+		context.Background(),
+		nil,
+		Options{
+			APIKey:        "sk-test",
+			Prompt:        "cat",
+			BaseURL:       srv.URL,
+			APIMode:       APIModeImages,
+			PartialImages: 2,
+		},
+		t.TempDir(),
+		"20260518-200004",
+		nil,
+		nil,
+		func(partial PartialImage) {
+			partials = append(partials, partial)
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hits != 2 {
+		t.Fatalf("hits = %d, want 2", hits)
+	}
+	if res.ImageB64 != finalB64 || res.SourceEvent != "images_api" {
+		t.Fatalf("unexpected result: %+v", res)
+	}
+	if len(partials) != 1 || partials[0].ImageB64 != partialB64 {
+		t.Fatalf("unexpected partials: %+v", partials)
+	}
+}
+
 func TestBuildEditsMultipartSetsMaskMimeType(t *testing.T) {
 	dir := t.TempDir()
 	src := filepath.Join(dir, "source.png")

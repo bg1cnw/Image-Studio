@@ -58,6 +58,8 @@ class AndroidImageStudioBridge(
     companion object {
         private const val maxDialogReadBytes: Long = 50L * 1024L * 1024L
         private const val maxPreviewEdge = 384
+        private const val generationConnectTimeoutMs = 30_000
+        private const val generationReadTimeoutMs = 8 * 60 * 1000
     }
 
     @JavascriptInterface
@@ -435,8 +437,12 @@ class AndroidImageStudioBridge(
                 val connection = openHttpConnection(url, proxyMode, proxyUrl).apply {
                     requestMethod = method
                     instanceFollowRedirects = true
-                    connectTimeout = 30_000
-                    readTimeout = 180_000
+                    connectTimeout = generationConnectTimeoutMs
+                    // Multi-image / high-resolution jobs can legitimately run
+                    // for minutes after the last preview frame. Keeping the
+                    // Android native HTTP bridge at only 180s makes it more
+                    // likely to cut the stream before the final image arrives.
+                    readTimeout = generationReadTimeoutMs
                     doInput = true
                 }
                 httpRequests[requestKey] = connection
@@ -457,22 +463,33 @@ class AndroidImageStudioBridge(
                 }
                 val status = connection.responseCode
                 val stream = if (status >= 400) connection.errorStream else connection.inputStream
+                var streamResult: NativeHttpStreamResultSnapshot? = null
                 val body = if (streamLines) {
-                    val lines = mutableListOf<String>()
+                    val bodyBuilder = StringBuilder()
                     stream?.bufferedReader()?.useLines { sequence ->
                         sequence.forEach { line ->
-                            lines.add(line)
-                            emitNativeProgress(requestKey, mapOf("line" to line))
+                            bodyBuilder.append(line).append('\n')
+                            if (streamResult == null) {
+                                streamResult = extractNativeHttpStreamResult(line)
+                            }
+                            buildNativeHttpStreamProgressPayload(line)?.let { progressPayload ->
+                                emitNativeProgress(requestKey, progressPayload)
+                            }
                         }
                     }
-                    if (lines.isEmpty()) "" else lines.joinToString(separator = "\n", postfix = "\n")
+                    bodyBuilder.toString()
                 } else {
                     stream?.bufferedReader()?.use { it.readText() } ?: ""
                 }
+                val rawPath = if (body.isNotBlank()) writeNativeHttpRawBody(body, connection.contentType ?: "", requestKey) else ""
                 val result = mapOf(
                     "status" to status,
-                    "body" to body,
+                    "body" to if (streamResult != null) "" else body,
                     "contentType" to (connection.contentType ?: ""),
+                    "rawPath" to rawPath,
+                    "resultImageB64" to (streamResult?.imageB64 ?: ""),
+                    "revisedPrompt" to (streamResult?.revisedPrompt ?: ""),
+                    "sourceEvent" to (streamResult?.sourceEvent ?: ""),
                 )
                 resolve(requestId, result)
             } catch (error: Exception) {
@@ -482,6 +499,14 @@ class AndroidImageStudioBridge(
             }
         }
         throw EarlyResolve()
+    }
+
+    private fun writeNativeHttpRawBody(body: String, contentType: String, requestKey: String): String {
+        val logDir = File(getOutputDir(), "log").apply { mkdirs() }
+        val ext = if (contentType.lowercase(Locale.US).contains("json")) "json" else "txt"
+        val file = File(logDir, "android-http-${timestamp()}-${sanitizeFileName(requestKey, "request")}.$ext")
+        file.writeText(body)
+        return file.absolutePath
     }
 
     private fun runProbeUpstream(requestId: String, payload: JSONObject): Nothing {

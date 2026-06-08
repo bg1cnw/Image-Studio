@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
-import type { APIMode, Mode, QualityValue, RequestPolicy, SizeValue, SourceImage } from "../../types/domain";
+import type { APIMode, BatchProcessConfig, EditSourceMode, Mode, QualityValue, RequestPolicy, SizeValue, SourceImage } from "../../types/domain";
 import { DesktopComposeSections } from "./DesktopComposeSections";
 import type { AspectPreset, AspectPresetOption, ResolutionPreset } from "./sizeCapabilities";
 
@@ -19,13 +19,18 @@ export function WindowsComposePanel({
   allowPreciseSizeControl,
   availableResolutions,
   batchCount,
+  batchProcess,
+  chooseBatchInputDir,
+  chooseBatchOutputDir,
   clearSources,
   currentImageSavedPath,
+  editSourceMode,
   handleAspectSelect,
   handleResolutionSelect,
   imageModelID,
   onOpenCustomAspectRatioModal,
   onOpenCustomSizeModal,
+  onRefreshBatchInputDir,
   mode,
   onPreviewSource,
   onRemoveSource,
@@ -53,13 +58,18 @@ export function WindowsComposePanel({
   allowPreciseSizeControl: boolean;
   availableResolutions: ResolutionPreset[];
   batchCount: number;
+  batchProcess: BatchProcessConfig;
+  chooseBatchInputDir: () => void;
+  chooseBatchOutputDir: () => void;
   clearSources: () => void;
   currentImageSavedPath?: string | null;
+  editSourceMode: EditSourceMode;
   handleAspectSelect: (aspect: AspectPreset) => void;
   handleResolutionSelect: (resolution: ResolutionPreset) => void;
   imageModelID: string;
   onOpenCustomAspectRatioModal: () => void;
   onOpenCustomSizeModal: () => void;
+  onRefreshBatchInputDir: () => void;
   mode: Mode;
   onPreviewSource: (index: number) => void;
   onRemoveSource: (index: number) => void;
@@ -117,13 +127,18 @@ export function WindowsComposePanel({
             apiMode={apiMode}
             availableResolutions={availableResolutions}
             batchCount={batchCount}
+            batchProcess={batchProcess}
+            chooseBatchInputDir={chooseBatchInputDir}
+            chooseBatchOutputDir={chooseBatchOutputDir}
             clearSources={clearSources}
             currentImageSavedPath={currentImageSavedPath}
+            editSourceMode={editSourceMode}
             handleAspectSelect={handleAspectSelect}
             handleResolutionSelect={handleResolutionSelect}
             imageModelID={imageModelID}
             onOpenCustomAspectRatioModal={onOpenCustomAspectRatioModal}
             onOpenCustomSizeModal={onOpenCustomSizeModal}
+            onRefreshBatchInputDir={onRefreshBatchInputDir}
             mode={mode}
             onPreviewSource={onPreviewSource}
             onRemoveSource={onRemoveSource}

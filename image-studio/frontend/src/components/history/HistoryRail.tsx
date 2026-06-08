@@ -79,6 +79,20 @@ export function HistoryRail() {
     }
   }, [historyFiltersActive, historyHasMore, historyLoading, loadMoreHistory]);
 
+  async function clearAllHistory() {
+    await loadMoreHistory();
+    const loadedHistory = useStudioStore.getState().history;
+    if (loadedHistory.length === 0) {
+      pushToast("当前没有可删除的历史", "info");
+      return;
+    }
+    if (!window.confirm(`确定清除 ${loadedHistory.length} 条历史记录吗?`)) return;
+    for (const item of loadedHistory) {
+      await useStudioStore.getState().deleteHistoryItem(item.id);
+    }
+    pushToast("已清空全部历史", "success");
+  }
+
   async function selectCurrent(h: HistoryItem) {
     const myEpoch = ++selectEpochRef.current;
     // 2) 关键:从历史栏选图 = 显式单图选择,退出批量结果网格 overlay。否则
@@ -367,6 +381,9 @@ export function HistoryRail() {
           <button type="button" onClick={() => latestHistory && void regenerateFromHistory(latestHistory)} disabled={!latestHistory}>
             <RotateCcw className="h-4 w-4" /> 重跑最近
           </button>
+          <button type="button" onClick={() => void clearAllHistory()} disabled={history.length === 0}>
+            <Trash2 className="h-4 w-4" /> 全部删除
+          </button>
           <button
             type="button"
             className="danger"
@@ -572,6 +589,26 @@ export function HistoryRail() {
         <p className="text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
           单击查看 · 双击设源图 · Shift+点击对比 · 更多菜单查看完整操作
         </p>
+      ) : null}
+
+      {!desktopHistoryCollapsed && history.length > 0 ? (
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => latestHistory && void regenerateFromHistory(latestHistory)}
+            disabled={!latestHistory}
+            className={`platform-pill inline-flex min-h-[34px] flex-1 items-center justify-center gap-1.5 border border-black/[0.08] bg-[var(--surface)] px-3 text-[12px] text-zinc-600 transition-colors hover:border-[color:var(--accent)]/35 hover:text-[var(--accent)] dark:border-white/[0.08] dark:text-zinc-300 ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
+          >
+            <RotateCcw className="h-3.5 w-3.5" /> 重跑最近
+          </button>
+          <button
+            type="button"
+            onClick={() => void clearAllHistory()}
+            className={`platform-pill inline-flex min-h-[34px] flex-1 items-center justify-center gap-1.5 border border-black/[0.08] bg-[var(--surface)] px-3 text-[12px] text-zinc-600 transition-colors hover:border-red-400/40 hover:text-red-400 dark:border-white/[0.08] dark:text-zinc-300 ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
+          >
+            <Trash2 className="h-3.5 w-3.5" /> 全部删除
+          </button>
+        </div>
       ) : null}
 
       {desktopHistoryCollapsed ? null : visibleDesktopEntries.length === 0 ? (

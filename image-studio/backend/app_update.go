@@ -21,6 +21,7 @@ const (
 	defaultAppVersion       = "0.1.5"
 	releasesPageURL         = "https://github.com/RoseKhlifa/Image-Studio/releases"
 	latestReleaseAPIURL     = "https://api.github.com/repos/RoseKhlifa/Image-Studio/releases/latest"
+	latestReleaseAPIURLEnv  = "IMAGE_STUDIO_LATEST_RELEASE_API_URL"
 	latestReleaseAPIVersion = "2022-11-28"
 	updateRequestTimeout    = 8 * time.Second
 )
@@ -69,6 +70,10 @@ func (s *Service) CheckForAppUpdate() (AppUpdateInfo, error) {
 	if latestVersion == "" {
 		return AppUpdateInfo{}, fmt.Errorf("无法识别 release 版本: %q", release.TagName)
 	}
+	hasUpdate := compareSemver(latestVersion, currentVersion) > 0
+	if semverCore(latestVersion) != "" && semverCore(latestVersion) == semverCore(currentVersion) {
+		hasUpdate = false
+	}
 
 	return AppUpdateInfo{
 		CurrentVersion: currentVersion,
@@ -78,12 +83,19 @@ func (s *Service) CheckForAppUpdate() (AppUpdateInfo, error) {
 		ReleaseURL:     chooseReleaseURL(strings.TrimSpace(release.HTMLURL)),
 		PublishedAt:    strings.TrimSpace(release.PublishedAt),
 		Body:           strings.TrimSpace(release.Body),
-		HasUpdate:      compareSemver(latestVersion, currentVersion) > 0,
+		HasUpdate:      hasUpdate,
 	}, nil
 }
 
 func fetchLatestGitHubRelease(ctx context.Context) (githubLatestRelease, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, latestReleaseAPIURL, nil)
+	apiURL := strings.TrimSpace(os.Getenv(latestReleaseAPIURLEnv))
+	if apiURL == "" {
+		apiURL = commandLineArgValue(os.Args[1:], latestReleaseAPIURLArg)
+	}
+	if apiURL == "" {
+		apiURL = latestReleaseAPIURL
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
 	if err != nil {
 		return githubLatestRelease{}, err
 	}
@@ -242,6 +254,20 @@ func parseSemver(input string) (parsedSemver, bool) {
 		patch:      patch,
 		prerelease: prerelease,
 	}, true
+}
+
+func semverCore(input string) string {
+	value := normalizeReleaseVersion(input)
+	if value == "" {
+		return ""
+	}
+	if idx := strings.Index(value, "+"); idx >= 0 {
+		value = value[:idx]
+	}
+	if idx := strings.Index(value, "-"); idx >= 0 {
+		value = value[:idx]
+	}
+	return value
 }
 
 func compareSemverSuffix(a, b []string) int {

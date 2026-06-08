@@ -22,28 +22,32 @@ type State struct {
 }
 
 type Settings struct {
-	ProxyMode            string                   `json:"proxyMode,omitempty"`
-	ProxyURL             string                   `json:"proxyURL,omitempty"`
-	Theme                string                   `json:"theme,omitempty"`
-	FontScale            float64                  `json:"fontScale,omitempty"`
-	OutputFormat         string                   `json:"outputFormat,omitempty"`
-	Background           string                   `json:"background,omitempty"`
-	OutputCompression    *int                     `json:"outputCompression,omitempty"`
-	InputFidelity        string                   `json:"inputFidelity,omitempty"`
-	ImageStyle           string                   `json:"imageStyle,omitempty"`
-	Moderation           string                   `json:"moderation,omitempty"`
-	UserIdentifier       string                   `json:"userIdentifier,omitempty"`
-	PartialImages        *int                     `json:"partialImages,omitempty"`
-	OutputDir            string                   `json:"outputDir,omitempty"`
-	PromptHistory        []string                 `json:"promptHistory,omitempty"`
-	Presets              []Preset                 `json:"presets,omitempty"`
-	KernelRuntimeMode    string                   `json:"kernelRuntimeMode,omitempty"`
-	ReducedEffects       bool                     `json:"reducedEffects,omitempty"`
-	TrustedOutputRoots   []string                 `json:"trustedOutputRoots,omitempty"`
-	SavePromptSuppressed bool                     `json:"savePromptSuppressed,omitempty"`
-	KeepLogs             bool                     `json:"keepLogs,omitempty"`
-	IgnoredReleaseTag    string                   `json:"ignoredReleaseTag,omitempty"`
-	CompletionSound      *CompletionSoundSettings `json:"completionSound,omitempty"`
+	ProxyMode                 string                   `json:"proxyMode,omitempty"`
+	ProxyURL                  string                   `json:"proxyURL,omitempty"`
+	Theme                     string                   `json:"theme,omitempty"`
+	FontScale                 float64                  `json:"fontScale,omitempty"`
+	OutputFormat              string                   `json:"outputFormat,omitempty"`
+	Background                string                   `json:"background,omitempty"`
+	OutputCompression         *int                     `json:"outputCompression,omitempty"`
+	InputFidelity             string                   `json:"inputFidelity,omitempty"`
+	ImageStyle                string                   `json:"imageStyle,omitempty"`
+	Moderation                string                   `json:"moderation,omitempty"`
+	UserIdentifier            string                   `json:"userIdentifier,omitempty"`
+	PartialImages             *int                     `json:"partialImages,omitempty"`
+	ProtectStreamPreview      *bool                    `json:"protectStreamPreview,omitempty"`
+	AutoRetryEnabled          *bool                    `json:"autoRetryEnabled,omitempty"`
+	PromptTemplates           []PromptTemplate         `json:"promptTemplates,omitempty"`
+	OutputDir                 string                   `json:"outputDir,omitempty"`
+	PromptHistory             []string                 `json:"promptHistory,omitempty"`
+	Presets                   []Preset                 `json:"presets,omitempty"`
+	KernelRuntimeMode         string                   `json:"kernelRuntimeMode,omitempty"`
+	ReducedEffects            bool                     `json:"reducedEffects,omitempty"`
+	TrustedOutputRoots        []string                 `json:"trustedOutputRoots,omitempty"`
+	SavePromptSuppressed      bool                     `json:"savePromptSuppressed,omitempty"`
+	KeepLogs                  bool                     `json:"keepLogs,omitempty"`
+	CleanupPreviewCacheOnExit bool                     `json:"cleanupPreviewCacheOnExit,omitempty"`
+	IgnoredReleaseTag         string                   `json:"ignoredReleaseTag,omitempty"`
+	CompletionSound           *CompletionSoundSettings `json:"completionSound,omitempty"`
 }
 
 type CompletionSoundSettings struct {
@@ -64,6 +68,7 @@ type UpstreamProfile struct {
 	ImageModelID       string `json:"imageModelID"`
 	ReasoningEffort    string `json:"reasoningEffort"`
 	ConcurrencyLimit   int    `json:"concurrencyLimit"`
+	FallbackProfileID  string `json:"fallbackProfileId,omitempty"`
 	CreatedAt          int64  `json:"createdAt"`
 	LastUsedAt         int64  `json:"lastUsedAt,omitempty"`
 }
@@ -82,6 +87,14 @@ type Preset struct {
 	Moderation        string `json:"moderation,omitempty"`
 	KernelRuntimeMode string `json:"kernelRuntimeMode,omitempty"`
 	BatchCount        int    `json:"batchCount"`
+}
+
+type PromptTemplate struct {
+	ID        string `json:"id"`
+	Label     string `json:"label"`
+	Text      string `json:"text"`
+	CreatedAt int64  `json:"createdAt"`
+	UpdatedAt int64  `json:"updatedAt"`
 }
 
 type HistoryItem struct {

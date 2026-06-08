@@ -2,6 +2,12 @@ import type React from "react";
 import { Clock3, Ellipsis, Images, Layers3 } from "lucide-react";
 import { Modal } from "../common/Modal";
 import { historyPreviewSrc, useBlobURL } from "../../lib/images";
+import {
+  buildHistoryItemDragExport,
+  writeImageFileDragData,
+  writeInternalHistoryItemDragData,
+} from "../../lib/dragExport.ts";
+import { BeginNativeFileDrag } from "../../platform/runtime/host";
 import type { HistoryItem } from "../../types/domain";
 import { usePlatform } from "../../platform/context";
 import { HistoryModeBadge } from "./HistoryModeBadge";
@@ -119,6 +125,8 @@ function HistoryPromptModalThumbnail({
   const previewURL = useBlobURL(item.previewBlob ?? item.imageBlob ?? null, item.imageB64 ?? null);
   const imageSrc = historyPreviewSrc(item, previewURL);
   const displayIndex = typeof item.batchIndex === "number" ? item.batchIndex + 1 : index + 1;
+  const dragSpec = buildHistoryItemDragExport(item);
+  const { isMac } = usePlatform();
 
   function openMenu(event: React.MouseEvent) {
     event.preventDefault();
@@ -135,14 +143,34 @@ function HistoryPromptModalThumbnail({
     void onSelect(item);
   }
 
+  function handleDragStart(event: React.DragEvent<HTMLButtonElement>) {
+    if (!dragSpec) {
+      event.preventDefault();
+      return;
+    }
+    event.stopPropagation();
+    if (isMac && item.savedPath) {
+      event.preventDefault();
+      void BeginNativeFileDrag(item.savedPath).catch((error) => {
+        console.error("[drag-export] native-file-drag failed", error);
+      });
+      return;
+    }
+    event.dataTransfer.effectAllowed = "copy";
+    writeInternalHistoryItemDragData(event.dataTransfer, item);
+    writeImageFileDragData(event.dataTransfer, dragSpec);
+  }
+
   return (
     <button
       type="button"
       className={`history-prompt-modal-thumb ${isCurrent ? "active" : ""} ${isCompare ? "compare" : ""}`}
       title={item.prompt}
+      draggable={!!dragSpec}
       onClick={handleSelect}
       onDoubleClick={() => void onReuse(item)}
       onContextMenu={openMenu}
+      onDragStart={handleDragStart}
     >
       <img src={imageSrc} alt={item.prompt} loading="eager" decoding="async" />
       <HistoryModeBadge mode={item.mode} className="history-prompt-modal-thumb-mode" />

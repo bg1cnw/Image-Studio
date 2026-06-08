@@ -140,13 +140,17 @@ export function AndroidParameterEditor({
         />
       </AndroidParameterBlock>
 
-      <AndroidDiscreteSlider
-        label="出图张数"
-        value={batchCount}
-        options={ANDROID_BATCH_COUNT_OPTIONS}
-        onChange={(next) => setField("batchCount", next)}
-        valueSuffix="张"
-      />
+      <AndroidParameterBlock title="出图张数">
+        <AndroidSegmentedChoices
+          columns={3}
+          options={ANDROID_BATCH_COUNT_OPTIONS}
+          value={batchCount}
+          onChange={(next) => setField("batchCount", next)}
+        />
+        <p className="android-parameter-note mt-2">
+          多张会并行请求，完成后可在画板按网格挑图；实际效果仍受上游并发限制影响。
+        </p>
+      </AndroidParameterBlock>
     </AndroidParameterEditorShell>
   );
 }

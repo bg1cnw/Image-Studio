@@ -56,3 +56,20 @@ test("legacy profiles without reasoningEffort normalize to xhigh", () => {
   });
   assert.equal(parsed?.reasoningEffort, "xhigh");
 });
+
+test("legacy profiles preserve fallbackProfileId when present", () => {
+  const parsed = profiles.tryParseProfile({
+    id: "p1",
+    name: "配置1",
+    apiMode: "responses",
+    requestPolicy: "openai",
+    baseURL: "",
+    textModelID: "",
+    imageModelID: "",
+    reasoningEffort: "xhigh",
+    concurrencyLimit: 0,
+    fallbackProfileId: "backup-profile",
+    createdAt: 1,
+  });
+  assert.equal(parsed?.fallbackProfileId, "backup-profile");
+});

@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useBlobURL } from "../../lib/images";
 
 export function CompareOverlay({
-  aBlob, aB64, aUrl, bBlob, bB64, bUrl, split, onSplit,
+  aBlob, aB64, aUrl, bBlob, bB64, bUrl, split, onSplit, aLabel = "当前图", bLabel = "对比图",
 }: {
   aBlob: Blob | null;
   aB64?: string | null;
@@ -12,6 +12,8 @@ export function CompareOverlay({
   bUrl?: string | null;
   split: number;
   onSplit: (v: number) => void;
+  aLabel?: string;
+  bLabel?: string;
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
@@ -79,8 +81,8 @@ export function CompareOverlay({
           color: "#fff", fontSize: 12,
         }}>⇆</div>
       </div>
-      <div style={{ position: "absolute", top: 8, left: 8, background: "rgba(0,0,0,0.55)", padding: "2px 8px", borderRadius: 4, fontSize: 11, color: "#9ec5ff" }}>A · 当前图</div>
-      <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,0.55)", padding: "2px 8px", borderRadius: 4, fontSize: 11, color: "#cdb8ff" }}>B · 对比图</div>
+      <div style={{ position: "absolute", top: 8, left: 8, background: "rgba(0,0,0,0.55)", padding: "2px 8px", borderRadius: 4, fontSize: 11, color: "#9ec5ff" }}>{`A · ${aLabel}`}</div>
+      <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,0.55)", padding: "2px 8px", borderRadius: 4, fontSize: 11, color: "#cdb8ff" }}>{`B · ${bLabel}`}</div>
     </div>
   );
 }

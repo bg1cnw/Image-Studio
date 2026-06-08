@@ -82,6 +82,7 @@ export function AndroidCanvasWorkspace() {
     openResultDetail,
     selectSourceImage,
     viewSourceOnCanvas,
+    compareSourceOnCanvas,
     removeSource,
     reorderSources,
     clearSources,
@@ -226,6 +227,7 @@ export function AndroidCanvasWorkspace() {
           currentImage={currentImage}
           sources={sources}
           onAdd={() => runAction(selectSourceImage, 8)}
+          onCompare={() => runAction(() => compareSourceOnCanvas(0), 8)}
           onPreview={(index) => runAction(() => viewSourceOnCanvas(index), 8)}
           onRemove={(index) => runAction(() => removeSource(index), 5)}
           onMove={(from, to) => runAction(() => reorderSources(from, to), 5)}
@@ -552,6 +554,7 @@ function AndroidSourceStrip({
   currentImage,
   sources,
   onAdd,
+  onCompare,
   onPreview,
   onRemove,
   onMove,
@@ -560,6 +563,7 @@ function AndroidSourceStrip({
   currentImage: HistoryItem | null;
   sources: SourceImage[];
   onAdd: () => void;
+  onCompare: () => void;
   onPreview: (index: number) => void;
   onRemove: (index: number) => void;
   onMove: (from: number, to: number) => void;
@@ -569,9 +573,14 @@ function AndroidSourceStrip({
     <div className="android-canvas-source-strip">
       <div className="android-canvas-source-head">
         <span>参考图</span>
-        <button type="button" onClick={onClear}>
-          清空
-        </button>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={onCompare}>
+            对比主参考
+          </button>
+          <button type="button" onClick={onClear}>
+            清空
+          </button>
+        </div>
       </div>
       <div className="android-canvas-source-list">
         {sources.map((source, index) => (

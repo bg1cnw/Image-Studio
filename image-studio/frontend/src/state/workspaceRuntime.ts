@@ -1,11 +1,13 @@
-import type { backend } from "../../wailsjs/go/models";
 import type {
+  BatchProcessSourceImage,
+  BatchProcessConfig,
   LoopGenerationConfig,
   ProgressInfo,
   StreamPreview,
   StreamPreviewMap,
   Workspace,
 } from "../types/domain";
+import type { GenerateOptionsLike } from "../platform/runtime/hostTypes";
 
 export type APIModeValue = "responses" | "images";
 
@@ -31,7 +33,7 @@ export interface WorkspaceRuntimeState {
   errorMessage: string | null;
   errorCanRetry: boolean;
   errorRawPath: string | null;
-  lastPayload: backend.GenerateOptions | null;
+  lastPayload: GenerateOptionsLike | null;
   workspaces: Workspace[];
 }
 
@@ -46,7 +48,7 @@ export interface WorkspaceRuntimeMirror {
   errorMessage: string | null;
   errorCanRetry: boolean;
   errorRawPath: string | null;
-  lastPayload: backend.GenerateOptions | null;
+  lastPayload: GenerateOptionsLike | null;
   isRunning: boolean;
 }
 
@@ -73,6 +75,8 @@ export const DEFAULT_LOOP_GENERATION_COUNT = 10;
 export const DEFAULT_LOOP_GENERATION_CONCURRENCY = 2;
 export const MAX_LOOP_GENERATION_COUNT = 99;
 export const MAX_LOOP_GENERATION_CONCURRENCY = 9;
+export const DEFAULT_BATCH_PROCESS_CONCURRENCY = 2;
+export const MAX_BATCH_PROCESS_CONCURRENCY = 9;
 
 export function defaultLoopGenerationConfig(): LoopGenerationConfig {
   return {
@@ -82,6 +86,66 @@ export function defaultLoopGenerationConfig(): LoopGenerationConfig {
     autoSave: false,
     autoSaveDir: "",
     livePreview: true,
+  };
+}
+
+export function defaultBatchProcessConfig(): BatchProcessConfig {
+  return {
+    enabled: false,
+    inputDir: "",
+    outputMode: "source_dir",
+    outputDir: "",
+    concurrency: DEFAULT_BATCH_PROCESS_CONCURRENCY,
+    fileNamePrefix: "processed-",
+    discoveredSources: [],
+  };
+}
+
+export function normalizeBatchProcessConcurrency(value: unknown): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return DEFAULT_BATCH_PROCESS_CONCURRENCY;
+  return Math.max(1, Math.min(MAX_BATCH_PROCESS_CONCURRENCY, Math.floor(n)));
+}
+
+export function normalizeBatchProcessConfig(value: unknown): BatchProcessConfig {
+  const source = value && typeof value === "object"
+    ? value as Partial<BatchProcessConfig>
+    : {};
+  const discoveredSources: BatchProcessSourceImage[] = [];
+  if (Array.isArray(source.discoveredSources)) {
+    for (const item of source.discoveredSources) {
+      if (!item || typeof item !== "object") continue;
+      const candidate = item as {
+        path?: unknown;
+        name?: unknown;
+        size?: unknown;
+        previewUrl?: unknown;
+        previewWidth?: unknown;
+        previewHeight?: unknown;
+      };
+      const path = typeof candidate.path === "string" ? candidate.path.trim() : "";
+      const name = typeof candidate.name === "string" ? candidate.name.trim() : "";
+      if (!path || !name) continue;
+      discoveredSources.push({
+        path,
+        name,
+        size: Number.isFinite(Number(candidate.size)) ? Math.max(0, Math.floor(Number(candidate.size))) : 0,
+        previewUrl: typeof candidate.previewUrl === "string" ? candidate.previewUrl : undefined,
+        previewWidth: Number.isFinite(Number(candidate.previewWidth)) ? Math.floor(Number(candidate.previewWidth)) : undefined,
+        previewHeight: Number.isFinite(Number(candidate.previewHeight)) ? Math.floor(Number(candidate.previewHeight)) : undefined,
+      });
+    }
+  }
+  return {
+    enabled: source.enabled === true,
+    inputDir: typeof source.inputDir === "string" ? source.inputDir.trim() : "",
+    outputMode: source.outputMode === "custom_dir" ? "custom_dir" : "source_dir",
+    outputDir: typeof source.outputDir === "string" ? source.outputDir.trim() : "",
+    concurrency: normalizeBatchProcessConcurrency(source.concurrency),
+    fileNamePrefix: typeof source.fileNamePrefix === "string" && source.fileNamePrefix.trim()
+      ? source.fileNamePrefix.trim()
+      : "processed-",
+    discoveredSources,
   };
 }
 
@@ -117,6 +181,7 @@ export function patchWorkspaceRuntime(workspaces: Workspace[], workspaceId: stri
     const next: Workspace = { ...w };
     if (patch.name !== undefined) next.name = patch.name;
     if (patch.loopGeneration !== undefined) next.loopGeneration = normalizeLoopGenerationConfig(patch.loopGeneration);
+    if (patch.batchProcess !== undefined) next.batchProcess = normalizeBatchProcessConfig(patch.batchProcess);
     if (patch.currentImageId !== undefined) next.currentImageId = patch.currentImageId;
     if (patch.batchResultIds !== undefined) next.batchResultIds = patch.batchResultIds;
     if (patch.resultGridOpen !== undefined) next.resultGridOpen = patch.resultGridOpen;

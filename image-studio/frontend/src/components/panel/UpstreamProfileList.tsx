@@ -1,4 +1,4 @@
-import { Copy, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Copy, Download, Plus, RefreshCw, Trash2, Upload } from "lucide-react";
 import type { UpstreamProfile } from "../../types/domain";
 import { usePlatform } from "../../platform/context";
 
@@ -14,6 +14,8 @@ export function UpstreamProfileList({
   onHandleNew,
   onHandleDuplicate,
   onHandleDelete,
+  onHandleExport,
+  onHandleImport,
   onHandleSetActive,
   onHandleSyncCodex,
 }: {
@@ -28,6 +30,8 @@ export function UpstreamProfileList({
   onHandleNew: () => void | Promise<void>;
   onHandleDuplicate: () => void | Promise<void>;
   onHandleDelete: () => void | Promise<void>;
+  onHandleExport: () => void | Promise<void>;
+  onHandleImport: () => void | Promise<void>;
   onHandleSetActive: () => void | Promise<void>;
   onHandleSyncCodex: () => void | Promise<void>;
 }) {
@@ -95,6 +99,23 @@ export function UpstreamProfileList({
           className={`platform-action-btn inline-flex items-center justify-center gap-1 border border-black/[0.08] px-2.5 py-1.5 text-[11px] text-zinc-700 transition-colors hover:border-[color:var(--accent)]/35 hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/[0.08] dark:text-zinc-300 ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
         >
           <Copy className="h-3 w-3" />
+        </button>
+        <button
+          type="button"
+          onClick={() => void onHandleImport()}
+          title="导入上游配置"
+          className={`platform-action-btn inline-flex items-center justify-center gap-1 border border-black/[0.08] px-2.5 py-1.5 text-[11px] text-zinc-700 transition-colors hover:border-[color:var(--accent)]/35 hover:text-[var(--accent)] dark:border-white/[0.08] dark:text-zinc-300 ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
+        >
+          <Upload className="h-3 w-3" />
+        </button>
+        <button
+          type="button"
+          onClick={() => void onHandleExport()}
+          disabled={profiles.length === 0}
+          title="导出上游配置"
+          className={`platform-action-btn inline-flex items-center justify-center gap-1 border border-black/[0.08] px-2.5 py-1.5 text-[11px] text-zinc-700 transition-colors hover:border-[color:var(--accent)]/35 hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/[0.08] dark:text-zinc-300 ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
+        >
+          <Download className="h-3 w-3" />
         </button>
         <button
           type="button"

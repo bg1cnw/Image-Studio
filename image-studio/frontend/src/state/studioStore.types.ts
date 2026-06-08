@@ -1,9 +1,12 @@
-import type { backend } from "../../wailsjs/go/models";
+import type { GenerateOptionsLike } from "../platform/runtime/hostTypes";
 import type {
   Annotation,
   AppUpdateInfo,
   APIMode,
+  BatchProcessConfig,
   BackgroundValue,
+  BatchProcessSourceImage,
+  EditSourceMode,
   HistoryItem,
   ImageStyleValue,
   InputFidelityValue,
@@ -16,6 +19,7 @@ import type {
   CompletionSoundConfig,
   Preset,
   ProgressInfo,
+  PromptTemplate,
   ProxyMode,
   QualityValue,
   RequestPolicy,
@@ -78,6 +82,8 @@ export interface StudioState {
   moderation: ModerationValue;
   userIdentifier: string;
   partialImages: number;
+  protectStreamPreview: boolean;
+  autoRetryEnabled: boolean;
   kernelRuntimeMode: KernelRuntimeMode;
   baseURL: string;
   textModelID: string;
@@ -92,6 +98,8 @@ export interface StudioState {
   profiles: UpstreamProfile[];
   activeProfileId: string;
   sources: SourceImage[];
+  editSourceMode: EditSourceMode;
+  batchProcess: BatchProcessConfig;
   runningJobs: string[];
   jobsTotal: number;
   jobsCompleted: number;
@@ -103,7 +111,7 @@ export interface StudioState {
   errorCanRetry: boolean;
   errorRawPath: string | null;
   isRunning: boolean;
-  lastPayload: backend.GenerateOptions | null;
+  lastPayload: GenerateOptionsLike | null;
   runningJobMeta: Record<string, RunningJobMeta>;
   currentImage: HistoryItem | null;
   history: HistoryItem[];
@@ -131,6 +139,7 @@ export interface StudioState {
   canvasViewResetTick: number;
   fullscreen: boolean;
   promptHistory: string[];
+  promptTemplates: PromptTemplate[];
   batchCount: number;
   loopGeneration: LoopGenerationConfig;
   presets: Preset[];
@@ -165,7 +174,10 @@ export interface StudioState {
   duplicateProfile: (id: string) => Promise<string | null>;
   setActiveProfile: (id: string) => Promise<void>;
   selectSourceImage: () => Promise<void>;
+  chooseBatchInputDir: () => Promise<void>;
+  refreshBatchInputDir: () => Promise<void>;
   viewSourceOnCanvas: (index: number) => Promise<void>;
+  compareSourceOnCanvas: (index: number) => Promise<void>;
   removeSource: (index: number) => void;
   clearSources: () => void;
   reorderSources: (from: number, to: number) => void;
@@ -191,6 +203,7 @@ export interface StudioState {
   openResultGrid: () => void;
   closeResultGrid: () => void;
   selectBatchResult: (item: HistoryItem) => Promise<void>;
+  stepBatchResult: (delta: -1 | 1) => Promise<void>;
   importImageFile: (file: File) => Promise<void>;
   pushToast: (text: string, kind?: Toast["kind"], ttl?: number, action?: Toast["action"]) => void;
   dismissToast: (id: string) => void;
@@ -201,6 +214,7 @@ export interface StudioState {
   savePromptQueue: HistoryItem[];
   savePromptSuppressed: boolean;
   keepLogs: boolean;
+  cleanupPreviewCacheOnExit: boolean;
   completionSound: CompletionSoundConfig;
   ignoredReleaseTag: string;
   appUpdate: AppUpdateInfo | null;
@@ -209,6 +223,7 @@ export interface StudioState {
   closeSavePrompt: () => void;
   setSavePromptSuppressed: (value: boolean) => void;
   setKeepLogs: (value: boolean) => Promise<void>;
+  setCleanupPreviewCacheOnExit: (value: boolean) => Promise<void>;
   ignoreAppUpdate: (releaseTag: string) => void;
   dismissAppUpdateModal: () => void;
   setCompletionSoundEnabled: (value: boolean) => void;
@@ -228,6 +243,9 @@ export interface StudioState {
   updatePreset: (id: string, patch: Partial<Omit<Preset, "id">>) => boolean;
   applyPreset: (id: string) => void;
   deletePreset: (id: string) => void;
+  addPromptTemplate: (label: string, text: string) => string | null;
+  updatePromptTemplate: (id: string, patch: Partial<Pick<PromptTemplate, "label" | "text">>) => boolean;
+  deletePromptTemplate: (id: string) => void;
   exportHistory: () => Promise<void>;
   importHistory: () => Promise<void>;
   setTheme: (t: ThemeMode) => void;

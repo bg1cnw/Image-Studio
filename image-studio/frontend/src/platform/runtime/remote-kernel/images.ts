@@ -28,6 +28,23 @@ function parseSSEEvent(line: string): any | null {
   }
 }
 
+function parseNativeProgressPayload(payload: unknown): { line: string; event: any | null } {
+  if (typeof payload === "string") {
+    return { line: payload, event: parseSSEEvent(payload) };
+  }
+  if (!payload || typeof payload !== "object") {
+    return { line: "", event: null };
+  }
+  const line = typeof (payload as { line?: unknown }).line === "string"
+    ? (payload as { line: string }).line
+    : "";
+  const structured = (payload as { event?: unknown }).event;
+  const event = structured && typeof structured === "object"
+    ? structured
+    : parseSSEEvent(line);
+  return { line, event };
+}
+
 function parseImagesStreamEvent(
   event: any,
   callbacks: RemoteJobCallbacks,
@@ -96,19 +113,12 @@ function parseImagesStreamRaw(
   callbacks: RemoteJobCallbacks,
   emitPartials = false,
 ): ExtractedImageResult | null {
-  let fallbackPartial = "";
   const partialCallbacks = emitPartials ? callbacks : { signal: callbacks.signal };
   for (const line of raw.split(/\r?\n/)) {
     const event = parseSSEEvent(line);
     if (!event) continue;
-    if ((event.type === "image_generation.partial_image" || event.type === "image_edit.partial_image") && event.b64_json) {
-      fallbackPartial = event.b64_json;
-    }
     const result = parseImagesStreamEvent(event, partialCallbacks);
     if (result) return result;
-  }
-  if (fallbackPartial) {
-    return { imageB64: fallbackPartial, revisedPrompt: "", sourceEvent: "images_api_partial" };
   }
   return null;
 }
@@ -132,11 +142,15 @@ export async function requestImagesOnce(
       let rawFromLines = "";
       let nativeStreamResult: ExtractedImageResult | null = null;
       let nativeBytesReceived = 0;
-      const consumeNativeLine = (line: string) => {
-        rawFromLines += `${line}\n`;
-        nativeBytesReceived += line.length + 1;
-        const event = parseSSEEvent(line);
-        const parsed = event ? parseImagesStreamEvent(event, callbacks) : null;
+      let receivedNativeStreamPayload = false;
+      const consumeNativePayload = (payload: unknown) => {
+        receivedNativeStreamPayload = true;
+        const parsedPayload = parseNativeProgressPayload(payload);
+        if (parsedPayload.line) {
+          rawFromLines += `${parsedPayload.line}\n`;
+          nativeBytesReceived += parsedPayload.line.length + 1;
+        }
+        const parsed = parsedPayload.event ? parseImagesStreamEvent(parsedPayload.event, callbacks) : null;
         if (parsed) nativeStreamResult = parsed;
         callbacks.onProgress?.("已收到 Images API 流式事件", nowSeconds(startedAt), nativeBytesReceived);
       };
@@ -150,14 +164,24 @@ export async function requestImagesOnce(
         },
         built.body,
         callbacks.signal,
-        consumeNativeLine,
+        consumeNativePayload,
         { proxyMode, proxyURL: request.payload.proxyURL || "" },
       );
       const rawBody = response.body || rawFromLines;
-      const rawPath = registerRawText("images", attempt, rawBody);
+      const rawPath = response.rawPath || registerRawText("images", attempt, rawBody);
       const isStream = String(response.contentType || "").toLowerCase().includes("text/event-stream");
+      if (response.resultImageB64) {
+        return {
+          imageB64: response.resultImageB64,
+          revisedPrompt: response.revisedPrompt || "",
+          sourceEvent: response.sourceEvent || "images_api",
+          rawPath,
+          prompt: request.payload.prompt,
+          mode: request.payload.mode,
+        };
+      }
       const result = isStream
-        ? nativeStreamResult ?? parseImagesStreamRaw(rawBody, callbacks)
+        ? nativeStreamResult ?? (receivedNativeStreamPayload ? null : parseImagesStreamRaw(rawBody, callbacks))
         : parseImagesResponse(rawBody, response.status);
       if (!result) throw new RemoteKernelError("上游没有返回可用图片", rawPath);
       return { ...result, rawPath, prompt: request.payload.prompt, mode: request.payload.mode };

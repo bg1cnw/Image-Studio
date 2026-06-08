@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useStudioStore } from "../../state/studioStore";
 import { SizeValue, QualityValue, Mode } from "../../types/domain";
 import { usePlatform } from "../../platform/context";
+import { ChooseDirectory } from "../../platform/runtime/host";
 import { AndroidPhoneComposePanel } from "../../platform/android/AndroidPhoneComposePanel";
 import { AndroidPadComposePanel } from "../../platform/android/AndroidPadComposePanel";
 import { DesktopAdvancedPanel } from "./DesktopAdvancedPanel";
@@ -20,6 +21,7 @@ import {
   aspectPresetLabel,
   availableResolutionPresets,
   buildAspectSizeSelection,
+  buildReferenceAspectRatio,
   buildResolutionSizeSelection,
   deriveExactSizeSelection,
   deriveAspectPreset,
@@ -38,13 +40,14 @@ export function ControlPanel({
   const {
     apiKey, mode, prompt, background, imageStyle, inputFidelity, moderation, negativePrompt, outputCompression, size, quality, seed, styleTag,
     userIdentifier, partialImages,
-    outputFormat, batchCount, loopGeneration,
+    outputFormat, batchCount, editSourceMode, batchProcess, loopGeneration,
     sources, currentImage,
     errorMessage, errorCanRetry, errorRawPath, isRunning, lastPayload, isTestingKey, isOptimizingPrompt,
     apiMode, requestPolicy, baseURL, profiles, imageModelID,
     customAspectRatios,
     setField, clearError, pushToast,
-    selectSourceImage, removeSource, clearSources, viewSourceOnCanvas,
+    selectSourceImage, chooseBatchInputDir, refreshBatchInputDir, removeSource, clearSources, viewSourceOnCanvas,
+    compareSourceOnCanvas,
     openCustomAspectRatioModal,
     openCustomSizeModal,
     openUpstreamConfig,
@@ -77,14 +80,25 @@ export function ControlPanel({
   const qualityOptions = availableQualityOptions(imageModelID);
   const allowCustomAspectRatios = supportsCustomAspectRatios(capabilityInput);
   const allowPreciseSizeControl = supportsPreciseSizeControl(capabilityInput);
+  const referenceDimensions = sources[0]?.previewWidth && sources[0]?.previewHeight
+    ? { width: sources[0].previewWidth, height: sources[0].previewHeight }
+    : currentImage?.previewWidth && currentImage?.previewHeight
+      ? { width: currentImage.previewWidth, height: currentImage.previewHeight }
+      : null;
+  const referenceAspectRatio = referenceDimensions
+    ? buildReferenceAspectRatio(referenceDimensions.width, referenceDimensions.height, customAspectRatios)
+    : null;
+  const sizingAspectRatios = referenceAspectRatio && !customAspectRatios.some((item) => item.id === referenceAspectRatio.id)
+    ? [...customAspectRatios, referenceAspectRatio]
+    : customAspectRatios;
   const activeStyleLabel = STYLE_CHIPS.find((item) => item.id === styleTag)?.label ?? styleTag;
-  const aspectOptions = listAspectPresetOptions(capabilityInput, customAspectRatios);
-  const exactSize = deriveExactSizeSelection(normalizedSize, capabilityInput, customAspectRatios);
-  const derivedAspect = deriveAspectPreset(normalizedSize, customAspectRatios);
+  const aspectOptions = listAspectPresetOptions(capabilityInput, sizingAspectRatios);
+  const exactSize = deriveExactSizeSelection(normalizedSize, capabilityInput, sizingAspectRatios);
+  const derivedAspect = deriveAspectPreset(normalizedSize, sizingAspectRatios);
   const derivedResolution = deriveResolutionPreset(normalizedSize);
   const activeAspect = exactSize ? null : derivedAspect;
   const activeResolution = exactSize ? null : derivedResolution;
-  const activeAspectLabel = exactSize ? "精确尺寸" : aspectPresetLabel(derivedAspect, customAspectRatios);
+  const activeAspectLabel = exactSize ? "精确尺寸" : aspectPresetLabel(derivedAspect, sizingAspectRatios);
   const activeResolutionLabel = exactSize
     ? exactSize.label
     : (RESOLUTION_PRESETS.find((item) => item.value === derivedResolution)?.label ?? derivedResolution);
@@ -121,12 +135,25 @@ export function ControlPanel({
   }
 
   function handleResolutionSelect(resolution: typeof activeResolution) {
+    const referenceAspectPreset = referenceDimensions
+      ? deriveAspectPreset(
+          `${referenceDimensions.width}x${referenceDimensions.height}` as SizeValue,
+          sizingAspectRatios,
+        )
+      : null;
     setField("size", buildResolutionSizeSelection(
       derivedAspect,
       resolution ?? derivedResolution,
       capabilityInput,
-      customAspectRatios,
+      sizingAspectRatios,
+      referenceAspectPreset,
     ));
+  }
+
+  async function chooseBatchOutputDir() {
+    const chosen = await ChooseDirectory("选择批处理输出目录").catch(() => "");
+    if (!chosen) return;
+    setField("batchProcess" as any, { ...batchProcess, outputDir: chosen, outputMode: "custom_dir" });
   }
 
   return (
@@ -218,8 +245,12 @@ export function ControlPanel({
           apiMode={apiMode}
           availableResolutions={availableResolutions}
           batchCount={batchCount}
+          batchProcess={batchProcess}
+          chooseBatchInputDir={chooseBatchInputDir}
+          chooseBatchOutputDir={chooseBatchOutputDir}
           clearSources={clearSources}
           currentImageSavedPath={currentImage?.savedPath ?? null}
+          editSourceMode={editSourceMode}
           handleAspectSelect={handleAspectSelect}
           handleResolutionSelect={handleResolutionSelect}
           imageModelID={imageModelID}
@@ -227,6 +258,7 @@ export function ControlPanel({
           allowPreciseSizeControl={allowPreciseSizeControl}
           onOpenCustomAspectRatioModal={openCustomAspectRatioModal}
           onOpenCustomSizeModal={openCustomSizeModal}
+          onRefreshBatchInputDir={refreshBatchInputDir}
           usesFluentUI={usesFluentUI}
           mode={mode}
           onPreviewSource={(index) => void viewSourceOnCanvas(index)}
@@ -257,8 +289,12 @@ export function ControlPanel({
           activeQualityLabel={activeQualityLabel}
           availableResolutions={availableResolutions}
           batchCount={batchCount}
+          batchProcess={batchProcess}
+          chooseBatchInputDir={chooseBatchInputDir}
+          chooseBatchOutputDir={chooseBatchOutputDir}
           clearSources={clearSources}
           currentImageSavedPath={currentImage?.savedPath ?? null}
+          editSourceMode={editSourceMode}
           handleAspectSelect={handleAspectSelect}
           handleResolutionSelect={handleResolutionSelect}
           imageModelID={imageModelID}
@@ -266,6 +302,7 @@ export function ControlPanel({
           allowPreciseSizeControl={allowPreciseSizeControl}
           onOpenCustomAspectRatioModal={openCustomAspectRatioModal}
           onOpenCustomSizeModal={openCustomSizeModal}
+          onRefreshBatchInputDir={refreshBatchInputDir}
           mode={mode}
           onPreviewSource={(index) => void viewSourceOnCanvas(index)}
           onRemoveSource={removeSource}
@@ -281,7 +318,7 @@ export function ControlPanel({
       ) : null}
 
       {compactMacCompose && (
-        <MacComposePanel
+          <MacComposePanel
           macComposeOpen={macComposeOpen}
           setMacComposeOpen={setMacComposeOpen}
           styleTag={styleTag}
@@ -295,9 +332,13 @@ export function ControlPanel({
           activeQualityLabel={activeQualityLabel}
           availableResolutions={availableResolutions}
           batchCount={batchCount}
+          batchProcess={batchProcess}
+          chooseBatchInputDir={chooseBatchInputDir}
+          chooseBatchOutputDir={chooseBatchOutputDir}
           mode={mode}
           sources={sources}
           currentImage={currentImage}
+          editSourceMode={editSourceMode}
           apiMode={apiMode}
           requestPolicy={requestPolicy}
           imageModelID={imageModelID}
@@ -309,8 +350,10 @@ export function ControlPanel({
           onOpenCustomAspectRatioModal={openCustomAspectRatioModal}
           onOpenCustomSizeModal={openCustomSizeModal}
           selectSourceImage={selectSourceImage}
-          clearSources={clearSources}
-          viewSourceOnCanvas={(index) => void viewSourceOnCanvas(index)}
+          refreshBatchInputDir={refreshBatchInputDir}
+            clearSources={clearSources}
+            compareSourceOnCanvas={(index) => void compareSourceOnCanvas(index)}
+            viewSourceOnCanvas={(index) => void viewSourceOnCanvas(index)}
           quality={normalizedQuality}
           qualityOptions={qualityOptions}
           Seg={Seg as any}

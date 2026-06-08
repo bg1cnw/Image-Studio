@@ -40,12 +40,14 @@ import {
   invokeService,
 } from "./hostBindings.ts";
 import type {
+  BatchInputDirectoryLike,
   CodexAPIConfigLike,
   GenerateOptionsLike,
   HostCapabilities,
   HostKind,
   CompatibilityStateLike,
   AppUpdateInfoLike,
+  AppUpdateProbeResultLike,
   ImageTransformResultLike,
   ImportedImageLike,
   JobStartedLike,
@@ -354,6 +356,20 @@ export function OpenImageDialog(): Promise<SelectFileResponseLike> {
   return openImageDialogFallback();
 }
 
+export function ChooseBatchInputDir(): Promise<BatchInputDirectoryLike> {
+  if (hasServiceMethod("ChooseBatchInputDir")) {
+    return invokeService<BatchInputDirectoryLike>(unsupportedMessage, "ChooseBatchInputDir");
+  }
+  return Promise.reject(new Error(unsupportedMessage("ChooseBatchInputDir")));
+}
+
+export function ListBatchInputImages(directory: string): Promise<BatchInputDirectoryLike> {
+  if (hasServiceMethod("ListBatchInputImages")) {
+    return invokeService<BatchInputDirectoryLike>(unsupportedMessage, "ListBatchInputImages", directory);
+  }
+  return Promise.reject(new Error(unsupportedMessage("ListBatchInputImages")));
+}
+
 export function GetOutputDir(): Promise<string> {
   if (hasServiceMethod("GetOutputDir")) {
     return invokeService<string>(unsupportedMessage, "GetOutputDir");
@@ -550,6 +566,20 @@ export function ImportHistoryFromFile(): Promise<string> {
   return importHistoryFallback();
 }
 
+export function ExportUpstreamConfigToFile(jsonContent: string): Promise<string> {
+  if (hasServiceMethod("ExportUpstreamConfigToFile")) {
+    return invokeService<string>(unsupportedMessage, "ExportUpstreamConfigToFile", jsonContent);
+  }
+  return Promise.resolve(saveByDownload(new Blob([jsonContent], { type: "application/json" }), `image-studio-upstream-config-${Date.now()}.json`));
+}
+
+export function ImportUpstreamConfigFromFile(): Promise<string> {
+  if (hasServiceMethod("ImportUpstreamConfigFromFile")) {
+    return invokeService<string>(unsupportedMessage, "ImportUpstreamConfigFromFile");
+  }
+  return importHistoryFallback();
+}
+
 export function LoadCompatibilityState(): Promise<CompatibilityStateLike | null> {
   if (hasServiceMethod("LoadCompatibilityState")) {
     return invokeService<CompatibilityStateLike>(unsupportedMessage, "LoadCompatibilityState")
@@ -573,6 +603,13 @@ export function CheckForAppUpdate(): Promise<AppUpdateInfoLike | null> {
   return Promise.resolve(null);
 }
 
+export function WriteAppUpdateProbe(result: AppUpdateProbeResultLike): Promise<void> {
+  if (hasServiceMethod("WriteAppUpdateProbe")) {
+    return invokeService<void>(unsupportedMessage, "WriteAppUpdateProbe", result);
+  }
+  return Promise.resolve();
+}
+
 export function RegisterTrustedOutputDir(root: string): Promise<void> {
   if (hasServiceMethod("RegisterTrustedOutputDir")) {
     return invokeService<void>(unsupportedMessage, "RegisterTrustedOutputDir", root);
@@ -583,6 +620,13 @@ export function RegisterTrustedOutputDir(root: string): Promise<void> {
 export function SetKeepLogsEnabled(enabled: boolean): Promise<void> {
   if (hasServiceMethod("SetKeepLogsEnabled")) {
     return invokeService<void>(unsupportedMessage, "SetKeepLogsEnabled", enabled);
+  }
+  return Promise.resolve();
+}
+
+export function SetCleanupPreviewCacheOnExitEnabled(enabled: boolean): Promise<void> {
+  if (hasServiceMethod("SetCleanupPreviewCacheOnExitEnabled")) {
+    return invokeService<void>(unsupportedMessage, "SetCleanupPreviewCacheOnExitEnabled", enabled);
   }
   return Promise.resolve();
 }
@@ -605,6 +649,20 @@ export function ChooseOutputDir(): Promise<string> {
     return invokeAndroid<string>(unsupportedMessage, "ChooseOutputDir");
   }
   return GetOutputDir();
+}
+
+export function ChooseDirectory(title: string): Promise<string> {
+  if (hasServiceMethod("ChooseDirectory")) {
+    return invokeService<string>(unsupportedMessage, "ChooseDirectory", title);
+  }
+  return Promise.reject(new Error(unsupportedMessage("ChooseDirectory")));
+}
+
+export function BuildBatchOutputPath(sourcePath: string, outputDir: string, prefix: string): Promise<string> {
+  if (hasServiceMethod("BuildBatchOutputPath")) {
+    return invokeService<string>(unsupportedMessage, "BuildBatchOutputPath", sourcePath, outputDir, prefix);
+  }
+  return Promise.reject(new Error(unsupportedMessage("BuildBatchOutputPath")));
 }
 
 export function OpenOutputDir(): Promise<void> {

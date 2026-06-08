@@ -308,6 +308,7 @@ function AndroidAdvancedEditor({
             </button>
           ))}
         </div>
+        <p className="android-parameter-note mt-2">高并发或 2K/4K 大尺寸任务时，应用可能自动关闭流式预览，以优先保证最终图完整。</p>
       </div>
 
       <div className="android-phone-advanced-section">

@@ -457,7 +457,7 @@ export function FloatingAdvancedPanel({
               open={groupOpen.stream}
               onToggle={() => updateGroupOpen("stream")}
             >
-              <AdvancedCard title="流式预览帧数" hint="`0` 只返回最终图，`1-3` 会流式返回预览帧。" variant={variant} className="rounded-[16px]">
+              <AdvancedCard title="流式预览帧数" hint="`0` 只返回最终图，`1-3` 会流式返回预览帧。高并发或大尺寸任务时，应用可能自动关闭预览。" variant={variant} className="rounded-[16px]">
                 <AdvancedPartialImagesField
                   partialImages={partialImages}
                   onChange={(value) => setField("partialImages", value)}

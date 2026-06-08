@@ -198,13 +198,6 @@ func (e *streamImageExtractor) result() (ImageResult, bool) {
 	if e.hasFinal {
 		return e.final, true
 	}
-	if e.partialB64 != "" {
-		return ImageResult{
-			ImageB64:      e.partialB64,
-			RevisedPrompt: e.partialPrompt,
-			SourceEvent:   "partial",
-		}, true
-	}
 	return ImageResult{}, false
 }
 

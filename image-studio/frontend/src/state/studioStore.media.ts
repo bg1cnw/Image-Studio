@@ -102,6 +102,17 @@ export function createMediaActions(store: StateAdapter) {
       });
     },
 
+    async stepBatchResult(delta: -1 | 1) {
+      const state = store.getState();
+      if (state.batchResults.length <= 1 || !state.currentImage) return;
+      const currentIndex = state.batchResults.findIndex((item) => item.id === state.currentImage?.id);
+      if (currentIndex < 0) return;
+      const nextIndex = (currentIndex + delta + state.batchResults.length) % state.batchResults.length;
+      const nextItem = state.batchResults[nextIndex];
+      if (!nextItem) return;
+      await store.getState().selectBatchResult(nextItem);
+    },
+
     pushToast(text: string, kind: Toast["kind"] = "info", ttl = 3500, action?: Toast["action"]) {
       const id = genId();
       const toast: Toast = { id, text, kind, createdAt: Date.now(), ttl, action };

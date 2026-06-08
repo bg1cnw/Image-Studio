@@ -1,7 +1,9 @@
 import { LoadCompatibilityState, SaveCompatibilityState } from "../platform/runtime/host";
 import type {
+  BatchProcessConfig,
   BackgroundValue,
   CustomAspectRatio,
+  EditSourceMode,
   CompletionSoundConfig,
   HistoryItem,
   ImageStyleValue,
@@ -10,6 +12,7 @@ import type {
   ModerationValue,
   OutputFormatValue,
   Preset,
+  PromptTemplate,
   ProxyMode,
   ThemeMode,
   UpstreamProfile,
@@ -30,6 +33,7 @@ import {
   normalizeCompletionSoundConfig,
   persistCompletionSoundConfig,
 } from "./completionSound";
+import { normalizePromptTemplates } from "./promptTemplates";
 
 const SCHEMA_VERSION = 1;
 const MARKER_KEY = "gptcodex.compatStateUpdatedAt";
@@ -51,6 +55,9 @@ export type CompatibilityState = {
     moderation?: ModerationValue;
     userIdentifier?: string;
     partialImages?: number;
+    protectStreamPreview?: boolean;
+    autoRetryEnabled?: boolean;
+    promptTemplates?: PromptTemplate[];
     outputDir?: string;
     promptHistory?: string[];
     presets?: Preset[];
@@ -59,6 +66,7 @@ export type CompatibilityState = {
     trustedOutputRoots?: string[];
     savePromptSuppressed?: boolean;
     keepLogs?: boolean;
+    cleanupPreviewCacheOnExit?: boolean;
     ignoredReleaseTag?: string;
     completionSound?: CompletionSoundConfig;
   };
@@ -84,11 +92,15 @@ export type CompatibilityExportInput = {
   moderation: ModerationValue;
   userIdentifier: string;
   partialImages: number;
+  protectStreamPreview: boolean;
+  autoRetryEnabled: boolean;
+  promptTemplates: PromptTemplate[];
   promptHistory: string[];
   presets: Preset[];
   customAspectRatios: CustomAspectRatio[];
   kernelRuntimeMode: KernelRuntimeMode;
   keepLogs: boolean;
+  cleanupPreviewCacheOnExit: boolean;
   ignoredReleaseTag: string;
   completionSound: CompletionSoundConfig;
 };
@@ -139,11 +151,15 @@ export function compatibilityExportFingerprint(input: CompatibilityExportInput):
     moderation: input.moderation,
     userIdentifier: input.userIdentifier,
     partialImages: input.partialImages,
+    protectStreamPreview: input.protectStreamPreview,
+    autoRetryEnabled: input.autoRetryEnabled,
+    promptTemplates: input.promptTemplates,
     promptHistory: input.promptHistory,
     presets: input.presets,
     customAspectRatios: input.customAspectRatios,
     kernelRuntimeMode: input.kernelRuntimeMode,
     keepLogs: input.keepLogs,
+    cleanupPreviewCacheOnExit: input.cleanupPreviewCacheOnExit,
     ignoredReleaseTag: input.ignoredReleaseTag,
     completionSound: input.completionSound,
     outputDir: readLocalStorageString("gptcodex.outputDir"),
@@ -172,6 +188,9 @@ function buildCompatibilityState(input: CompatibilityExportInput): Compatibility
       moderation: normalizeModeration(input.moderation),
       userIdentifier: normalizeUserIdentifier(input.userIdentifier),
       partialImages: normalizePartialImages(input.partialImages),
+      protectStreamPreview: input.protectStreamPreview !== false,
+      autoRetryEnabled: input.autoRetryEnabled !== false,
+      promptTemplates: normalizePromptTemplates(input.promptTemplates),
       outputDir: readLocalStorageString("gptcodex.outputDir"),
       promptHistory: cleanStringList(input.promptHistory, 50),
       presets: normalizePresets(input.presets),
@@ -180,6 +199,7 @@ function buildCompatibilityState(input: CompatibilityExportInput): Compatibility
       trustedOutputRoots: loadTrustedOutputRoots(),
       savePromptSuppressed: readLocalStorageString("gptcodex.savePromptSuppressed") === "1",
       keepLogs: input.keepLogs === true,
+      cleanupPreviewCacheOnExit: input.cleanupPreviewCacheOnExit === true,
       ignoredReleaseTag: readLocalStorageString("gptcodex.ignoredReleaseTag"),
       completionSound: normalizeCompletionSoundConfig(input.completionSound),
     },
@@ -210,6 +230,11 @@ function applyCompatibilityLocalStorage(state: CompatibilityState): void {
   if (settings.moderation) writeLocalStorageString("gptcodex.moderation", normalizeModeration(settings.moderation));
   if (settings.userIdentifier !== undefined) writeLocalStorageString("gptcodex.userIdentifier", normalizeUserIdentifier(settings.userIdentifier));
   if (typeof settings.partialImages === "number") writeLocalStorageString("gptcodex.partialImages", String(normalizePartialImages(settings.partialImages)));
+  if (settings.protectStreamPreview === false) writeLocalStorageString("gptcodex.protectStreamPreview", "0");
+  else removeLocalStorage("gptcodex.protectStreamPreview");
+  if (settings.autoRetryEnabled === false) writeLocalStorageString("gptcodex.autoRetryEnabled", "0");
+  else removeLocalStorage("gptcodex.autoRetryEnabled");
+  writeLocalStorageJSON("gptcodex.promptTemplates", normalizePromptTemplates(settings.promptTemplates ?? []));
   if (settings.outputDir?.trim()) writeLocalStorageString("gptcodex.outputDir", settings.outputDir.trim());
   else removeLocalStorage("gptcodex.outputDir");
   if (settings.kernelRuntimeMode) writeLocalStorageString("gptcodex.kernelRuntimeMode", normalizeKernelRuntimeMode(settings.kernelRuntimeMode));
@@ -221,6 +246,8 @@ function applyCompatibilityLocalStorage(state: CompatibilityState): void {
   else removeLocalStorage("gptcodex.savePromptSuppressed");
   if (settings.keepLogs) writeLocalStorageString("gptcodex.keepLogs", "1");
   else removeLocalStorage("gptcodex.keepLogs");
+  if (settings.cleanupPreviewCacheOnExit) writeLocalStorageString("gptcodex.cleanupPreviewCacheOnExit", "1");
+  else removeLocalStorage("gptcodex.cleanupPreviewCacheOnExit");
   if (typeof settings.ignoredReleaseTag === "string" && settings.ignoredReleaseTag.trim()) {
     writeLocalStorageString("gptcodex.ignoredReleaseTag", settings.ignoredReleaseTag.trim());
   } else {
@@ -279,6 +306,9 @@ function normalizeSettings(raw: unknown): CompatibilityState["settings"] {
     moderation: normalizeModeration(source.moderation),
     userIdentifier: normalizeUserIdentifier(source.userIdentifier),
     partialImages: normalizePartialImages(source.partialImages),
+    protectStreamPreview: source.protectStreamPreview !== false,
+    autoRetryEnabled: source.autoRetryEnabled !== false,
+    promptTemplates: normalizePromptTemplates(source.promptTemplates ?? []),
     outputDir: typeof source.outputDir === "string" ? source.outputDir : "",
     promptHistory: cleanStringList(source.promptHistory ?? [], 50),
     presets: normalizePresets(source.presets ?? []),
@@ -287,6 +317,7 @@ function normalizeSettings(raw: unknown): CompatibilityState["settings"] {
     trustedOutputRoots: cleanStringList(source.trustedOutputRoots ?? [], 100),
     savePromptSuppressed: source.savePromptSuppressed === true,
     keepLogs: source.keepLogs === true,
+    cleanupPreviewCacheOnExit: source.cleanupPreviewCacheOnExit === true,
     ignoredReleaseTag: typeof source.ignoredReleaseTag === "string" ? source.ignoredReleaseTag.trim() : "",
     completionSound: normalizeCompletionSoundConfig(source.completionSound),
   };
@@ -383,11 +414,15 @@ function cloneExportInput(input: CompatibilityExportInput): CompatibilityExportI
     moderation: input.moderation,
     userIdentifier: input.userIdentifier,
     partialImages: input.partialImages,
+    protectStreamPreview: input.protectStreamPreview,
+    autoRetryEnabled: input.autoRetryEnabled,
+    promptTemplates: input.promptTemplates.map((item) => ({ ...item })),
     promptHistory: [...input.promptHistory],
     presets: input.presets.map((preset) => ({ ...preset })),
     customAspectRatios: input.customAspectRatios.map((ratio) => ({ ...ratio })),
     kernelRuntimeMode: input.kernelRuntimeMode,
     keepLogs: input.keepLogs,
+    cleanupPreviewCacheOnExit: input.cleanupPreviewCacheOnExit,
     ignoredReleaseTag: input.ignoredReleaseTag,
     completionSound: normalizeCompletionSoundConfig(input.completionSound),
   };
@@ -497,6 +532,39 @@ function normalizeFontScale(value: unknown): number {
 function normalizeBatchCount(value: unknown): number {
   const n = typeof value === "number" ? value : Number(value);
   return Number.isFinite(n) && n > 0 ? Math.min(9, Math.floor(n)) : 1;
+}
+
+export function normalizeEditSourceMode(value: unknown): EditSourceMode {
+  return value === "batch" ? "batch" : "manual";
+}
+
+export function normalizeBatchProcess(value: unknown): BatchProcessConfig {
+  const source = value && typeof value === "object" ? value as Record<string, any> : {};
+  const discoveredSources: BatchProcessConfig["discoveredSources"] = [];
+  if (Array.isArray(source.discoveredSources)) {
+    for (const item of source.discoveredSources) {
+      const path = typeof item?.path === "string" ? item.path.trim() : "";
+      const name = typeof item?.name === "string" ? item.name.trim() : "";
+      if (!path || !name) continue;
+      discoveredSources.push({
+        path,
+        name,
+        size: Number.isFinite(Number(item?.size)) ? Math.max(0, Math.floor(Number(item.size))) : 0,
+        previewUrl: typeof item?.previewUrl === "string" ? item.previewUrl : undefined,
+        previewWidth: Number.isFinite(Number(item?.previewWidth)) ? Math.floor(Number(item.previewWidth)) : undefined,
+        previewHeight: Number.isFinite(Number(item?.previewHeight)) ? Math.floor(Number(item.previewHeight)) : undefined,
+      });
+    }
+  }
+  return {
+    enabled: source.enabled === true,
+    inputDir: typeof source.inputDir === "string" ? source.inputDir.trim() : "",
+    outputMode: source.outputMode === "custom_dir" ? "custom_dir" : "source_dir",
+    outputDir: typeof source.outputDir === "string" ? source.outputDir.trim() : "",
+    concurrency: Number.isFinite(Number(source.concurrency)) ? Math.max(1, Math.min(9, Math.floor(Number(source.concurrency)))) : 2,
+    fileNamePrefix: typeof source.fileNamePrefix === "string" && source.fileNamePrefix.trim() ? source.fileNamePrefix.trim() : "processed-",
+    discoveredSources,
+  };
 }
 
 function cleanStringList(raw: unknown, max: number): string[] {

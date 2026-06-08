@@ -56,6 +56,10 @@ export function SaveImageAs(arg1:string,arg2:string):Promise<string>;
 
 export function SaveImagePathAs(arg1:string,arg2:string):Promise<string>;
 
+export function SetCleanupPreviewCacheOnExitEnabled(arg1:boolean):Promise<void>;
+
+export function SetKeepLogsEnabled(arg1:boolean):Promise<void>;
+
 export function SetOutputDir(arg1:string):Promise<void>;
 
 export function SetStoredAPIKey(arg1:string,arg2:string):Promise<void>;

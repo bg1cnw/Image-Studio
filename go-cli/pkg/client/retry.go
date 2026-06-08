@@ -16,6 +16,44 @@ var retryableMarkers = []string{
 	"origin_gateway_timeout",
 }
 
+func hasPartialImageWithoutFinal(raw string) bool {
+	text := strings.TrimSpace(raw)
+	if text == "" {
+		return false
+	}
+	partialSeen := false
+	finalSeen := false
+	for ev := range IterEvents(text) {
+		evType, _ := ev["type"].(string)
+		switch evType {
+		case "response.image_generation_call.partial_image":
+			if v, ok := ev["partial_image_b64"].(string); ok && v != "" {
+				partialSeen = true
+			}
+		case "response.output_item.done":
+			itemAny, _ := ev["item"]
+			item, ok := itemAny.(map[string]any)
+			if !ok {
+				continue
+			}
+			if t, _ := item["type"].(string); t == "image_generation_call" {
+				if result, _ := item["result"].(string); result != "" {
+					finalSeen = true
+				}
+			}
+		case "image_generation.partial_image", "image_edit.partial_image":
+			if v, ok := ev["b64_json"].(string); ok && v != "" {
+				partialSeen = true
+			}
+		case "image_generation.completed", "image_edit.completed":
+			if v, ok := ev["b64_json"].(string); ok && v != "" {
+				finalSeen = true
+			}
+		}
+	}
+	return partialSeen && !finalSeen
+}
+
 // IsRetryable mirrors Python is_retryable_response.
 func IsRetryable(raw string) bool {
 	text := strings.TrimSpace(raw)
@@ -24,6 +62,9 @@ func IsRetryable(raw string) bool {
 		if strings.Contains(lower, m) {
 			return true
 		}
+	}
+	if hasPartialImageWithoutFinal(text) {
+		return true
 	}
 
 	var data map[string]any
@@ -110,6 +151,9 @@ func DescribeProblem(raw string) string {
 		if msg := extractStructuredMessage(ev); msg != "" {
 			return msg
 		}
+	}
+	if hasPartialImageWithoutFinal(raw) {
+		return "接口只返回了流式预览帧,没有返回最终图片。"
 	}
 
 	return "接口已返回内容,但没有发现 image_generation_call.result。"

@@ -4,11 +4,12 @@ import {
 } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
 import { OpenFile } from "../runtime/host";
-import { Mode } from "../../types/domain";
+import { Mode, SizeValue } from "../../types/domain";
 import { availableQualityOptions, normalizeQualitySelection, STYLE_CHIPS } from "../../components/panel/panelOptions";
 import {
   aspectPresetLabel,
   availableResolutionPresets,
+  buildReferenceAspectRatio,
   deriveExactSizeSelection,
   deriveAspectPreset,
   deriveResolutionPreset,
@@ -22,6 +23,7 @@ import { AndroidPhoneAdvancedSection } from "./AndroidPhoneAdvancedSection";
 import { AndroidPhoneParameterSection } from "./AndroidPhoneParameterSection";
 import { AndroidPhoneSourceSection } from "./AndroidPhoneSourceSection";
 import { AndroidPromptTemplateModal } from "./AndroidPromptTemplateModal";
+import { PromptTemplateManagerModal } from "../../components/panel/PromptTemplateManagerModal";
 import { ParameterPresetsSection } from "../../components/panel/ParameterPresetsSection";
 import {
   buildAndroidAspectSizeSelection,
@@ -29,6 +31,7 @@ import {
 } from "./parameters/androidSizeSelection";
 import { vibrateForPlatform } from "./bridge";
 import { LoopGenerationSection } from "../../components/panel/LoopGenerationSection";
+import { appendPromptTemplateText } from "../../lib/promptTemplateInsert";
 
 export function AndroidPhoneComposePanel({
   onSubmitStart,
@@ -43,10 +46,13 @@ export function AndroidPhoneComposePanel({
     customAspectRatios,
     setField, clearError, pushToast, selectSourceImage,
     removeSource, clearSources, viewSourceOnCanvas, openCustomAspectRatioModal, openCustomSizeModal, openUpstreamConfig, submit, cancel, retryLast, optimizePrompt,
+    compareSourceOnCanvas,
   } = useStudioStore();
   const [templateOpen, setTemplateOpen] = useState(false);
+  const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
   const [parametersOpen, setParametersOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const promptTemplates = useStudioStore((s) => s.promptTemplates);
   const promptLen = prompt.length;
   const needsUpstreamSetup = !apiKey.trim() || !baseURL.trim();
   const hasUsableResponsesProfile = profiles.some(
@@ -61,15 +67,26 @@ export function AndroidPhoneComposePanel({
   const qualityOptions = availableQualityOptions(imageModelID);
   const allowCustomAspectRatios = supportsCustomAspectRatios(capabilityInput);
   const allowPreciseSizeControl = supportsPreciseSizeControl(capabilityInput);
+  const referenceDimensions = sources[0]?.previewWidth && sources[0]?.previewHeight
+    ? { width: sources[0].previewWidth, height: sources[0].previewHeight }
+    : currentImage?.previewWidth && currentImage?.previewHeight
+      ? { width: currentImage.previewWidth, height: currentImage.previewHeight }
+      : null;
+  const referenceAspectRatio = referenceDimensions
+    ? buildReferenceAspectRatio(referenceDimensions.width, referenceDimensions.height, customAspectRatios)
+    : null;
+  const sizingAspectRatios = referenceAspectRatio && !customAspectRatios.some((item) => item.id === referenceAspectRatio.id)
+    ? [...customAspectRatios, referenceAspectRatio]
+    : customAspectRatios;
   const activeStyleLabel = STYLE_CHIPS.find((item) => item.id === styleTag)?.label ?? "默认风格";
-  const aspectOptions = listAspectPresetOptions(capabilityInput, customAspectRatios);
-  const exactSize = deriveExactSizeSelection(normalizedSize, capabilityInput, customAspectRatios);
-  const derivedAspect = deriveAspectPreset(normalizedSize, customAspectRatios);
+  const aspectOptions = listAspectPresetOptions(capabilityInput, sizingAspectRatios);
+  const exactSize = deriveExactSizeSelection(normalizedSize, capabilityInput, sizingAspectRatios);
+  const derivedAspect = deriveAspectPreset(normalizedSize, sizingAspectRatios);
   const derivedResolution = deriveResolutionPreset(normalizedSize);
   const activeAspect = exactSize ? null : derivedAspect;
   const activeResolution = exactSize ? null : derivedResolution;
   const availableResolutions = availableResolutionPresets(capabilityInput);
-  const activeAspectLabel = exactSize ? "精确尺寸" : aspectPresetLabel(derivedAspect, customAspectRatios);
+  const activeAspectLabel = exactSize ? "精确尺寸" : aspectPresetLabel(derivedAspect, sizingAspectRatios);
   const activeResolutionLabel = exactSize ? exactSize.label : (derivedResolution === "auto" ? "自动" : derivedResolution.toUpperCase());
   const activeQualityLabel = qualityOptions.find((item) => item.value === normalizedQuality)?.label ?? normalizedQuality;
   const editSourceLabel = sources.length > 0 ? `${sources.length} 张已添加` : currentImage?.savedPath ? "使用当前画板" : "未添加";
@@ -80,16 +97,23 @@ export function AndroidPhoneComposePanel({
       aspect ?? derivedAspect,
       derivedResolution,
       capabilityInput,
-      customAspectRatios,
+      sizingAspectRatios,
     ));
   };
 
   const handleResolutionSelect = (resolution: typeof activeResolution) => {
+    const referenceAspectPreset = referenceDimensions
+      ? deriveAspectPreset(
+          `${referenceDimensions.width}x${referenceDimensions.height}` as SizeValue,
+          sizingAspectRatios,
+        )
+      : null;
     setField("size", buildAndroidResolutionSizeSelection(
       derivedAspect,
       resolution ?? derivedResolution,
       capabilityInput,
-      customAspectRatios,
+      sizingAspectRatios,
+      referenceAspectPreset,
     ));
   };
 
@@ -230,6 +254,26 @@ export function AndroidPhoneComposePanel({
           onChange={(e) => setField("prompt", e.target.value)}
           className="android-phone-prompt-input focus-ring"
         />
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => { vibrateForPlatform(8); setTemplateManagerOpen(true); }}
+            className="platform-pill android-phone-action-pill inline-flex min-h-[34px] items-center gap-1.5 px-3 text-[11px] text-zinc-500 hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+          >
+            <ListPlus className="h-3.5 w-3.5" /> 管理模板
+          </button>
+          {promptTemplates.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setField("prompt", appendPromptTemplateText(prompt, item.text))}
+              className="platform-pill android-phone-action-pill inline-flex min-h-[34px] items-center px-3 text-[11px] text-zinc-500 hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+              title={item.text}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
         <div className="android-phone-action-row">
           <div className="android-phone-action-item relative">
             <button
@@ -292,6 +336,7 @@ export function AndroidPhoneComposePanel({
 
       {mode === "edit" ? (
         <AndroidPhoneSourceSection
+          onCompareSource={(index) => void compareSourceOnCanvas(index)}
           clearSources={clearSources}
           currentImage={currentImage}
           editSourceLabel={editSourceLabel}
@@ -358,11 +403,13 @@ export function AndroidPhoneComposePanel({
       <AndroidPromptTemplateModal
         open={templateOpen}
         onClose={() => setTemplateOpen(false)}
+        onManageTemplates={() => setTemplateManagerOpen(true)}
         onPick={(text) => {
           const current = useStudioStore.getState().prompt;
-          setField("prompt", current ? `${current}\n${text}` : text);
+          setField("prompt", appendPromptTemplateText(current, text));
         }}
       />
+      <PromptTemplateManagerModal open={templateManagerOpen} onClose={() => setTemplateManagerOpen(false)} />
     </div>
   );
 }

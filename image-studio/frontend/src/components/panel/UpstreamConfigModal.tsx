@@ -2,14 +2,26 @@ import { useState, useEffect, useMemo } from "react";
 import { Eye, EyeOff, HelpCircle, Info, Plug, Plus, RefreshCw, Sparkles } from "lucide-react";
 import { Modal } from "../common/Modal";
 import { useStudioStore } from "../../state/studioStore";
-import { GetStoredAPIKey, LoadCodexAPIConfig, canLoadCodexAPIConfig, probeCurrentUpstream } from "../../platform/runtime/host";
-import { keyringUserFor } from "../../lib/profiles";
+import {
+  ExportUpstreamConfigToFile,
+  GetStoredAPIKey,
+  ImportUpstreamConfigFromFile,
+  LoadCodexAPIConfig,
+  SetStoredAPIKey,
+  canLoadCodexAPIConfig,
+  probeCurrentUpstream,
+} from "../../platform/runtime/host";
+import { genProfileId, keyringUserFor } from "../../lib/profiles";
 import type { APIMode, RequestPolicy, UpstreamProfile } from "../../types/domain";
 import { FAQModal } from "./FAQModal";
 import { UpstreamProfileEditor } from "./UpstreamProfileEditor";
 import { UpstreamProfileList } from "./UpstreamProfileList";
 import { usePlatform } from "../../platform/context";
 import { buildUpstreamModelCatalog, type UpstreamModelCatalog } from "../../lib/upstreamModels";
+import {
+  buildUpstreamConfigExportFile,
+  parseUpstreamConfigImportFile,
+} from "../../lib/upstreamConfigTransfer";
 
 // v0.1.6 多 profile 配置 modal。左侧 profile 列表 + 右侧编辑表单。
 // 列表点击 = 切 active(立即生效);右侧改字段 = 编辑当前选中,点保存才落盘。
@@ -142,6 +154,98 @@ export function UpstreamConfigModal({
     }
   }
 
+  async function handleExportConfigs() {
+    try {
+      const currentProfiles = useStudioStore.getState().profiles;
+      if (currentProfiles.length === 0) {
+        pushToast("当前没有可导出的上游配置", "warn");
+        return;
+      }
+      const apiKeysById = Object.fromEntries(await Promise.all(
+        currentProfiles.map(async (profile) => [profile.id, await GetStoredAPIKey(keyringUserFor(profile.id)).catch(() => "")] as const),
+      ));
+      const payload = buildUpstreamConfigExportFile(currentProfiles, useStudioStore.getState().activeProfileId, apiKeysById);
+      const dst = await ExportUpstreamConfigToFile(JSON.stringify(payload, null, 2));
+      if (dst) pushToast(`已导出上游配置 → ${dst.split(/[\\/]/).pop()}`, "success");
+    } catch (error: any) {
+      pushToast(`导出上游配置失败:${error?.message ?? error}`, "error", 6000);
+    }
+  }
+
+  async function handleImportConfigs() {
+    try {
+      const raw = await ImportUpstreamConfigFromFile();
+      if (!raw) return;
+      const parsed = parseUpstreamConfigImportFile(raw);
+      const existingByName = new Map(useStudioStore.getState().profiles.map((profile) => [profile.name, profile]));
+      let importedCount = 0;
+      let nextActiveId = "";
+
+      for (const incoming of parsed.profiles) {
+        const match = existingByName.get(incoming.name) ?? null;
+        if (match) {
+          await updateProfile(match.id, {
+            name: incoming.name,
+            apiMode: incoming.apiMode,
+            requestPolicy: incoming.requestPolicy,
+            imagesNewAPICompat: incoming.imagesNewAPICompat,
+            baseURL: incoming.baseURL,
+            textModelID: incoming.textModelID,
+            imageModelID: incoming.imageModelID,
+            reasoningEffort: incoming.reasoningEffort,
+            concurrencyLimit: incoming.concurrencyLimit,
+            fallbackProfileId: incoming.fallbackProfileId,
+            lastUsedAt: incoming.lastUsedAt,
+            apiKey: incoming.apiKey ?? "",
+          });
+          if (incoming.apiKey?.trim()) {
+            await SetStoredAPIKey(keyringUserFor(match.id), incoming.apiKey.trim()).catch(() => undefined);
+          }
+          if (parsed.activeProfileId && parsed.activeProfileId === incoming.id) nextActiveId = match.id;
+        } else {
+          const newId = await createProfile({
+            name: incoming.name,
+            apiMode: incoming.apiMode,
+            requestPolicy: incoming.requestPolicy,
+            imagesNewAPICompat: incoming.imagesNewAPICompat,
+            baseURL: incoming.baseURL,
+            textModelID: incoming.textModelID,
+            imageModelID: incoming.imageModelID,
+            reasoningEffort: incoming.reasoningEffort,
+            concurrencyLimit: incoming.concurrencyLimit,
+            apiKey: incoming.apiKey ?? "",
+            setActive: false,
+          });
+          if (incoming.fallbackProfileId) {
+            await updateProfile(newId, { fallbackProfileId: incoming.fallbackProfileId });
+          }
+          if (incoming.apiKey?.trim()) {
+            await SetStoredAPIKey(keyringUserFor(newId), incoming.apiKey.trim()).catch(() => undefined);
+          }
+          if (parsed.activeProfileId && parsed.activeProfileId === incoming.id) nextActiveId = newId;
+        }
+        importedCount += 1;
+      }
+
+      if (nextActiveId) {
+        await setActiveProfile(nextActiveId);
+        setSelectedId(nextActiveId);
+      }
+      const selectedProfile = useStudioStore.getState().profiles.find((profile) => profile.id === (nextActiveId || selectedId))
+        ?? useStudioStore.getState().profiles[0]
+        ?? null;
+      if (selectedProfile) {
+        setSelectedId(selectedProfile.id);
+        setDraft(selectedProfile);
+        setDraftKey(await GetStoredAPIKey(keyringUserFor(selectedProfile.id)).catch(() => ""));
+        setSavedKeyLoaded(true);
+      }
+      pushToast(`已导入 ${importedCount} 组上游配置`, "success");
+    } catch (error: any) {
+      pushToast(`导入上游配置失败:${error?.message ?? error}`, "error", 6000);
+    }
+  }
+
   async function handleNew(apiMode: APIMode = "responses") {
     const id = await createProfile({
       apiMode,
@@ -169,18 +273,19 @@ export function UpstreamConfigModal({
 
   async function handleSave() {
     if (!draft) return;
-    await updateProfile(draft.id, {
-      name: draft.name,
-      apiMode: draft.apiMode,
-      requestPolicy: draft.requestPolicy,
-      imagesNewAPICompat: draft.imagesNewAPICompat === true,
-      baseURL: draft.baseURL,
-      textModelID: draft.textModelID,
-      imageModelID: draft.imageModelID,
-      reasoningEffort: draft.reasoningEffort,
-      concurrencyLimit: draft.concurrencyLimit,
-      apiKey: draftKey,
-    });
+        await updateProfile(draft.id, {
+          name: draft.name,
+          apiMode: draft.apiMode,
+          requestPolicy: draft.requestPolicy,
+          imagesNewAPICompat: draft.imagesNewAPICompat === true,
+          baseURL: draft.baseURL,
+          textModelID: draft.textModelID,
+          imageModelID: draft.imageModelID,
+          reasoningEffort: draft.reasoningEffort,
+          concurrencyLimit: draft.concurrencyLimit,
+          fallbackProfileId: draft.fallbackProfileId,
+          apiKey: draftKey,
+        });
     // 如果当前 selected 不是 active,问要不要切;不弹了,直接什么都不做
   }
 
@@ -340,6 +445,8 @@ export function UpstreamConfigModal({
           onHandleNew={() => handleNew()}
           onHandleDuplicate={handleDuplicate}
           onHandleDelete={() => setDeleteConfirmOpen(true)}
+          onHandleExport={handleExportConfigs}
+          onHandleImport={handleImportConfigs}
           onHandleSetActive={handleSetActive}
           onHandleSyncCodex={handleSyncCodex}
         />
@@ -362,6 +469,7 @@ export function UpstreamConfigModal({
               loadingModels={loadingModels}
               modelCatalog={modelCatalog}
               modelCatalogError={modelCatalogError}
+              profiles={profiles}
               usesAppleUI={usesAppleUI}
               onOpenFAQ={() => setFaqOpen(true)}
               onPatchDraft={patchDraft}

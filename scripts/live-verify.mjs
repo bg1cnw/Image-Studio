@@ -1,6 +1,9 @@
 import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 import worker from "../cloudflare-worker/src/index.js";
+import { pickFreePort } from "./pick-free-port.mjs";
+import { resolveVerifyOutputPath } from "./verify-output-paths.mjs";
 import {
   buildPromptOptimizePayload,
   buildResponsesPayload,
@@ -30,17 +33,41 @@ async function loadEnvOverrides() {
 }
 
 const envOverrides = await loadEnvOverrides();
+const effectiveEnv = { ...envOverrides, ...process.env };
 const envValue = (key, fallback = "") => process.env[key] || envOverrides[key] || fallback;
 
 const upstreamBaseURL = normalizeBaseURL(envValue("IMAGE_STUDIO_UPSTREAM_BASE_URL"));
 const apiKey = envValue("IMAGE_STUDIO_API_KEY").trim();
 const textModelID = envValue("IMAGE_STUDIO_TEXT_MODEL_ID", "gpt-5.5").trim();
 const imageModelID = envValue("IMAGE_STUDIO_IMAGE_MODEL_ID", "gpt-image-2").trim();
-const port = Number(envValue("LIVE_VERIFY_PORT", "41744"));
+const port = envValue("LIVE_VERIFY_PORT").trim()
+  ? Number(envValue("LIVE_VERIFY_PORT"))
+  : await pickFreePort();
 const workerOrigin = `http://127.0.0.1:${port}`;
+const outputPath = resolveVerifyOutputPath("IMAGE_STUDIO_LIVE_VERIFY_OUTPUT_PATH", "live-verify.json", effectiveEnv);
+const summary = {
+  startedAt: new Date().toISOString(),
+  status: "running",
+  environment: {
+    nodeVersion: process.version,
+    platform: process.platform,
+    arch: process.arch,
+    textModelID,
+    imageModelID,
+    port,
+  },
+  upstreamBaseURL,
+  workerOrigin,
+  checks: [],
+};
 
 if (!upstreamBaseURL || !apiKey) {
-  console.error("Missing IMAGE_STUDIO_UPSTREAM_BASE_URL or IMAGE_STUDIO_API_KEY (checked process env, .env.live, .env.local, .env)");
+  const message = "Missing IMAGE_STUDIO_UPSTREAM_BASE_URL or IMAGE_STUDIO_API_KEY (checked process env, .env.live, .env.local, .env)";
+  summary.status = "failed";
+  summary.completedAt = new Date().toISOString();
+  summary.error = message;
+  await writeOutputIfRequested(summary);
+  console.error(message);
   process.exit(2);
 }
 
@@ -52,7 +79,9 @@ function summarizeJSON(raw) {
         kind: "data",
         count: parsed.data.length,
         firstId: parsed.data[0]?.id ?? null,
+        lastId: parsed.data[parsed.data.length - 1]?.id ?? null,
         hasB64: !!parsed.data[0]?.b64_json,
+        firstRevisedPrompt: parsed.data[0]?.revised_prompt ?? null,
       };
     }
     if (typeof parsed?.output_text === "string") {
@@ -85,6 +114,20 @@ function summarizeSSE(raw) {
     hasImageResult: !!parsed?.item?.result,
     revisedPrompt: parsed?.item?.revised_prompt ?? null,
   };
+}
+
+function recordParityCheck(name, condition, detail) {
+  summary.checks.push({
+    name,
+    status: condition ? "passed" : "failed",
+    detail,
+  });
+}
+
+async function writeOutputIfRequested(payload) {
+  if (!outputPath) return;
+  await mkdir(path.dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }
 
 async function requestJSON(url, init) {
@@ -136,105 +179,23 @@ const proxyServer = createServer(async (req, res) => {
   res.end(Buffer.from(await response.arrayBuffer()));
 });
 
-await new Promise((resolve) => proxyServer.listen(port, "127.0.0.1", resolve));
+function captureResult(key, result) {
+  summary[key] = { status: result.status, summary: result.summary };
+  return result;
+}
 
-const directModels = await requestJSON(`${upstreamBaseURL}/v1/models`, {
-  method: "GET",
-  headers: {
-    Authorization: `Bearer ${apiKey}`,
-    Accept: "application/json",
-  },
-});
+function sortedIds(result) {
+  const ids = Array.isArray(result?.parsed?.data)
+    ? result.parsed.data.map((item) => item?.id).filter((value) => typeof value === "string" && value.length > 0)
+    : [];
+  return [...ids].sort();
+}
 
-const workerModels = await requestJSON(`${workerOrigin}/v1/models`, {
-  method: "GET",
-  headers: {
-    Authorization: `Bearer ${apiKey}`,
-    Accept: "application/json",
-  },
-});
-
-const promptOptimizePayload = buildPromptOptimizePayload({
-  prompt: "cat",
-  mode: "generate",
-  textModelID,
-}, []);
-
-const directOptimize = await requestJSON(`${upstreamBaseURL}/v1/responses`, {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${apiKey}`,
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  },
-  body: JSON.stringify(promptOptimizePayload),
-});
-
-const workerOptimize = await requestJSON(`${workerOrigin}/kernel/prompt-optimize`, {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${apiKey}`,
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  },
-  body: JSON.stringify({
-    baseURL: upstreamBaseURL,
-    prompt: "cat",
-    mode: "generate",
-    textModelID,
-    sourceDataURLs: [],
-  }),
-});
-
-const generatePayload = buildResponsesPayload({
-  prompt: "a single red dot",
-  size: "1024x1024",
-  quality: "low",
-  outputFormat: "png",
-  imageModelID,
-  textModelID,
-  seed: 0,
-  negativePrompt: "",
-  maskB64: "",
-  noPromptRevision: false,
-}, []);
-
-const directResponses = await requestText(`${upstreamBaseURL}/v1/responses`, {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${apiKey}`,
-    "Content-Type": "application/json",
-    Accept: "text/event-stream, application/json",
-  },
-  body: JSON.stringify(generatePayload),
-});
-
-const workerResponses = await requestText(`${workerOrigin}/v1/responses`, {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${apiKey}`,
-    "Content-Type": "application/json",
-    Accept: "text/event-stream, application/json",
-  },
-  body: JSON.stringify({
-    apiKey,
-    mode: "generate",
-    prompt: "a single red dot",
-    size: "1024x1024",
-    quality: "low",
-    outputFormat: "png",
-    imagePaths: [],
-    imagePath: "",
-    maskB64: "",
-    seed: 0,
-    negativePrompt: "",
-    baseURL: upstreamBaseURL,
-    textModelID,
-    imageModelID,
-    apiMode: "responses",
-    noPromptRevision: false,
-  }),
-});
+function firstRevisedPrompt(result) {
+  if (!Array.isArray(result?.parsed?.data) || result.parsed.data.length === 0) return null;
+  const value = result.parsed.data[0]?.revised_prompt;
+  return typeof value === "string" ? value : null;
+}
 
 function makeImagesGenerationBody() {
   return JSON.stringify({
@@ -261,56 +222,259 @@ function makeImagesEditForm() {
   return form;
 }
 
-const directImagesGenerate = await requestJSON(`${upstreamBaseURL}/v1/images/generations`, {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${apiKey}`,
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  },
-  body: makeImagesGenerationBody(),
-});
+try {
+  await new Promise((resolve) => proxyServer.listen(port, "127.0.0.1", resolve));
 
-const workerImagesGenerate = await requestJSON(`${workerOrigin}/v1/images/generations`, {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${apiKey}`,
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  },
-  body: makeImagesGenerationBody(),
-});
+  const directModels = captureResult("directModels", await requestJSON(`${upstreamBaseURL}/v1/models`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: "application/json",
+    },
+  }));
 
-const directImagesEdit = await requestJSON(`${upstreamBaseURL}/v1/images/edits`, {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${apiKey}`,
-    Accept: "application/json",
-  },
-  body: makeImagesEditForm(),
-});
+  const workerModels = captureResult("workerModels", await requestJSON(`${workerOrigin}/v1/models`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: "application/json",
+    },
+  }));
 
-const workerImagesEdit = await requestJSON(`${workerOrigin}/v1/images/edits`, {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${apiKey}`,
-    Accept: "application/json",
-  },
-  body: makeImagesEditForm(),
-});
+  const promptOptimizePayload = buildPromptOptimizePayload({
+    prompt: "cat",
+    mode: "generate",
+    textModelID,
+  }, []);
 
-proxyServer.close();
+  const directOptimize = captureResult("directOptimize", await requestJSON(`${upstreamBaseURL}/v1/responses`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(promptOptimizePayload),
+  }));
 
-console.log(JSON.stringify({
-  upstreamBaseURL,
-  directModels: { status: directModels.status, summary: directModels.summary },
-  workerModels: { status: workerModels.status, summary: workerModels.summary },
-  directOptimize: { status: directOptimize.status, summary: directOptimize.summary },
-  workerOptimize: { status: workerOptimize.status, summary: workerOptimize.summary },
-  directResponses: { status: directResponses.status, summary: directResponses.summary },
-  workerResponses: { status: workerResponses.status, summary: workerResponses.summary },
-  directImagesGenerate: { status: directImagesGenerate.status, summary: directImagesGenerate.summary },
-  workerImagesGenerate: { status: workerImagesGenerate.status, summary: workerImagesGenerate.summary },
-  directImagesEdit: { status: directImagesEdit.status, summary: directImagesEdit.summary },
-  workerImagesEdit: { status: workerImagesEdit.status, summary: workerImagesEdit.summary },
-}, null, 2));
+  const workerOptimize = captureResult("workerOptimize", await requestJSON(`${workerOrigin}/kernel/prompt-optimize`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      baseURL: upstreamBaseURL,
+      prompt: "cat",
+      mode: "generate",
+      textModelID,
+      sourceDataURLs: [],
+    }),
+  }));
+
+  const generatePayload = buildResponsesPayload({
+    prompt: "a single red dot",
+    size: "1024x1024",
+    quality: "low",
+    outputFormat: "png",
+    imageModelID,
+    textModelID,
+    seed: 0,
+    negativePrompt: "",
+    maskB64: "",
+    noPromptRevision: false,
+  }, []);
+
+  const directResponses = captureResult("directResponses", await requestText(`${upstreamBaseURL}/v1/responses`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      Accept: "text/event-stream, application/json",
+    },
+    body: JSON.stringify(generatePayload),
+  }));
+
+  const workerResponses = captureResult("workerResponses", await requestText(`${workerOrigin}/v1/responses`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      Accept: "text/event-stream, application/json",
+    },
+    body: JSON.stringify({
+      apiKey,
+      mode: "generate",
+      prompt: "a single red dot",
+      size: "1024x1024",
+      quality: "low",
+      outputFormat: "png",
+      imagePaths: [],
+      imagePath: "",
+      maskB64: "",
+      seed: 0,
+      negativePrompt: "",
+      baseURL: upstreamBaseURL,
+      textModelID,
+      imageModelID,
+      apiMode: "responses",
+      noPromptRevision: false,
+    }),
+  }));
+
+  const directImagesGenerate = captureResult("directImagesGenerate", await requestJSON(`${upstreamBaseURL}/v1/images/generations`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: makeImagesGenerationBody(),
+  }));
+
+  const workerImagesGenerate = captureResult("workerImagesGenerate", await requestJSON(`${workerOrigin}/v1/images/generations`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: makeImagesGenerationBody(),
+  }));
+
+  const directImagesEdit = captureResult("directImagesEdit", await requestJSON(`${upstreamBaseURL}/v1/images/edits`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: "application/json",
+    },
+    body: makeImagesEditForm(),
+  }));
+
+  const workerImagesEdit = captureResult("workerImagesEdit", await requestJSON(`${workerOrigin}/v1/images/edits`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: "application/json",
+    },
+    body: makeImagesEditForm(),
+  }));
+
+  recordParityCheck("direct models status", directModels.status === 200, `status=${directModels.status}`);
+  recordParityCheck("worker models status", workerModels.status === 200, `status=${workerModels.status}`);
+  recordParityCheck(
+    "model count parity",
+    directModels.summary?.count === workerModels.summary?.count,
+    `direct=${directModels.summary?.count ?? "?"}, worker=${workerModels.summary?.count ?? "?"}`,
+  );
+  recordParityCheck(
+    "first model id parity",
+    directModels.summary?.firstId === workerModels.summary?.firstId,
+    `direct=${directModels.summary?.firstId ?? "?"}, worker=${workerModels.summary?.firstId ?? "?"}`,
+  );
+  recordParityCheck(
+    "model id set parity",
+    JSON.stringify(sortedIds(directModels)) === JSON.stringify(sortedIds(workerModels)),
+    `direct=${sortedIds(directModels).join(",") || "(none)"}, worker=${sortedIds(workerModels).join(",") || "(none)"}`,
+  );
+
+  recordParityCheck("direct prompt optimize status", directOptimize.status === 200, `status=${directOptimize.status}`);
+  recordParityCheck("worker prompt optimize status", workerOptimize.status === 200, `status=${workerOptimize.status}`);
+  recordParityCheck(
+    "direct prompt optimize output_text",
+    directOptimize.summary?.kind === "output_text",
+    `kind=${directOptimize.summary?.kind ?? "?"}`,
+  );
+  recordParityCheck(
+    "worker prompt optimize output_text",
+    workerOptimize.summary?.kind === "output_text",
+    `kind=${workerOptimize.summary?.kind ?? "?"}`,
+  );
+  recordParityCheck(
+    "prompt optimize output parity",
+    directOptimize.summary?.outputText === workerOptimize.summary?.outputText,
+    `direct=${directOptimize.summary?.outputText ?? "?"}, worker=${workerOptimize.summary?.outputText ?? "?"}`,
+  );
+
+  recordParityCheck("direct responses status", directResponses.status === 200, `status=${directResponses.status}`);
+  recordParityCheck("worker responses status", workerResponses.status === 200, `status=${workerResponses.status}`);
+  recordParityCheck(
+    "direct responses final image",
+    directResponses.summary?.hasImageResult === true,
+    `hasImageResult=${directResponses.summary?.hasImageResult ?? "?"}`,
+  );
+  recordParityCheck(
+    "worker responses final image",
+    workerResponses.summary?.hasImageResult === true,
+    `hasImageResult=${workerResponses.summary?.hasImageResult ?? "?"}`,
+  );
+  recordParityCheck(
+    "responses last event parity",
+    directResponses.summary?.lastType === workerResponses.summary?.lastType,
+    `direct=${directResponses.summary?.lastType ?? "?"}, worker=${workerResponses.summary?.lastType ?? "?"}`,
+  );
+  recordParityCheck(
+    "responses revised prompt parity",
+    directResponses.summary?.revisedPrompt === workerResponses.summary?.revisedPrompt,
+    `direct=${directResponses.summary?.revisedPrompt ?? "?"}, worker=${workerResponses.summary?.revisedPrompt ?? "?"}`,
+  );
+
+  recordParityCheck("direct images generate status", directImagesGenerate.status === 200, `status=${directImagesGenerate.status}`);
+  recordParityCheck("worker images generate status", workerImagesGenerate.status === 200, `status=${workerImagesGenerate.status}`);
+  recordParityCheck(
+    "direct images generate b64_json",
+    directImagesGenerate.summary?.hasB64 === true,
+    `hasB64=${directImagesGenerate.summary?.hasB64 ?? "?"}`,
+  );
+  recordParityCheck(
+    "worker images generate b64_json",
+    workerImagesGenerate.summary?.hasB64 === true,
+    `hasB64=${workerImagesGenerate.summary?.hasB64 ?? "?"}`,
+  );
+  recordParityCheck(
+    "images generate revised prompt parity",
+    firstRevisedPrompt(directImagesGenerate) === firstRevisedPrompt(workerImagesGenerate),
+    `direct=${firstRevisedPrompt(directImagesGenerate) ?? "?"}, worker=${firstRevisedPrompt(workerImagesGenerate) ?? "?"}`,
+  );
+
+  recordParityCheck("direct images edit status", directImagesEdit.status === 200, `status=${directImagesEdit.status}`);
+  recordParityCheck("worker images edit status", workerImagesEdit.status === 200, `status=${workerImagesEdit.status}`);
+  recordParityCheck(
+    "direct images edit b64_json",
+    directImagesEdit.summary?.hasB64 === true,
+    `hasB64=${directImagesEdit.summary?.hasB64 ?? "?"}`,
+  );
+  recordParityCheck(
+    "worker images edit b64_json",
+    workerImagesEdit.summary?.hasB64 === true,
+    `hasB64=${workerImagesEdit.summary?.hasB64 ?? "?"}`,
+  );
+  recordParityCheck(
+    "images edit revised prompt parity",
+    firstRevisedPrompt(directImagesEdit) === firstRevisedPrompt(workerImagesEdit),
+    `direct=${firstRevisedPrompt(directImagesEdit) ?? "?"}, worker=${firstRevisedPrompt(workerImagesEdit) ?? "?"}`,
+  );
+
+  const failedChecks = summary.checks.filter((check) => check.status === "failed");
+  if (failedChecks.length > 0) {
+    throw new Error(
+      failedChecks
+        .map((check) => `${check.name}: ${check.detail}`)
+        .join("; "),
+    );
+  }
+
+  summary.status = "passed";
+  summary.completedAt = new Date().toISOString();
+  await writeOutputIfRequested(summary);
+  console.log(JSON.stringify(summary, null, 2));
+} catch (error) {
+  summary.status = "failed";
+  summary.completedAt = new Date().toISOString();
+  summary.error = error?.message ?? String(error);
+  await writeOutputIfRequested(summary).catch(() => undefined);
+  throw error;
+} finally {
+  await new Promise((resolve) => proxyServer.close(() => resolve()));
+}

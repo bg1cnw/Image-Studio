@@ -76,6 +76,18 @@ export function FAQModal({ open, onClose }: { open: boolean; onClose: () => void
         </details>
 
         <details className="faq-item">
+          <summary className="faq-summary">有 Web 端吗?</summary>
+          <div className="faq-content">
+            <p>
+              当前<strong>没有独立部署的在线 Web 版</strong>。正式交付形态仍然是桌面端(Windows / macOS / Linux)和 Android 壳层。
+            </p>
+            <p>
+              仓库里有<strong>浏览器预览 / 调试形态</strong>，主要用于前端开发和 target platform 预览，不等同于可直接对外提供服务的 SaaS Web 端。
+            </p>
+          </div>
+        </details>
+
+        <details className="faq-item">
           <summary className="faq-summary">能换其他文本 / 图像模型吗?</summary>
           <div className="faq-content">
             <p>
@@ -103,7 +115,8 @@ export function FAQModal({ open, onClose }: { open: boolean; onClose: () => void
           <summary className="faq-summary">生成失败 / 504 / 524 怎么办?</summary>
           <div className="faq-content">
             <p>
-              上游网关超时(Cloudflare 504/524)在中转站上很常见。本应用<strong>自动重试 3 次,每次间隔 15 秒</strong>。
+              上游网关超时(Cloudflare 504/524)在中转站上很常见。本应用默认<strong>自动重试 3 次,每次间隔 15 秒</strong>。
+              你也可以在「设置 → 失败自动重试」里关闭它，避免测试问题时重复扣费。
               如果三次都失败:
             </p>
             <ul>
@@ -125,7 +138,7 @@ export function FAQModal({ open, onClose }: { open: boolean; onClose: () => void
               <li><strong>background / output_compression</strong>:属于 OpenAI 官方图像字段。仅 GPT 图像模型支持；压缩只对 JPEG / WebP 生效，透明背景需要 PNG / WebP</li>
               <li><strong>input_fidelity</strong>:用于图生图/参考图流程。`gpt-image-2` 要省略此字段；其它支持该能力的 GPT 图像模型可选 `low` / `high`</li>
               <li><strong>style</strong>:仅 `dall-e-3` 文生图支持，值为 `vivid` / `natural`</li>
-              <li><strong>partial_images</strong>:属于 OpenAI 官方流式图像字段。当前支持 `0-3`，`0` 只返回最终图，`1-3` 会流式返回预览帧</li>
+              <li><strong>partial_images</strong>:属于 OpenAI 官方流式图像字段。当前支持 `0-3`，`0` 只返回最终图，`1-3` 会流式返回预览帧；高并发批量生成时，应用可能自动关闭预览以优先保证最终图完整</li>
               <li><strong>稳定用户标识</strong>:属于 OpenAI 官方请求字段。Responses 模式映射到 `safety_identifier`，Images API 模式映射到 `user`，建议传哈希后的用户标识</li>
               <li><strong>seed / negative prompt</strong>:属于 relay 常见扩展字段。只有在 `兼容中转扩展` 策略下才会附带发送，OpenAI 标准模式默认不发</li>
               <li><strong>moderation</strong>:属于 OpenAI 官方图像字段。当前支持 `low` 和 `auto`，仅在 GPT 图像模型路径上发送</li>

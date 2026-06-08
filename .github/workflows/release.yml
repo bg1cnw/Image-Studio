@@ -169,8 +169,22 @@ jobs:
             echo "artifact_path=${artifact_path}"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Detect Windows signing inputs
+        id: windows_signing
+        if: matrix.goos == 'windows'
+        shell: bash
+        env:
+          IMAGE_STUDIO_WINDOWS_CERT_BASE64: ${{ secrets.IMAGE_STUDIO_WINDOWS_CERT_BASE64 }}
+          IMAGE_STUDIO_WINDOWS_CERT_PASSWORD: ${{ secrets.IMAGE_STUDIO_WINDOWS_CERT_PASSWORD }}
+        run: |
+          if [ -n "$IMAGE_STUDIO_WINDOWS_CERT_BASE64" ] && [ -n "$IMAGE_STUDIO_WINDOWS_CERT_PASSWORD" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Sign Windows artifact
-        if: matrix.goos == 'windows' && secrets.IMAGE_STUDIO_WINDOWS_CERT_BASE64 != '' && secrets.IMAGE_STUDIO_WINDOWS_CERT_PASSWORD != ''
+        if: matrix.goos == 'windows' && steps.windows_signing.outputs.available == 'true'
         shell: pwsh
         env:
           IMAGE_STUDIO_WINDOWS_CERT_BASE64: ${{ secrets.IMAGE_STUDIO_WINDOWS_CERT_BASE64 }}
@@ -180,7 +194,7 @@ jobs:
           ./scripts/sign-windows-binary.ps1 -Path "${{ steps.package.outputs.artifact_path }}"
 
       - name: Warn on unsigned Windows artifacts
-        if: matrix.goos == 'windows' && (secrets.IMAGE_STUDIO_WINDOWS_CERT_BASE64 == '' || secrets.IMAGE_STUDIO_WINDOWS_CERT_PASSWORD == '')
+        if: matrix.goos == 'windows' && steps.windows_signing.outputs.available != 'true'
         shell: bash
         run: |
           echo "::warning::Windows artifact is unsigned. Windows 11 Smart App Control / SmartScreen may block it."
@@ -190,6 +204,261 @@ jobs:
         with:
           name: ${{ steps.package.outputs.artifact_name }}
           path: ${{ steps.package.outputs.artifact_path }}
+          retention-days: 14
+
+  build-windows-installer:
+    name: Build windows universal installer
+    runs-on: windows-latest
+    needs:
+      - prepare-version
+      - build-desktop
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Windows desktop artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-*.exe
+
+      - name: Prepare installer inputs
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path image-studio/build/bin | Out-Null
+          Copy-Item "dist/image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-amd64.exe/image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-amd64.exe" "image-studio/build/bin/image-studio-amd64.exe"
+          Copy-Item "dist/image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-arm64.exe/image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-arm64.exe" "image-studio/build/bin/image-studio-arm64.exe"
+
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          choco install nsis --no-progress -y
+          $nsisBin = Join-Path ${env:ProgramFiles(x86)} "NSIS"
+          if (-not (Test-Path (Join-Path $nsisBin "makensis.exe"))) {
+            throw "makensis.exe not found after NSIS install."
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $nsisBin
+
+      - name: Build NSIS installer
+        working-directory: image-studio/build/windows/installer
+        shell: pwsh
+        run: |
+          $defines = @(
+            "/DINFO_PROJECTNAME=image-studio"
+            "/DINFO_COMPANYNAME=YuanHua"
+            "/DINFO_PRODUCTNAME=Image Studio"
+            "/DINFO_PRODUCTVERSION=${{ needs.prepare-version.outputs.product_version }}"
+            "/DINFO_COPYRIGHT=Copyright (c) 2026"
+            "/DARG_WAILS_AMD64_BINARY=..\..\bin\image-studio-amd64.exe"
+            "/DARG_WAILS_ARM64_BINARY=..\..\bin\image-studio-arm64.exe"
+          )
+          & makensis @defines project.nsi
+
+      - name: Stage installer artifact
+        id: package
+        shell: bash
+        run: |
+          mkdir -p dist/out
+          artifact_name="image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-installer.exe"
+          artifact_path="dist/out/${artifact_name}"
+          cp image-studio/build/bin/image-studio-amd64_arm64-installer.exe "$artifact_path"
+          ls -la dist/out/
+          {
+            echo "artifact_name=${artifact_name}"
+            echo "artifact_path=${artifact_path}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Detect Windows signing inputs
+        id: windows_signing
+        shell: bash
+        env:
+          IMAGE_STUDIO_WINDOWS_CERT_BASE64: ${{ secrets.IMAGE_STUDIO_WINDOWS_CERT_BASE64 }}
+          IMAGE_STUDIO_WINDOWS_CERT_PASSWORD: ${{ secrets.IMAGE_STUDIO_WINDOWS_CERT_PASSWORD }}
+        run: |
+          if [ -n "$IMAGE_STUDIO_WINDOWS_CERT_BASE64" ] && [ -n "$IMAGE_STUDIO_WINDOWS_CERT_PASSWORD" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Sign Windows installer
+        if: steps.windows_signing.outputs.available == 'true'
+        shell: pwsh
+        env:
+          IMAGE_STUDIO_WINDOWS_CERT_BASE64: ${{ secrets.IMAGE_STUDIO_WINDOWS_CERT_BASE64 }}
+          IMAGE_STUDIO_WINDOWS_CERT_PASSWORD: ${{ secrets.IMAGE_STUDIO_WINDOWS_CERT_PASSWORD }}
+          IMAGE_STUDIO_WINDOWS_TIMESTAMP_URL: ${{ vars.IMAGE_STUDIO_WINDOWS_TIMESTAMP_URL }}
+        run: |
+          ./scripts/sign-windows-binary.ps1 -Path "${{ steps.package.outputs.artifact_path }}"
+
+      - name: Warn on unsigned Windows installer
+        if: steps.windows_signing.outputs.available != 'true'
+        shell: bash
+        run: |
+          echo "::warning::Windows installer is unsigned. Windows 11 Smart App Control / SmartScreen may block it."
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: ${{ steps.package.outputs.artifact_path }}
+          retention-days: 14
+
+  build-windows-msix:
+    name: Build windows msix
+    runs-on: windows-latest
+    needs:
+      - prepare-version
+      - build-desktop
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: x64
+            artifact_suffix: windows-x64.msix
+            input_artifact: windows-amd64.exe
+            input_binary: image-studio-amd64.exe
+            package_arch: x64
+          - id: arm64
+            artifact_suffix: windows-arm64.msix
+            input_artifact: windows-arm64.exe
+            input_binary: image-studio-arm64.exe
+            package_arch: arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python packaging dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pillow
+
+      - name: Download desktop artifact
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: image-studio-${{ needs.prepare-version.outputs.app_version }}-${{ matrix.input_artifact }}
+
+      - name: Prepare msix input
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path image-studio/build/bin | Out-Null
+          Copy-Item "dist/image-studio-${{ needs.prepare-version.outputs.app_version }}-${{ matrix.input_artifact }}/image-studio-${{ needs.prepare-version.outputs.app_version }}-${{ matrix.input_artifact }}" "image-studio/build/bin/${{ matrix.input_binary }}"
+
+      - name: Detect MSIX identity configuration
+        id: msix_identity
+        shell: bash
+        env:
+          IMAGE_STUDIO_MSIX_IDENTITY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_IDENTITY_NAME || 'Image-Studio.Image-Studio' }}
+          IMAGE_STUDIO_MSIX_PUBLISHER: ${{ vars.IMAGE_STUDIO_MSIX_PUBLISHER || 'CN=D9AC33A5-F2A0-4194-9BCA-D17B6B918495' }}
+          IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME || 'Image-Studio' }}
+        run: |
+          if [ -n "$IMAGE_STUDIO_MSIX_IDENTITY_NAME" ] && [ -n "$IMAGE_STUDIO_MSIX_PUBLISHER" ] && [ -n "$IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build MSIX package
+        if: steps.msix_identity.outputs.available == 'true'
+        shell: pwsh
+        env:
+          IMAGE_STUDIO_MSIX_IDENTITY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_IDENTITY_NAME || 'Image-Studio.Image-Studio' }}
+          IMAGE_STUDIO_MSIX_PUBLISHER: ${{ vars.IMAGE_STUDIO_MSIX_PUBLISHER || 'CN=D9AC33A5-F2A0-4194-9BCA-D17B6B918495' }}
+          IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME || 'Image-Studio' }}
+        run: |
+          ./scripts/build-msix.ps1 `
+            -Architecture "${{ matrix.package_arch }}" `
+            -Version "${{ needs.prepare-version.outputs.product_version }}" `
+            -Publisher "$env:IMAGE_STUDIO_MSIX_PUBLISHER" `
+            -IdentityName "$env:IMAGE_STUDIO_MSIX_IDENTITY_NAME" `
+            -PublisherDisplayName "$env:IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME" `
+            -SourceExe "image-studio/build/bin/${{ matrix.input_binary }}" `
+            -OutputPath "dist/msix/image-studio-${{ needs.prepare-version.outputs.app_version }}-${{ matrix.artifact_suffix }}"
+
+      - name: Warn on skipped MSIX package
+        if: steps.msix_identity.outputs.available != 'true'
+        shell: bash
+        run: |
+          echo "::warning::Skipping MSIX packaging because IMAGE_STUDIO_MSIX_IDENTITY_NAME / IMAGE_STUDIO_MSIX_PUBLISHER / IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME are not all configured."
+
+      - name: Upload MSIX artifact
+        if: steps.msix_identity.outputs.available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-studio-${{ needs.prepare-version.outputs.app_version }}-${{ matrix.artifact_suffix }}
+          path: dist/msix/image-studio-${{ needs.prepare-version.outputs.app_version }}-${{ matrix.artifact_suffix }}
+          retention-days: 14
+
+  build-windows-msixbundle:
+    name: Build windows msixbundle
+    runs-on: windows-latest
+    needs:
+      - prepare-version
+      - build-windows-msix
+    steps:
+      - name: Detect MSIX identity configuration
+        id: msix_identity
+        shell: bash
+        env:
+          IMAGE_STUDIO_MSIX_IDENTITY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_IDENTITY_NAME || 'Image-Studio.Image-Studio' }}
+          IMAGE_STUDIO_MSIX_PUBLISHER: ${{ vars.IMAGE_STUDIO_MSIX_PUBLISHER || 'CN=D9AC33A5-F2A0-4194-9BCA-D17B6B918495' }}
+          IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME || 'Image-Studio' }}
+        run: |
+          if [ -n "$IMAGE_STUDIO_MSIX_IDENTITY_NAME" ] && [ -n "$IMAGE_STUDIO_MSIX_PUBLISHER" ] && [ -n "$IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download MSIX artifacts
+        if: steps.msix_identity.outputs.available == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/msix
+          pattern: image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-*.msix
+
+      - name: Build MSIX bundle
+        if: steps.msix_identity.outputs.available == 'true'
+        shell: pwsh
+        run: |
+          $makeAppx = Get-ChildItem -Path (Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin") -Filter makeappx.exe -Recurse -ErrorAction Stop |
+            Where-Object { $_.FullName -match "\\x64\\makeappx\.exe$" } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if (-not $makeAppx) {
+            throw "makeappx.exe not found."
+          }
+          New-Item -ItemType Directory -Force -Path dist/msixbundle | Out-Null
+          $mappingLines = @(
+            "[Files]"
+            '"dist/msix/image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-x64.msix\image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-x64.msix" "image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-x64.msix"'
+            '"dist/msix/image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-arm64.msix\image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-arm64.msix" "image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-arm64.msix"'
+          )
+          Set-Content -LiteralPath dist/msixbundle/bundle.map -Value $mappingLines -Encoding ASCII
+          & $makeAppx.FullName bundle /f dist/msixbundle/bundle.map /p "dist/msixbundle/image-studio-${{ needs.prepare-version.outputs.app_version }}-windows.msixbundle" /o
+          if ($LASTEXITCODE -ne 0) {
+            throw "makeappx bundle failed with exit code $LASTEXITCODE."
+          }
+
+      - name: Warn on skipped MSIX bundle
+        if: steps.msix_identity.outputs.available != 'true'
+        shell: bash
+        run: |
+          echo "::warning::Skipping MSIX bundle because IMAGE_STUDIO_MSIX_IDENTITY_NAME / IMAGE_STUDIO_MSIX_PUBLISHER / IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME are not all configured."
+
+      - name: Upload MSIX bundle artifact
+        if: steps.msix_identity.outputs.available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-studio-${{ needs.prepare-version.outputs.app_version }}-windows.msixbundle
+          path: dist/msixbundle/image-studio-${{ needs.prepare-version.outputs.app_version }}-windows.msixbundle
           retention-days: 14
 
   build-android-apk:
@@ -361,8 +630,22 @@ jobs:
             echo "artifact_path=${artifact_path}"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Detect Windows signing inputs
+        id: windows_signing
+        if: matrix.goos == 'windows'
+        shell: bash
+        env:
+          IMAGE_STUDIO_WINDOWS_CERT_BASE64: ${{ secrets.IMAGE_STUDIO_WINDOWS_CERT_BASE64 }}
+          IMAGE_STUDIO_WINDOWS_CERT_PASSWORD: ${{ secrets.IMAGE_STUDIO_WINDOWS_CERT_PASSWORD }}
+        run: |
+          if [ -n "$IMAGE_STUDIO_WINDOWS_CERT_BASE64" ] && [ -n "$IMAGE_STUDIO_WINDOWS_CERT_PASSWORD" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Sign Gio Windows artifact
-        if: matrix.goos == 'windows' && secrets.IMAGE_STUDIO_WINDOWS_CERT_BASE64 != '' && secrets.IMAGE_STUDIO_WINDOWS_CERT_PASSWORD != ''
+        if: matrix.goos == 'windows' && steps.windows_signing.outputs.available == 'true'
         shell: pwsh
         env:
           IMAGE_STUDIO_WINDOWS_CERT_BASE64: ${{ secrets.IMAGE_STUDIO_WINDOWS_CERT_BASE64 }}
@@ -372,7 +655,7 @@ jobs:
           ./scripts/sign-windows-binary.ps1 -Path "${{ steps.package.outputs.artifact_path }}"
 
       - name: Warn on unsigned Gio Windows artifacts
-        if: matrix.goos == 'windows' && (secrets.IMAGE_STUDIO_WINDOWS_CERT_BASE64 == '' || secrets.IMAGE_STUDIO_WINDOWS_CERT_PASSWORD == '')
+        if: matrix.goos == 'windows' && steps.windows_signing.outputs.available != 'true'
         shell: bash
         run: |
           echo "::warning::Windows artifact is unsigned. Windows 11 Smart App Control / SmartScreen may block it."
@@ -390,6 +673,9 @@ jobs:
     needs:
       - prepare-version
       - build-desktop
+      - build-windows-installer
+      - build-windows-msix
+      - build-windows-msixbundle
       - build-android-apk
       - build-gio-desktop
     if: startsWith(github.ref, 'refs/tags/v')

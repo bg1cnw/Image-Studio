@@ -15,6 +15,11 @@ export type ExactSizeSelection = {
   label: string;
 };
 
+export type ReferenceDimensions = {
+  width: number;
+  height: number;
+};
+
 export interface AspectPresetOption {
   value: AspectPreset;
   label: string;
@@ -50,6 +55,24 @@ export const RESOLUTION_PRESETS: Array<{ value: ResolutionPreset; label: string 
   { value: "4k", label: "4K" },
 ];
 
+type FlexibleCustomResolution = "1k" | "2k" | "4k";
+
+type SizeLimitConfig = {
+  maxSide: number;
+  maxPixels: number;
+  maxAspectRatio: number;
+  alignment: number;
+};
+
+type CustomResolutionReference = SizeLimitConfig & {
+  area: number;
+};
+
+export const MAX_OPENAI_IMAGE_SIDE = 3840;
+export const MAX_OPENAI_IMAGE_PIXELS = 3840 * 2160;
+export const MAX_OPENAI_IMAGE_ASPECT_RATIO = 3;
+const MIN_OPENAI_IMAGE_ASPECT_RATIO = 1 / MAX_OPENAI_IMAGE_ASPECT_RATIO;
+
 const BUILTIN_ASPECT_DIMENSIONS: Record<Exclude<BuiltinAspectPreset, "auto">, { width: number; height: number }> = {
   "1:1": { width: 1, height: 1 },
   "3:2": { width: 3, height: 2 },
@@ -71,12 +94,12 @@ const SIZE_MATRIX: Record<Exclude<BuiltinAspectPreset, "auto">, Partial<Record<E
   "3:2": {
     "1k": "1536x1024",
     "2k": "2048x1360",
-    "4k": "3456x2304",
+    "4k": "3520x2352",
   },
   "2:3": {
     "1k": "1024x1536",
     "2k": "1360x2048",
-    "4k": "2304x3456",
+    "4k": "2352x3520",
   },
   "16:9": {
     "1k": "1536x864",
@@ -105,10 +128,10 @@ const SIZE_TO_ASPECT: Record<string, BuiltinAspectPreset> = {
   "2880x2880": "1:1",
   "1536x1024": "3:2",
   "2048x1360": "3:2",
-  "3456x2304": "3:2",
+  "3520x2352": "3:2",
   "1024x1536": "2:3",
   "1360x2048": "2:3",
-  "2304x3456": "2:3",
+  "2352x3520": "2:3",
   "1536x864": "16:9",
   "2048x1152": "16:9",
   "3840x2160": "16:9",
@@ -136,8 +159,8 @@ const SIZE_TO_RESOLUTION: Record<string, ResolutionPreset> = {
   "2048x1152": "2k",
   "1152x2048": "2k",
   "2880x2880": "4k",
-  "3456x2304": "4k",
-  "2304x3456": "4k",
+  "3520x2352": "4k",
+  "2352x3520": "4k",
   "3840x2160": "4k",
   "2160x3840": "4k",
 };
@@ -146,15 +169,22 @@ const FLEXIBLE_RESOLUTION_PRESETS: ResolutionPreset[] = ["auto", "1k", "2k", "4k
 const LARGE_RESOLUTION_PRESETS = new Set<ResolutionPreset>(["2k", "4k"]);
 const DEFAULT_ASPECT_FROM_AUTO: Exclude<BuiltinAspectPreset, "auto"> = "1:1";
 const DEFAULT_RESOLUTION_FROM_AUTO: Exclude<ResolutionPreset, "auto"> = "1k";
-const CUSTOM_RESOLUTION_REFERENCES: Record<"1k" | "2k" | "4k", { area: number; maxSide: number }> = {
-  "1k": { area: 1536 * 1024, maxSide: 1536 },
-  "2k": { area: 2048 * 1360, maxSide: 2048 },
-  "4k": { area: 3840 * 2160, maxSide: 3840 },
+const DEFAULT_FLEXIBLE_CUSTOM_RESOLUTION: FlexibleCustomResolution = "1k";
+const EXACT_SIZE_LIMITS: SizeLimitConfig = {
+  maxSide: MAX_OPENAI_IMAGE_SIDE,
+  maxPixels: MAX_OPENAI_IMAGE_PIXELS,
+  maxAspectRatio: MAX_OPENAI_IMAGE_ASPECT_RATIO,
+  alignment: 1,
+};
+const CUSTOM_RESOLUTION_REFERENCES: Record<FlexibleCustomResolution, CustomResolutionReference> = {
+  "1k": { area: 1536 * 1024, maxSide: 1536, maxPixels: MAX_OPENAI_IMAGE_PIXELS, maxAspectRatio: MAX_OPENAI_IMAGE_ASPECT_RATIO, alignment: 8 },
+  "2k": { area: 2048 * 1360, maxSide: 2048, maxPixels: MAX_OPENAI_IMAGE_PIXELS, maxAspectRatio: MAX_OPENAI_IMAGE_ASPECT_RATIO, alignment: 8 },
+  "4k": { area: 3840 * 2160, maxSide: 3840, maxPixels: MAX_OPENAI_IMAGE_PIXELS, maxAspectRatio: MAX_OPENAI_IMAGE_ASPECT_RATIO, alignment: 16 },
 };
 const CUSTOM_ASPECT_TOLERANCE = 0.035;
 const BUILTIN_ASPECT_TOLERANCE = 0.08;
 export const MIN_EXACT_SIZE = 64;
-export const MAX_EXACT_SIZE = 8192;
+export const MAX_EXACT_SIZE = MAX_OPENAI_IMAGE_SIDE;
 
 function modelFamily(input: { imageModelID?: string }): ReturnType<typeof classifyImageModel> {
   return classifyImageModel(input.imageModelID || "");
@@ -258,11 +288,12 @@ export function deriveResolutionPreset(size: SizeValue): ResolutionPreset {
   if (exact) return exact;
   const parsed = parseSizeValue(size);
   if (!parsed) return DEFAULT_RESOLUTION_FROM_AUTO;
-  const area = parsed.width * parsed.height;
-  let best: ResolutionPreset = DEFAULT_RESOLUTION_FROM_AUTO;
+  const aspect = parsed.width / parsed.height;
+  let best: FlexibleCustomResolution = DEFAULT_FLEXIBLE_CUSTOM_RESOLUTION;
   let bestDistance = Number.POSITIVE_INFINITY;
-  for (const [resolution, reference] of Object.entries(CUSTOM_RESOLUTION_REFERENCES) as Array<["1k" | "2k" | "4k", { area: number }]>) {
-    const distance = Math.abs(area - reference.area);
+  for (const resolution of Object.keys(CUSTOM_RESOLUTION_REFERENCES) as FlexibleCustomResolution[]) {
+    const expected = buildCustomDimensionsForResolution(aspect, resolution);
+    const distance = customSizeDistance(parsed.width, parsed.height, expected.width, expected.height);
     if (distance < bestDistance) {
       bestDistance = distance;
       best = resolution;
@@ -278,10 +309,19 @@ export function formatSizeValue(size: SizeValue): string {
 }
 
 export function buildExactSizeValue(width: number, height: number): SizeValue | null {
+  const normalized = normalizeExactSizeDimensions(width, height);
+  if (!normalized) return null;
+  return `${normalized.width}x${normalized.height}` as SizeValue;
+}
+
+export function normalizeExactSizeDimensions(
+  width: unknown,
+  height: unknown,
+): { width: number; height: number } | null {
   const safeWidth = normalizeExactSizeDimension(width);
   const safeHeight = normalizeExactSizeDimension(height);
   if (!safeWidth || !safeHeight) return null;
-  return `${safeWidth}x${safeHeight}` as SizeValue;
+  return enforceSizeLimits(safeWidth, safeHeight, EXACT_SIZE_LIMITS);
 }
 
 export function deriveExactSizeSelection(
@@ -319,7 +359,9 @@ export function buildSizeSelection(
   if (custom) {
     if (!supportsCustomAspectRatios(input)) return defaultModelSize(input);
     const ratio = customRatios.find((item) => item.id === custom);
-    return ratio ? buildCustomSizeSelection(ratio, normalizedResolution) : (SIZE_MATRIX[DEFAULT_ASPECT_FROM_AUTO][normalizedResolution] ?? defaultModelSize(input));
+    return ratio
+      ? buildCustomSizeSelection(ratio, normalizeFlexibleCustomResolution(normalizedResolution))
+      : (SIZE_MATRIX[DEFAULT_ASPECT_FROM_AUTO][normalizedResolution] ?? defaultModelSize(input));
   }
   if (!allowedBuiltinAspectPresets(input).includes(aspect as BuiltinAspectPreset)) {
     return defaultModelSize(input);
@@ -351,12 +393,15 @@ export function buildResolutionSizeSelection(
   resolution: ResolutionPreset,
   input: SizeCapabilityInput,
   customRatios: CustomAspectRatio[] = [],
+  referenceAspect: AspectPreset | null = null,
 ): SizeValue {
   if (resolution === "auto") {
     return supportsAutomaticSizing(input) ? "auto" : defaultModelSize(input);
   }
   return buildSizeSelection(
-    currentAspect === "auto" ? DEFAULT_ASPECT_FROM_AUTO : currentAspect,
+    currentAspect === "auto"
+      ? (referenceAspect ?? DEFAULT_ASPECT_FROM_AUTO)
+      : currentAspect,
     normalizeResolutionSelection(resolution, input),
     input,
     customRatios,
@@ -381,7 +426,7 @@ export function normalizeSizeSelection(
   if (!parsed) return defaultModelSize(input);
   const canonical = sizeValueFromDimensions(parsed.width, parsed.height);
   if (supportsPreciseSizeControl(input) && isExactSizeValue(canonical, input, customRatios)) {
-    return canonical;
+    return buildExactSizeValue(parsed.width, parsed.height) ?? defaultModelSize(input);
   }
   const aspect = deriveAspectPreset(canonical, customRatios);
   const resolution = deriveResolutionPreset(canonical);
@@ -404,19 +449,10 @@ export function sizeCapabilityHint(input: SizeCapabilityInput): string {
 
 function buildCustomSizeSelection(
   ratio: CustomAspectRatio,
-  resolution: Exclude<ResolutionPreset, "auto">,
+  resolution: FlexibleCustomResolution,
 ): SizeValue {
-  const reference = CUSTOM_RESOLUTION_REFERENCES[resolution as "1k" | "2k" | "4k"] ?? CUSTOM_RESOLUTION_REFERENCES["1k"];
-  const aspect = ratio.width / ratio.height;
-  let width = Math.sqrt(reference.area * aspect);
-  let height = Math.sqrt(reference.area / aspect);
-  const maxSide = Math.max(width, height);
-  if (maxSide > reference.maxSide) {
-    const scale = reference.maxSide / maxSide;
-    width *= scale;
-    height *= scale;
-  }
-  return `${roundDimension(width)}x${roundDimension(height)}` as SizeValue;
+  const { width, height } = buildCustomDimensionsForResolution(ratio.width / ratio.height, resolution);
+  return `${width}x${height}` as SizeValue;
 }
 
 function aspectShapeFromRatio(width: number, height: number): { w: number; h: number } {
@@ -443,6 +479,14 @@ export function parseSizeValue(size: SizeValue): { width: number; height: number
 }
 
 function findMatchingCustomAspect(width: number, height: number, customRatios: CustomAspectRatio[]): CustomAspectRatio | null {
+  for (const ratio of customRatios) {
+    for (const resolution of Object.keys(CUSTOM_RESOLUTION_REFERENCES) as FlexibleCustomResolution[]) {
+      const expected = buildCustomDimensionsForResolution(ratio.width / ratio.height, resolution);
+      if (expected.width === width && expected.height === height) {
+        return ratio;
+      }
+    }
+  }
   let best: CustomAspectRatio | null = null;
   let bestDistance = Number.POSITIVE_INFINITY;
   for (const ratio of customRatios) {
@@ -477,15 +521,117 @@ function aspectRatioDistance(width: number, height: number, targetWidth: number,
   return Math.abs(left - right) / right;
 }
 
-function roundDimension(value: number): number {
-  return Math.max(64, Math.round(value / 8) * 8);
+function buildCustomDimensionsForResolution(
+  aspect: number,
+  resolution: FlexibleCustomResolution,
+): { width: number; height: number } {
+  const reference = CUSTOM_RESOLUTION_REFERENCES[resolution] ?? CUSTOM_RESOLUTION_REFERENCES["1k"];
+  const normalizedAspect = normalizeCustomAspectRatio(aspect, reference.maxAspectRatio);
+  let width = Math.sqrt(reference.area * normalizedAspect);
+  let height = Math.sqrt(reference.area / normalizedAspect);
+  return enforceSizeLimits(width, height, reference) ?? {
+    width: Math.max(MIN_EXACT_SIZE, Math.min(reference.maxSide, roundDimension(width, reference.alignment))),
+    height: Math.max(MIN_EXACT_SIZE, Math.min(reference.maxSide, roundDimension(height, reference.alignment))),
+  };
+}
+
+function normalizeCustomAspectRatio(aspect: number, maxAspectRatio?: number): number {
+  if (!Number.isFinite(aspect) || aspect <= 0) return 1;
+  if (!maxAspectRatio || maxAspectRatio <= 1) return aspect;
+  const minAspectRatio = 1 / maxAspectRatio;
+  if (aspect > maxAspectRatio) return maxAspectRatio;
+  if (aspect < minAspectRatio) return minAspectRatio;
+  return aspect;
+}
+
+function enforceSizeLimits(
+  width: number,
+  height: number,
+  limits: SizeLimitConfig,
+): { width: number; height: number } | null {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+  const normalizedAspect = normalizeCustomAspectRatio(width / height, limits.maxAspectRatio);
+  let limitedWidth = width;
+  let limitedHeight = height;
+
+  if (width / height !== normalizedAspect) {
+    if (width >= height) {
+      limitedWidth = height * normalizedAspect;
+    } else {
+      limitedHeight = width / normalizedAspect;
+    }
+  }
+
+  const maxSide = Math.max(limitedWidth, limitedHeight);
+  if (maxSide > limits.maxSide) {
+    const scale = limits.maxSide / maxSide;
+    limitedWidth *= scale;
+    limitedHeight *= scale;
+  }
+
+  let roundedWidth = Math.min(limits.maxSide, roundDimension(limitedWidth, limits.alignment));
+  let roundedHeight = Math.min(limits.maxSide, roundDimension(limitedHeight, limits.alignment));
+
+  while (
+    roundedWidth > 0
+    && roundedHeight > 0
+    && (
+      roundedWidth * roundedHeight > limits.maxPixels
+      || roundedWidth / roundedHeight > limits.maxAspectRatio
+      || roundedWidth / roundedHeight < MIN_OPENAI_IMAGE_ASPECT_RATIO
+    )
+  ) {
+    const nextWidth = roundedWidth - limits.alignment;
+    const nextHeight = roundedHeight - limits.alignment;
+    const widthDistance = nextWidth >= MIN_EXACT_SIZE
+      ? customSizeDistance(nextWidth, roundedHeight, limitedWidth, limitedHeight)
+      : Number.POSITIVE_INFINITY;
+    const heightDistance = nextHeight >= MIN_EXACT_SIZE
+      ? customSizeDistance(roundedWidth, nextHeight, limitedWidth, limitedHeight)
+      : Number.POSITIVE_INFINITY;
+    if (widthDistance <= heightDistance && Number.isFinite(widthDistance)) {
+      roundedWidth = nextWidth;
+      continue;
+    }
+    if (Number.isFinite(heightDistance)) {
+      roundedHeight = nextHeight;
+      continue;
+    }
+    break;
+  }
+
+  if (roundedWidth < MIN_EXACT_SIZE || roundedHeight < MIN_EXACT_SIZE) {
+    return null;
+  }
+  return { width: roundedWidth, height: roundedHeight };
+}
+
+function customSizeDistance(
+  width: number,
+  height: number,
+  targetWidth: number,
+  targetHeight: number,
+): number {
+  return Math.abs(width - targetWidth) / Math.max(targetWidth, 1)
+    + Math.abs(height - targetHeight) / Math.max(targetHeight, 1);
+}
+
+function normalizeFlexibleCustomResolution(
+  resolution: Exclude<ResolutionPreset, "auto">,
+): FlexibleCustomResolution {
+  if (resolution === "2k" || resolution === "4k") return resolution;
+  return "1k";
+}
+
+function roundDimension(value: number, alignment = 8): number {
+  return Math.max(64, Math.round(value / alignment) * alignment);
 }
 
 function normalizeExactSizeDimension(value: unknown): number {
   const num = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(num)) return 0;
   const rounded = Math.floor(num);
-  if (rounded < MIN_EXACT_SIZE || rounded > MAX_EXACT_SIZE) return 0;
+  if (rounded < MIN_EXACT_SIZE) return 0;
   return rounded;
 }
 
@@ -515,6 +661,27 @@ export function isBuiltInAspectRatio(width: number, height: number): boolean {
 export function reduceAspectRatioLabel(width: number, height: number): string {
   const reduced = reduceAspectRatio(width, height);
   return reduced.width > 0 && reduced.height > 0 ? `${reduced.width}:${reduced.height}` : "";
+}
+
+export function buildReferenceAspectRatio(
+  width: number,
+  height: number,
+  customRatios: CustomAspectRatio[] = [],
+): CustomAspectRatio | null {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+  if (isBuiltInAspectRatio(width, height)) return null;
+  const id = buildCustomAspectRatioId(width, height);
+  const existing = customRatios.find((item) => item.id === id);
+  if (existing) return existing;
+  const reduced = reduceAspectRatio(width, height);
+  if (reduced.width <= 0 || reduced.height <= 0) return null;
+  return {
+    id,
+    label: `参考图 ${reduced.width}:${reduced.height}`,
+    width: reduced.width,
+    height: reduced.height,
+    createdAt: 0,
+  };
 }
 
 function defaultModelSize(input: SizeCapabilityInput): SizeValue {

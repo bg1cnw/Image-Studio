@@ -1,4 +1,4 @@
-import type { APIMode, QualityValue, RequestPolicy, SourceImage } from "../../types/domain";
+import type { APIMode, BatchProcessConfig, EditSourceMode, QualityValue, RequestPolicy, SourceImage } from "../../types/domain";
 import {
   type AspectPreset,
   type AspectPresetOption,
@@ -23,9 +23,13 @@ export function MacComposePanel({
   allowPreciseSizeControl,
   availableResolutions,
   batchCount,
+  batchProcess,
+  chooseBatchInputDir,
+  chooseBatchOutputDir,
   mode,
   sources,
   currentImage,
+  editSourceMode,
   apiMode,
   requestPolicy,
   imageModelID,
@@ -34,8 +38,10 @@ export function MacComposePanel({
   handleResolutionSelect,
   onOpenCustomAspectRatioModal,
   onOpenCustomSizeModal,
+  refreshBatchInputDir,
   selectSourceImage,
   clearSources,
+  compareSourceOnCanvas,
   viewSourceOnCanvas,
   quality,
   qualityOptions,
@@ -57,9 +63,13 @@ export function MacComposePanel({
   allowPreciseSizeControl: boolean;
   availableResolutions: ResolutionPreset[];
   batchCount: number;
+  batchProcess: BatchProcessConfig;
+  chooseBatchInputDir: () => void;
+  chooseBatchOutputDir: () => void;
   mode: string;
   sources: SourceImage[];
   currentImage: { savedPath?: string } | null;
+  editSourceMode: EditSourceMode;
   apiMode: APIMode;
   requestPolicy: RequestPolicy;
   imageModelID: string;
@@ -68,8 +78,10 @@ export function MacComposePanel({
   handleResolutionSelect: (resolution: ResolutionPreset) => void;
   onOpenCustomAspectRatioModal: () => void;
   onOpenCustomSizeModal: () => void;
+  refreshBatchInputDir: () => void;
   selectSourceImage: () => void;
   clearSources: () => void;
+  compareSourceOnCanvas: (index: number) => void;
   viewSourceOnCanvas: (index: number) => void;
   quality: QualityValue;
   qualityOptions: Array<{ value: QualityValue; label: string }>;
@@ -119,8 +131,15 @@ export function MacComposePanel({
 
           {mode === "edit" && (
             <MacComposeSources
+              batchProcess={batchProcess}
+              chooseBatchInputDir={chooseBatchInputDir}
+              chooseBatchOutputDir={chooseBatchOutputDir}
               clearSources={clearSources}
+              compareSourceOnCanvas={compareSourceOnCanvas}
               currentImageSavedPath={currentImage?.savedPath ?? null}
+              editSourceMode={editSourceMode}
+              refreshBatchInputDir={refreshBatchInputDir}
+              setField={setField}
               selectSourceImage={selectSourceImage}
               viewSourceOnCanvas={viewSourceOnCanvas}
               sources={sources}

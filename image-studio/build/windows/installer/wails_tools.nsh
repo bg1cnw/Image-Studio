@@ -148,6 +148,9 @@ RequestExecutionLevel "${REQUEST_EXECUTION_LEVEL}"
     !ifndef WAILS_INSTALL_WEBVIEW_DETAILPRINT
         !define WAILS_INSTALL_WEBVIEW_DETAILPRINT "Installing: WebView2 Runtime"
     !endif
+    !ifndef WAILS_SKIP_WEBVIEW2_DETAILPRINT
+        !define WAILS_SKIP_WEBVIEW2_DETAILPRINT "Skipping bundled WebView2 bootstrapper: tmp\\MicrosoftEdgeWebview2Setup.exe not found."
+    !endif
 
     SetRegView 64
 	# If the admin key exists and is not empty then webview2 is already installed
@@ -168,11 +171,17 @@ RequestExecutionLevel "${REQUEST_EXECUTION_LEVEL}"
     DetailPrint "${WAILS_INSTALL_WEBVIEW_DETAILPRINT}"
     SetDetailsPrint listonly
 
+    !if /FileExists "tmp\MicrosoftEdgeWebview2Setup.exe"
     InitPluginsDir
     CreateDirectory "$pluginsdir\webview2bootstrapper"
     SetOutPath "$pluginsdir\webview2bootstrapper"
     File "tmp\MicrosoftEdgeWebview2Setup.exe"
     ExecWait '"$pluginsdir\webview2bootstrapper\MicrosoftEdgeWebview2Setup.exe" /silent /install'
+    !else
+    SetDetailsPrint both
+    DetailPrint "${WAILS_SKIP_WEBVIEW2_DETAILPRINT}"
+    SetDetailsPrint listonly
+    !endif
 
     SetDetailsPrint both
     ok:
@@ -202,21 +211,13 @@ RequestExecutionLevel "${REQUEST_EXECUTION_LEVEL}"
 !macroend
 
 !macro wails.associateFiles
-    ; Create file associations
-    {{range .Info.FileAssociations}}
-      !insertmacro APP_ASSOCIATE "{{.Ext}}" "{{.Name}}" "{{.Description}}" "$INSTDIR\{{.IconName}}.ico" "Open with ${INFO_PRODUCTNAME}" "$INSTDIR\${PRODUCT_EXECUTABLE} $\"%1$\""
-
-      File "..\{{.IconName}}.ico"
-    {{end}}
+    ; This repo does not currently ship Windows file associations in the
+    ; manually-invoked NSIS workflow. Keep the macro empty so direct makensis
+    ; runs do not depend on Wails template expansion.
 !macroend
 
 !macro wails.unassociateFiles
-    ; Delete app associations
-    {{range .Info.FileAssociations}}
-      !insertmacro APP_UNASSOCIATE "{{.Ext}}" "{{.Name}}"
-
-      Delete "$INSTDIR\{{.IconName}}.ico"
-    {{end}}
+    ; No-op. See wails.associateFiles above.
 !macroend
 
 !macro CUSTOM_PROTOCOL_ASSOCIATE PROTOCOL DESCRIPTION ICON COMMAND
@@ -234,16 +235,11 @@ RequestExecutionLevel "${REQUEST_EXECUTION_LEVEL}"
 !macroend
 
 !macro wails.associateCustomProtocols
-    ; Create custom protocols associations
-    {{range .Info.Protocols}}
-      !insertmacro CUSTOM_PROTOCOL_ASSOCIATE "{{.Scheme}}" "{{.Description}}" "$INSTDIR\${PRODUCT_EXECUTABLE},0" "$INSTDIR\${PRODUCT_EXECUTABLE} $\"%1$\""
-
-    {{end}}
+    ; This repo does not currently ship custom protocol handlers in the
+    ; manually-invoked NSIS workflow. Keep the macro empty so direct makensis
+    ; runs do not depend on Wails template expansion.
 !macroend
 
 !macro wails.unassociateCustomProtocols
-    ; Delete app custom protocol associations
-    {{range .Info.Protocols}}
-      !insertmacro CUSTOM_PROTOCOL_UNASSOCIATE "{{.Scheme}}"
-    {{end}}
+    ; No-op. See wails.associateCustomProtocols above.
 !macroend

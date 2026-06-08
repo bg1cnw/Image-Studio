@@ -16,3 +16,9 @@ export async function saveHistoryItemToDirectory(item: HistoryItem, directory: s
   if (item.imageB64) return SaveImageToDir(item.imageB64, directory, suggested);
   throw new Error("当前图片没有可保存内容");
 }
+
+export async function saveHistoryItemToDirectoryAs(item: HistoryItem, directory: string, suggestedName: string): Promise<string> {
+  if (item.savedPath) return SaveImagePathToDir(item.savedPath, directory, suggestedName);
+  if (item.imageB64) return SaveImageToDir(item.imageB64, directory, suggestedName);
+  throw new Error("当前图片没有可保存内容");
+}

@@ -49,6 +49,7 @@ export function createProfileActions(store: StateAdapter) {
         imageModelID: (input.imageModelID ?? "").trim(),
         reasoningEffort: input.reasoningEffort ?? "xhigh",
         concurrencyLimit: normalizeConcurrencyLimit(input.concurrencyLimit ?? 0),
+        fallbackProfileId: undefined,
         createdAt: Date.now(),
       };
       if ((input.apiKey ?? "").trim()) {
@@ -83,6 +84,7 @@ export function createProfileActions(store: StateAdapter) {
         reasoningEffort: patch.reasoningEffort ?? current.reasoningEffort ?? "xhigh",
         concurrencyLimit: patch.concurrencyLimit !== undefined
           ? normalizeConcurrencyLimit(patch.concurrencyLimit) : current.concurrencyLimit,
+        fallbackProfileId: patch.fallbackProfileId !== undefined ? patch.fallbackProfileId || undefined : current.fallbackProfileId,
         lastUsedAt: patch.lastUsedAt ?? current.lastUsedAt,
       };
       const nextList = list.map((profile, idx) => (idx === index ? next : profile));

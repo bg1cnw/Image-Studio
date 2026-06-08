@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
 import { usePlatform } from "../../platform/context";
@@ -11,6 +11,7 @@ export function WorkspaceBar() {
   const { isAndroidPhone, isMac, isWindows, usesFluentUI, usesAppleUI } = usePlatform();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
+  const barRef = useRef<HTMLDivElement | null>(null);
 
   if (fullscreen) return null;
   if (isAndroidPhone) return null;
@@ -27,8 +28,22 @@ export function WorkspaceBar() {
     setEditingId(null);
   }
 
+  function handleWheel(event: React.WheelEvent<HTMLDivElement>) {
+    if (event.defaultPrevented || event.ctrlKey) return;
+    const container = barRef.current;
+    if (!container) return;
+    if (container.scrollWidth <= container.clientWidth + 1) return;
+    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+    event.preventDefault();
+    container.scrollLeft += event.deltaY;
+  }
+
   return (
-    <div className={`${isWindows ? "workspace-bar" : ""} drag-region flex items-center overflow-x-auto border-b border-[var(--border)] bg-[var(--toolbar)] backdrop-blur-2xl ${usesAppleUI ? "liquid-glass-bar" : ""} ${usesFluentUI ? "gap-1 px-3 py-1.5" : isMac ? "mac-workspace-bar gap-1.5 py-1.5" : "gap-1 px-4 py-1.5"}`}>
+    <div
+      ref={barRef}
+      onWheel={handleWheel}
+      className={`${isWindows ? "workspace-bar" : ""} drag-region flex items-center overflow-x-auto border-b border-[var(--border)] bg-[var(--toolbar)] backdrop-blur-2xl ${usesAppleUI ? "liquid-glass-bar" : ""} ${usesFluentUI ? "gap-1 px-3 py-1.5" : isMac ? "mac-workspace-bar gap-1.5 py-1.5" : "gap-1 px-4 py-1.5"}`}
+    >
       {workspaces.map((w) => {
         const active = w.id === activeWorkspaceId;
         const isEditing = editingId === w.id;

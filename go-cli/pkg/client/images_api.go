@@ -176,9 +176,6 @@ func (e *imageStreamExtractor) result() (ImageResult, bool) {
 	if e.hasFinal {
 		return e.final, true
 	}
-	if e.partialB64 != "" {
-		return ImageResult{ImageB64: e.partialB64, SourceEvent: "images_api_partial"}, true
-	}
 	return ImageResult{}, false
 }
 

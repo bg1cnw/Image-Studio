@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/base64"
+	"errors"
 	"testing"
 )
 
@@ -29,18 +30,15 @@ func TestResponseCollectorExtractsFinalAndPartial(t *testing.T) {
 		}
 	})
 
-	t.Run("partial fallback", func(t *testing.T) {
+	t.Run("partial only is not a success result", func(t *testing.T) {
 		c := newResponseCollector(nil)
 		_, err := c.Write([]byte("data: {\"type\":\"response.image_generation_call.partial_image\",\"partial_image_b64\":\"" + pngB64 + "\"}\n"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := c.result()
-		if err != nil {
-			t.Fatalf("collector result: %v", err)
-		}
-		if got.ImageB64 != pngB64 || got.SourceEvent != "partial" {
-			t.Fatalf("unexpected partial result: %+v", got)
+		_, err = c.result()
+		if !errors.Is(err, ErrNoImageInResponse) {
+			t.Fatalf("collector result err = %v, want ErrNoImageInResponse", err)
 		}
 	})
 

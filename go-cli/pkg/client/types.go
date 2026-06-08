@@ -218,6 +218,10 @@ type Options struct {
 
 	// DisablePreview forces partial_images = 0 for this request.
 	DisablePreview bool
+
+	// AutoRetryEnabled controls whether retryable upstream/transport failures are
+	// retried automatically. Nil means "use the default" (enabled).
+	AutoRetryEnabled *bool
 }
 
 // EffectiveImageDataURLs returns the merged list, deduplicating empty entries.

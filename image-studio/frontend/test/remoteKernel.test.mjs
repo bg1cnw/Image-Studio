@@ -187,6 +187,65 @@ test("runRemoteImageJob retries retryable responses and returns parsed SSE image
   });
 });
 
+test("runRemoteImageJob can fall back to a backup upstream profile after main retries fail", async () => {
+  const seen = [];
+  await withPatchedGlobals(async () => {
+    globalThis.fetch = async (url) => {
+      const urlText = String(url);
+      seen.push(urlText);
+      if (urlText.startsWith("https://primary.example")) {
+        return new Response("<html>Error code 524 | 524: A timeout occurred</html>", {
+          status: 524,
+          headers: { "content-type": "text/html" },
+        });
+      }
+      return new Response(
+        'data: {"type":"response.output_item.done","item":{"type":"image_generation_call","result":"YmFja3Vw","revised_prompt":"backup-rev"}}\n',
+        { status: 200, headers: { "content-type": "text/event-stream" } },
+      );
+    };
+  }, async () => {
+    const kernel = await loadRemoteKernel();
+    const result = await kernel.runRemoteImageJob(
+      {
+        payload: {
+          apiKey: "key",
+          mode: "generate",
+          prompt: "cat",
+          size: "1024x1024",
+          quality: "low",
+          outputFormat: "png",
+          imagePaths: [],
+          imagePath: "",
+          maskB64: "",
+          seed: 0,
+          negativePrompt: "",
+          userIdentifier: "user-hash-123",
+          baseURL: "https://primary.example",
+          textModelID: "gpt-5.5",
+          imageModelID: "gpt-image-2",
+          apiMode: "responses",
+          requestPolicy: "openai",
+          noPromptRevision: false,
+          fallbackProfile: {
+            baseURL: "https://backup.example",
+            apiKey: "backup-key",
+            textModelID: "gpt-5.5-mini",
+            imageModelID: "gpt-image-2",
+            apiMode: "responses",
+            requestPolicy: "openai",
+          },
+        },
+      },
+      { signal: new AbortController().signal },
+    );
+    assert.equal(result.imageB64, "YmFja3Vw");
+    assert.equal(result.revisedPrompt, "backup-rev");
+    assert.equal(seen.filter((url) => url.startsWith("https://primary.example")).length, 3);
+    assert.equal(seen.filter((url) => url.startsWith("https://backup.example")).length, 1);
+  });
+});
+
 test("runRemoteImageJob emits Responses API partial image previews", async () => {
   let capturedBody = null;
   const partials = [];
@@ -241,6 +300,63 @@ test("runRemoteImageJob emits Responses API partial image previews", async () =>
         sourceEvent: "responses_partial",
       },
     ]);
+  });
+});
+
+test("runRemoteImageJob retries when Responses API only returns partial previews", async () => {
+  let calls = 0;
+  const partials = [];
+  await withPatchedGlobals(async () => {
+    globalThis.fetch = async () => {
+      calls += 1;
+      if (calls === 1) {
+        return new Response(
+          'data: {"type":"response.image_generation_call.partial_image","partial_image_index":0,"partial_image_b64":"cGFydGlhbA==","revised_prompt":"partial rev"}\n' +
+          'data: {"type":"response.completed","response":{"status":"completed"}}\n',
+          { status: 200, headers: { "content-type": "text/event-stream" } },
+        );
+      }
+      return new Response(
+        'data: {"type":"response.output_item.done","item":{"type":"image_generation_call","result":"ZmluYWw=","revised_prompt":"final rev"}}\n',
+        { status: 200, headers: { "content-type": "text/event-stream" } },
+      );
+    };
+  }, async () => {
+    const kernel = await loadRemoteKernel();
+    const result = await kernel.runRemoteImageJob(
+      {
+        payload: {
+          apiKey: "key",
+          mode: "generate",
+          prompt: "cat",
+          size: "1024x1024",
+          quality: "low",
+          outputFormat: "png",
+          imagePaths: [],
+          imagePath: "",
+          maskB64: "",
+          seed: 0,
+          negativePrompt: "",
+          userIdentifier: "user-hash-123",
+          baseURL: "https://upstream.example",
+          textModelID: "gpt-5.5",
+          imageModelID: "gpt-image-2",
+          apiMode: "responses",
+          requestPolicy: "openai",
+          noPromptRevision: false,
+          partialImages: 1,
+        },
+      },
+      {
+        signal: new AbortController().signal,
+        onPartialImage: (partial) => partials.push(partial),
+      },
+    );
+    assert.equal(calls, 2);
+    assert.equal(result.imageB64, "ZmluYWw=");
+    assert.equal(result.sourceEvent, "final");
+    assert.equal(partials.length, 1);
+    assert.equal(partials[0].imageB64, "cGFydGlhbA==");
   });
 });
 
@@ -352,6 +468,63 @@ test("runRemoteImageJob emits Images API stream partial image previews", async (
         sourceEvent: "images_partial",
       },
     ]);
+  });
+});
+
+test("runRemoteImageJob retries when Images API only returns partial previews", async () => {
+  let calls = 0;
+  const partials = [];
+  await withPatchedGlobals(async () => {
+    globalThis.fetch = async () => {
+      calls += 1;
+      if (calls === 1) {
+        return new Response(
+          'data: {"type":"image_generation.partial_image","partial_image_index":0,"b64_json":"aW1hZ2VzLXBhcnRpYWw="}\n' +
+          'data: {"type":"response.completed","response":{"status":"completed"}}\n',
+          { status: 200, headers: { "content-type": "text/event-stream" } },
+        );
+      }
+      return new Response(
+        'data: {"type":"image_generation.completed","b64_json":"aW1hZ2VzLWZpbmFs"}\n',
+        { status: 200, headers: { "content-type": "text/event-stream" } },
+      );
+    };
+  }, async () => {
+    const kernel = await loadRemoteKernel();
+    const result = await kernel.runRemoteImageJob(
+      {
+        payload: {
+          apiKey: "key",
+          mode: "generate",
+          prompt: "cat",
+          size: "1024x1024",
+          quality: "low",
+          outputFormat: "png",
+          imagePaths: [],
+          imagePath: "",
+          maskB64: "",
+          seed: 0,
+          negativePrompt: "",
+          userIdentifier: "user-hash-123",
+          baseURL: "https://upstream.example",
+          textModelID: "",
+          imageModelID: "gpt-image-2",
+          apiMode: "images",
+          requestPolicy: "openai",
+          noPromptRevision: false,
+          partialImages: 1,
+        },
+      },
+      {
+        signal: new AbortController().signal,
+        onPartialImage: (partial) => partials.push(partial),
+      },
+    );
+    assert.equal(calls, 2);
+    assert.equal(result.imageB64, "aW1hZ2VzLWZpbmFs");
+    assert.equal(result.sourceEvent, "images_api");
+    assert.equal(partials.length, 1);
+    assert.equal(partials[0].imageB64, "aW1hZ2VzLXBhcnRpYWw=");
   });
 });
 
@@ -697,13 +870,20 @@ test("Android shell remote kernel can use native HTTP bridge to bypass browser f
             if (payload.url.endsWith("/v1/responses")) {
               assert.equal(payload.streamLines, true);
               window.__imageStudioNativeProgress?.(payload.requestKey, {
-                line: 'data: {"type":"response.image_generation_call.partial_image","partial_image_index":0,"partial_image_b64":"cGFydGlhbA=="}',
+                event: {
+                  type: "response.image_generation_call.partial_image",
+                  partial_image_index: 0,
+                  partial_image_b64: "cGFydGlhbA==",
+                },
               });
               window.__imageStudioNativeResolve?.(requestId, {
                 status: 200,
-                body: 'data: {"type":"response.image_generation_call.partial_image","partial_image_index":0,"partial_image_b64":"cGFydGlhbA=="}\n' +
-                  'data: {"type":"response.output_item.done","item":{"type":"image_generation_call","result":"YW5kcm9pZA==","revised_prompt":"native bridge"}}\n',
+                body: "",
                 contentType: "text/event-stream",
+                rawPath: "/sdcard/Android/data/top.gptcodex.imagestudio/files/Pictures/ImageStudio/log/android-http-response.txt",
+                resultImageB64: "YW5kcm9pZA==",
+                revisedPrompt: "native bridge",
+                sourceEvent: "final",
               });
               return;
             }

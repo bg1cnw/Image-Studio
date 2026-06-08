@@ -6,7 +6,7 @@ import type { HistoryItem, Workspace } from "../types/domain";
 import type { StudioState } from "./studioStore.types";
 import { historyItemsByIds, saveActiveWorkspaceSnapshot } from "./studioStore.runtime";
 import { streamPreviewItemFromWorkspace } from "./studioStore.streamPreview";
-import { defaultLoopGenerationConfig, normalizeLoopGenerationConfig } from "./workspaceRuntime";
+import { defaultBatchProcessConfig, defaultLoopGenerationConfig, normalizeBatchProcessConfig, normalizeLoopGenerationConfig } from "./workspaceRuntime";
 
 type StateAdapter = {
   getState: () => StudioState;
@@ -37,6 +37,8 @@ export function createWorkspaceActions(store: StateAdapter) {
         userIdentifier: state.userIdentifier,
         partialImages: state.partialImages,
         batchCount: 1,
+        editSourceMode: "manual",
+        batchProcess: defaultBatchProcessConfig(),
         loopGeneration: defaultLoopGenerationConfig(),
         sources: [],
         currentImageId: null,
@@ -72,6 +74,8 @@ export function createWorkspaceActions(store: StateAdapter) {
         userIdentifier: newWorkspace.userIdentifier,
         partialImages: newWorkspace.partialImages,
         batchCount: newWorkspace.batchCount,
+        editSourceMode: newWorkspace.editSourceMode,
+        batchProcess: normalizeBatchProcessConfig(newWorkspace.batchProcess),
         loopGeneration: normalizeLoopGenerationConfig(newWorkspace.loopGeneration),
         sources: newWorkspace.sources,
         currentImage: null,
@@ -125,6 +129,8 @@ export function createWorkspaceActions(store: StateAdapter) {
         userIdentifier: target.userIdentifier,
         partialImages: target.partialImages,
         batchCount: target.batchCount,
+        editSourceMode: target.editSourceMode,
+        batchProcess: normalizeBatchProcessConfig(target.batchProcess),
         loopGeneration: normalizeLoopGenerationConfig(target.loopGeneration),
         sources: target.sources,
         currentImage: newCurrent,
@@ -189,6 +195,8 @@ export function createWorkspaceActions(store: StateAdapter) {
           userIdentifier: next.userIdentifier,
           partialImages: next.partialImages,
           batchCount: next.batchCount,
+          editSourceMode: next.editSourceMode,
+          batchProcess: normalizeBatchProcessConfig(next.batchProcess),
           loopGeneration: normalizeLoopGenerationConfig(next.loopGeneration),
           sources: next.sources,
           currentImage: newCurrent,

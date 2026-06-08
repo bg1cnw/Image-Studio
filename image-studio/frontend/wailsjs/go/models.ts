@@ -29,9 +29,11 @@ export namespace backend {
 	    requestPolicy: string;
 	    imagesNewAPICompat: boolean;
 	    noPromptRevision: boolean;
-	    concurrencyLimit: number;
-	    partialImages: number;
-	    disablePreview: boolean;
+		    concurrencyLimit: number;
+		    partialImages: number;
+		    fallbackProfile: any;
+		    autoRetryEnabled: boolean;
+		    disablePreview: boolean;
 
 	    static createFrom(source: any = {}) {
 	        return new GenerateOptions(source);
@@ -67,9 +69,11 @@ export namespace backend {
 	        this.requestPolicy = source["requestPolicy"];
 	        this.imagesNewAPICompat = source["imagesNewAPICompat"];
 	        this.noPromptRevision = source["noPromptRevision"];
-	        this.concurrencyLimit = source["concurrencyLimit"];
-	        this.partialImages = source["partialImages"];
-	        this.disablePreview = source["disablePreview"];
+		        this.concurrencyLimit = source["concurrencyLimit"];
+		        this.partialImages = source["partialImages"];
+		        this.fallbackProfile = source["fallbackProfile"];
+		        this.autoRetryEnabled = source["autoRetryEnabled"];
+		        this.disablePreview = source["disablePreview"];
 	    }
 	}
 	export class ImageTransformResult {

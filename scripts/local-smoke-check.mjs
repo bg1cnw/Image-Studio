@@ -1,30 +1,29 @@
-import { spawn } from "node:child_process";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { pickFreePort } from "./pick-free-port.mjs";
+import {
+  startRuntimeSmokeServer,
+  waitForChildExit,
+  waitForRuntimeSmokeServer,
+} from "./runtime-smoke-process.mjs";
+import { resolveVerifyOutputPath } from "./verify-output-paths.mjs";
 
-const port = Number(process.env.RUNTIME_SMOKE_PORT || 41743);
+const port = process.env.RUNTIME_SMOKE_PORT
+  ? Number(process.env.RUNTIME_SMOKE_PORT)
+  : await pickFreePort();
 const origin = `http://127.0.0.1:${port}`;
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitForServer(url, timeoutMs = 10_000) {
-  const deadline = Date.now() + timeoutMs;
-  let lastError = null;
-  while (Date.now() < deadline) {
-    try {
-      const response = await fetch(url, {
-        method: "GET",
-        headers: { Authorization: "Bearer smoke-key" },
-      });
-      if (response.ok) return;
-      lastError = new Error(`server responded ${response.status}`);
-    } catch (error) {
-      lastError = error;
-    }
-    await sleep(250);
-  }
-  throw lastError ?? new Error("server did not start in time");
-}
+const outputPath = resolveVerifyOutputPath("IMAGE_STUDIO_SMOKE_VERIFY_OUTPUT_PATH", "local-smoke.json");
+const summary = {
+  startedAt: new Date().toISOString(),
+  status: "running",
+  environment: {
+    nodeVersion: process.version,
+    platform: process.platform,
+    arch: process.arch,
+    port,
+  },
+  origin,
+};
 
 async function requestJSON(path, init) {
   const response = await fetch(origin + path, init);
@@ -45,19 +44,18 @@ async function requestText(path, init) {
   };
 }
 
-const child = spawn(process.execPath, ["scripts/runtime-smoke-server.mjs"], {
-  cwd: process.cwd(),
-  env: { ...process.env, RUNTIME_SMOKE_PORT: String(port) },
-  stdio: ["ignore", "pipe", "pipe"],
-});
+async function writeOutputIfRequested(payload) {
+  if (!outputPath) return;
+  await mkdir(path.dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+}
 
-let stderr = "";
-child.stderr.on("data", (chunk) => {
-  stderr += chunk.toString("utf8");
-});
+const smoke = startRuntimeSmokeServer({ cwd: process.cwd(), port });
+const child = smoke.child;
 
+let capturedError = null;
 try {
-  await waitForServer(`${origin}/v1/models`);
+  await waitForRuntimeSmokeServer(origin, child, smoke.getStderr);
 
   const models = await requestJSON("/v1/models", {
     method: "GET",
@@ -133,8 +131,7 @@ try {
     }),
   });
 
-  console.log(JSON.stringify({
-    origin,
+  Object.assign(summary, {
     models: {
       status: models.status,
       ids: models.json.data.map((item) => item.id),
@@ -155,11 +152,23 @@ try {
       status: optimize.status,
       outputText: optimize.json.output_text,
     },
-  }, null, 2));
+  });
+  summary.status = "passed";
+  summary.completedAt = new Date().toISOString();
+  console.log(JSON.stringify(summary, null, 2));
+} catch (error) {
+  capturedError = error;
+  summary.status = "failed";
+  summary.completedAt = new Date().toISOString();
+  summary.error = error?.message ?? String(error);
 } finally {
   child.kill("SIGTERM");
-  await new Promise((resolve) => child.once("exit", () => resolve()));
-  if (stderr.trim()) {
-    process.stderr.write(stderr);
+  await waitForChildExit(child);
+  const stderr = smoke.getStderr().trim();
+  if (stderr) {
+    summary.serverStderr = stderr;
+    process.stderr.write(`${stderr}\n`);
   }
+  await writeOutputIfRequested(summary).catch(() => undefined);
+  if (capturedError) throw capturedError;
 }

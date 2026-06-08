@@ -248,10 +248,50 @@ export function retryableMarkers() {
   ];
 }
 
+function hasPartialImageWithoutFinal(raw) {
+  const text = String(raw || "").trim();
+  if (!text) return false;
+  let partialSeen = false;
+  let finalSeen = false;
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.startsWith("data: ")) continue;
+    const payload = line.slice(6).trim();
+    if (!payload || payload === "[DONE]") continue;
+    let event;
+    try {
+      event = JSON.parse(payload);
+    } catch {
+      continue;
+    }
+    switch (event?.type) {
+      case "response.image_generation_call.partial_image":
+        if (event.partial_image_b64) partialSeen = true;
+        break;
+      case "response.output_item.done":
+        if (event?.item?.type === "image_generation_call" && event?.item?.result) {
+          finalSeen = true;
+        }
+        break;
+      case "image_generation.partial_image":
+      case "image_edit.partial_image":
+        if (event.b64_json) partialSeen = true;
+        break;
+      case "image_generation.completed":
+      case "image_edit.completed":
+        if (event.b64_json) finalSeen = true;
+        break;
+      default:
+        break;
+    }
+  }
+  return partialSeen && !finalSeen;
+}
+
 export function isRetryableRaw(raw) {
   const text = String(raw || "").trim();
   const lower = text.toLowerCase();
   if (retryableMarkers().some((marker) => lower.includes(marker))) return true;
+  if (hasPartialImageWithoutFinal(text)) return true;
   try {
     const data = JSON.parse(text);
     if (data?.retryable === true) return true;
@@ -372,6 +412,9 @@ export function describeProblem(raw) {
     } catch {
       // ignore
     }
+  }
+  if (hasPartialImageWithoutFinal(text)) {
+    return "接口只返回了流式预览帧,没有返回最终图片。";
   }
   return "接口已返回内容,但没有发现 image_generation_call.result。";
 }

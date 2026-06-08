@@ -10,6 +10,7 @@ export function SourceStrip() {
   const removeSource = useStudioStore((s) => s.removeSource);
   const reorderSources = useStudioStore((s) => s.reorderSources);
   const viewSourceOnCanvas = useStudioStore((s) => s.viewSourceOnCanvas);
+  const compareSourceOnCanvas = useStudioStore((s) => s.compareSourceOnCanvas);
   const mode = useStudioStore((s) => s.mode);
   const selectSourceImage = useStudioStore((s) => s.selectSourceImage);
   const { isMac, usesFluentUI, usesAppleUI } = usePlatform();
@@ -32,6 +33,13 @@ export function SourceStrip() {
           )}
         </div>
         <div className="flex items-center gap-2 overflow-x-auto">
+      <button
+        onClick={() => void compareSourceOnCanvas(0)}
+        title="对比主参考图"
+        className={`platform-pill shrink-0 px-3 py-1.5 text-[11px] text-zinc-500 transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
+      >
+        对比主参考图
+      </button>
       {sources.map((s, i) => (
         <SourceTile
           key={s.path}

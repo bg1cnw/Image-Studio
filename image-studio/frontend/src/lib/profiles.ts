@@ -60,6 +60,7 @@ export function tryParseProfile(raw: unknown): UpstreamProfile | null {
   const reasoningEffort = normalizeReasoningEffort(o.reasoningEffort);
   const concurrencyLimit = typeof o.concurrencyLimit === "number" && o.concurrencyLimit >= 0
     ? Math.floor(o.concurrencyLimit) : 0;
+  const fallbackProfileId = typeof o.fallbackProfileId === "string" ? o.fallbackProfileId.trim() : "";
   const createdAt = typeof o.createdAt === "number" ? o.createdAt : Date.now();
   const lastUsedAt = typeof o.lastUsedAt === "number" ? o.lastUsedAt : undefined;
   if (!id || !name) return null;
@@ -74,6 +75,7 @@ export function tryParseProfile(raw: unknown): UpstreamProfile | null {
     imageModelID,
     reasoningEffort,
     concurrencyLimit,
+    fallbackProfileId: fallbackProfileId || undefined,
     createdAt,
     lastUsedAt,
   };
@@ -118,6 +120,7 @@ export function makeBlankProfile(apiMode: APIMode = "responses", profiles: Upstr
     imageModelID: "",
     reasoningEffort: "xhigh",
     concurrencyLimit: 0,
+    fallbackProfileId: undefined,
     createdAt: Date.now(),
   };
 }

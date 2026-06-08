@@ -18,13 +18,16 @@ const PROMPT_TEMPLATES: { label: string; text: string }[] = [
 export function PromptPopover({
   anchorRef,
   onClose,
+  onManageTemplates,
   onPick,
 }: {
   anchorRef: React.RefObject<HTMLElement | null>;
   onClose: () => void;
+  onManageTemplates: () => void;
   onPick: (text: string) => void;
 }) {
   const history = useStudioStore((s) => s.promptHistory);
+  const promptTemplates = useStudioStore((s) => s.promptTemplates);
   const [tab, setTab] = useState<"templates" | "history">("templates");
   const { isMac, usesFluentUI, usesAppleUI } = usePlatform();
   const popoverRef = useRef<HTMLDivElement | null>(null);
@@ -105,16 +108,48 @@ export function PromptPopover({
         </button>
       </div>
       <div className={`flex-1 overflow-y-auto ${isMac ? "p-3" : "p-2.5"}`}>
-        {tab === "templates" && PROMPT_TEMPLATES.map((t) => (
-          <button
-            key={t.label}
-            onClick={() => { onPick(t.text); onClose(); }}
-            className={`w-full text-left transition-colors hover:bg-[var(--accent-soft)] ${isMac ? "px-3.5 py-3.5" : "px-3 py-3"} ${usesFluentUI ? "rounded-[10px]" : "rounded-[16px]"}`}
-          >
-            <div className={`${isMac ? "mb-1.5 text-[13px]" : "mb-1 text-[12px]"} font-semibold text-zinc-900 dark:text-zinc-100`}>{t.label}</div>
-            <div className={`${isMac ? "text-[12px] leading-6" : "text-[11px] leading-relaxed"} text-zinc-500 dark:text-zinc-300`}>{t.text}</div>
-          </button>
-        ))}
+        {tab === "templates" && (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">自定义模板</div>
+              <button
+                type="button"
+                onClick={() => { onClose(); onManageTemplates(); }}
+                className={`text-[11px] text-[var(--accent)] ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
+              >
+                管理
+              </button>
+            </div>
+            {promptTemplates.length === 0 ? (
+              <div className={`border border-dashed border-black/[0.08] px-4 py-5 text-center text-[12px] text-zinc-500 dark:border-white/[0.08] dark:text-zinc-300 ${usesFluentUI ? "rounded-[12px]" : "rounded-[18px]"}`}>
+                还没有自定义模板
+              </div>
+            ) : (
+              promptTemplates.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => { onPick(item.text); onClose(); }}
+                  className={`w-full text-left transition-colors hover:bg-[var(--accent-soft)] ${isMac ? "px-3.5 py-3.5" : "px-3 py-3"} ${usesFluentUI ? "rounded-[10px]" : "rounded-[16px]"}`}
+                >
+                  <div className={`${isMac ? "mb-1.5 text-[13px]" : "mb-1 text-[12px]"} font-semibold text-zinc-900 dark:text-zinc-100`}>{item.label}</div>
+                  <div className={`${isMac ? "text-[12px] leading-6" : "text-[11px] leading-relaxed"} text-zinc-500 dark:text-zinc-300`}>{item.text}</div>
+                </button>
+              ))
+            )}
+
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-500 dark:text-zinc-400">内置模板</div>
+            {PROMPT_TEMPLATES.map((t) => (
+              <button
+                key={t.label}
+                onClick={() => { onPick(t.text); onClose(); }}
+                className={`w-full text-left transition-colors hover:bg-[var(--accent-soft)] ${isMac ? "px-3.5 py-3.5" : "px-3 py-3"} ${usesFluentUI ? "rounded-[10px]" : "rounded-[16px]"}`}
+              >
+                <div className={`${isMac ? "mb-1.5 text-[13px]" : "mb-1 text-[12px]"} font-semibold text-zinc-900 dark:text-zinc-100`}>{t.label}</div>
+                <div className={`${isMac ? "text-[12px] leading-6" : "text-[11px] leading-relaxed"} text-zinc-500 dark:text-zinc-300`}>{t.text}</div>
+              </button>
+            ))}
+          </div>
+        )}
         {tab === "history" && (
           history.length === 0 ? (
             <div className={`border border-dashed border-black/[0.08] px-4 py-8 text-center text-[12px] text-zinc-500 dark:border-white/[0.08] dark:text-zinc-300 ${usesFluentUI ? "rounded-[12px]" : "rounded-[18px]"}`}>

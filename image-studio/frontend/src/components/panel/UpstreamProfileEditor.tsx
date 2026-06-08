@@ -25,6 +25,7 @@ export function UpstreamProfileEditor({
   loadingModels,
   modelCatalog,
   modelCatalogError,
+  profiles,
   usesAppleUI,
   onOpenFAQ,
   onPatchDraft,
@@ -45,6 +46,7 @@ export function UpstreamProfileEditor({
   loadingModels: boolean;
   modelCatalog: UpstreamModelCatalog | null;
   modelCatalogError: string | null;
+  profiles: UpstreamProfile[];
   usesAppleUI: boolean;
   onOpenFAQ: () => void;
   onPatchDraft: (patch: Partial<UpstreamProfile>) => void;
@@ -68,6 +70,7 @@ export function UpstreamProfileEditor({
   const selectedRequestPolicy = requestPolicyOptions.find((option) => option.id === draft.requestPolicy) ?? requestPolicyOptions[0];
   const selectedReasoningEffort = REASONING_EFFORT_OPTIONS.find((option) => option.value === draft.reasoningEffort) ?? REASONING_EFFORT_OPTIONS[0];
   const preferredModels = modelCatalog ? preferredModelsForAPIMode(modelCatalog, draft.apiMode) : null;
+  const fallbackCandidates = profiles.filter((profile) => profile.id !== draft.id && profile.baseURL.trim());
 
   return (
     <div className={`upstream-profile-editor flex min-w-0 flex-col ${isAndroidPhone ? "gap-3" : "gap-3.5"}`}>
@@ -294,6 +297,24 @@ export function UpstreamProfileEditor({
           className={`focus-ring w-full min-w-0 border border-black/[0.08] bg-[var(--surface)] px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 dark:border-white/[0.08] dark:text-zinc-100 dark:placeholder:text-zinc-500 font-mono-token ${usesFluentUI ? "rounded-[10px]" : "rounded-[14px]"}`}
         />
         <Hint>0/留空 = 不限制。填正整数后,此 profile 跨所有标签页最多同时运行这么多任务。</Hint>
+      </Field>
+
+      <Field label="失败重试路由到">
+        <select
+          value={draft.fallbackProfileId ?? ""}
+          onChange={(e) => onPatchDraft({ fallbackProfileId: e.target.value || undefined })}
+          className={`focus-ring w-full min-w-0 border border-black/[0.08] bg-[var(--surface)] px-3 py-2 text-sm text-zinc-900 dark:border-white/[0.08] dark:text-zinc-100 ${usesFluentUI ? "rounded-[10px]" : "rounded-[14px]"}`}
+        >
+          <option value="">不自动切备用上游</option>
+          {fallbackCandidates.map((profile) => (
+            <option key={profile.id} value={profile.id}>
+              {profile.name} · {profile.apiMode === "responses" ? "Responses" : "Images"}
+            </option>
+          ))}
+        </select>
+        <Hint>
+          当前上游自动重试仍失败后，可额外切到这里选定的备用 profile 再尝试一次。默认关闭。
+        </Hint>
       </Field>
 
       {draft.apiMode === "images" ? (

@@ -39,6 +39,17 @@ export type RemoteGeneratePayload = {
   concurrencyLimit?: number;
   partialImages?: number;
   disablePreview?: boolean;
+  fallbackProfile?: {
+    baseURL: string;
+    apiKey: string;
+    textModelID: string;
+    imageModelID: string;
+    reasoningEffort?: string;
+    apiMode: string;
+    requestPolicy: RequestPolicy;
+    imagesNewAPICompat?: boolean;
+  };
+  autoRetryEnabled?: boolean;
 };
 
 export type ProgressCallback = (stage: string, elapsedSeconds: number, bytesReceived: number) => void;
@@ -101,6 +112,10 @@ export type NativeTextResponse = {
   status: number;
   body: string;
   contentType?: string;
+  rawPath?: string | null;
+  resultImageB64?: string;
+  revisedPrompt?: string;
+  sourceEvent?: string;
 };
 
 export type ExtractedImageResult = {

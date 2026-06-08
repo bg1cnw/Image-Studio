@@ -4,7 +4,7 @@ import {
 } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
 import { availableQualityOptions, normalizeQualitySelection, STYLE_CHIPS } from "../../components/panel/panelOptions";
-import type { Mode } from "../../types/domain";
+import type { Mode, SizeValue } from "../../types/domain";
 import { AndroidModeSwitch } from "./AndroidModeSwitch";
 import { usePlatform } from "../context";
 import { vibrateForPlatform } from "./bridge";
@@ -12,10 +12,13 @@ import { AndroidAdvancedSection } from "./AndroidAdvancedSection";
 import { AndroidPadParameterSection } from "./AndroidPadParameterSection";
 import { AndroidPadSourceSection } from "./AndroidPadSourceSection";
 import { AndroidPromptTemplateModal } from "./AndroidPromptTemplateModal";
+import { PromptTemplateManagerModal } from "../../components/panel/PromptTemplateManagerModal";
 import { ParameterPresetsSection } from "../../components/panel/ParameterPresetsSection";
+import { appendPromptTemplateText } from "../../lib/promptTemplateInsert";
 import {
   aspectPresetLabel,
   availableResolutionPresets,
+  buildReferenceAspectRatio,
   deriveExactSizeSelection,
   deriveAspectPreset,
   deriveResolutionPreset,
@@ -40,11 +43,14 @@ export function AndroidPadComposePanel({
     userIdentifier, partialImages,
     batchCount, loopGeneration, sources, currentImage, isRunning, isOptimizingPrompt, apiMode, requestPolicy, baseURL, imageModelID,
     profiles, customAspectRatios, setField, selectSourceImage, removeSource, clearSources, viewSourceOnCanvas,
+    compareSourceOnCanvas,
     openCustomAspectRatioModal, openCustomSizeModal,
     openUpstreamConfig, submit, cancel, optimizePrompt,
   } = useStudioStore();
   const [templateOpen, setTemplateOpen] = useState(false);
+  const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const promptTemplates = useStudioStore((s) => s.promptTemplates);
   const promptLen = prompt.length;
   const { androidOrientation, androidWidthClass } = usePlatform();
   const isMediumPad = androidWidthClass === "medium";
@@ -62,15 +68,26 @@ export function AndroidPadComposePanel({
   const qualityOptions = availableQualityOptions(imageModelID);
   const allowCustomAspectRatios = supportsCustomAspectRatios(capabilityInput);
   const allowPreciseSizeControl = supportsPreciseSizeControl(capabilityInput);
+  const referenceDimensions = sources[0]?.previewWidth && sources[0]?.previewHeight
+    ? { width: sources[0].previewWidth, height: sources[0].previewHeight }
+    : currentImage?.previewWidth && currentImage?.previewHeight
+      ? { width: currentImage.previewWidth, height: currentImage.previewHeight }
+      : null;
+  const referenceAspectRatio = referenceDimensions
+    ? buildReferenceAspectRatio(referenceDimensions.width, referenceDimensions.height, customAspectRatios)
+    : null;
+  const sizingAspectRatios = referenceAspectRatio && !customAspectRatios.some((item) => item.id === referenceAspectRatio.id)
+    ? [...customAspectRatios, referenceAspectRatio]
+    : customAspectRatios;
   const activeStyleLabel = STYLE_CHIPS.find((item) => item.id === styleTag)?.label ?? "默认风格";
-  const aspectOptions = listAspectPresetOptions(capabilityInput, customAspectRatios);
-  const exactSize = deriveExactSizeSelection(normalizedSize, capabilityInput, customAspectRatios);
-  const derivedAspect = deriveAspectPreset(normalizedSize, customAspectRatios);
+  const aspectOptions = listAspectPresetOptions(capabilityInput, sizingAspectRatios);
+  const exactSize = deriveExactSizeSelection(normalizedSize, capabilityInput, sizingAspectRatios);
+  const derivedAspect = deriveAspectPreset(normalizedSize, sizingAspectRatios);
   const derivedResolution = deriveResolutionPreset(normalizedSize);
   const activeAspect = exactSize ? null : derivedAspect;
   const activeResolution = exactSize ? null : derivedResolution;
   const availableResolutions = availableResolutionPresets(capabilityInput);
-  const activeAspectLabel = exactSize ? "精确尺寸" : aspectPresetLabel(derivedAspect, customAspectRatios);
+  const activeAspectLabel = exactSize ? "精确尺寸" : aspectPresetLabel(derivedAspect, sizingAspectRatios);
   const activeResolutionLabel = exactSize ? exactSize.label : (derivedResolution === "auto" ? "自动" : derivedResolution.toUpperCase());
   const activeQualityLabel = qualityOptions.find((item) => item.value === normalizedQuality)?.label ?? normalizedQuality;
   const editSourceLabel = sources.length > 0 ? `${sources.length} 张已添加` : currentImage?.savedPath ? "使用当前画板" : "未添加";
@@ -80,16 +97,23 @@ export function AndroidPadComposePanel({
       aspect ?? derivedAspect,
       derivedResolution,
       capabilityInput,
-      customAspectRatios,
+      sizingAspectRatios,
     ));
   };
 
   const handleResolutionSelect = (resolution: typeof activeResolution) => {
+    const referenceAspectPreset = referenceDimensions
+      ? deriveAspectPreset(
+          `${referenceDimensions.width}x${referenceDimensions.height}` as SizeValue,
+          sizingAspectRatios,
+        )
+      : null;
     setField("size", buildAndroidResolutionSizeSelection(
       derivedAspect,
       resolution ?? derivedResolution,
       capabilityInput,
-      customAspectRatios,
+      sizingAspectRatios,
+      referenceAspectPreset,
     ));
   };
 
@@ -195,6 +219,26 @@ export function AndroidPadComposePanel({
               onChange={(e) => setField("prompt", e.target.value)}
               className="focus-ring android-pad-prompt-textarea min-h-[170px] w-full resize-none border border-black/[0.08] bg-[var(--surface)] px-4 py-3 text-[15px] leading-7 text-zinc-900 placeholder:text-zinc-400 dark:border-white/[0.08] dark:text-zinc-100 dark:placeholder:text-zinc-500"
             />
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => { vibrateForPlatform(8); setTemplateManagerOpen(true); }}
+                className="platform-pill inline-flex min-h-[36px] items-center gap-1.5 px-3 text-[12px] text-zinc-500 hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+              >
+                <ListPlus className="h-3.5 w-3.5" /> 管理模板
+              </button>
+              {promptTemplates.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setField("prompt", appendPromptTemplateText(prompt, item.text))}
+                  className="platform-pill inline-flex min-h-[36px] items-center px-3 text-[12px] text-zinc-500 hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+                  title={item.text}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="android-pad-action-row mt-3">
             <div className="relative android-pad-action-slot">
@@ -258,8 +302,9 @@ export function AndroidPadComposePanel({
           <div className="android-pad-right-stack">
             {mode === "edit" ? (
               <AndroidPadSourceSection
-              clearSources={clearSources}
-              currentImage={currentImage}
+                onCompareSource={(index) => void compareSourceOnCanvas(index)}
+                clearSources={clearSources}
+                currentImage={currentImage}
               editSourceLabel={editSourceLabel}
               onSelectSource={handleSelectSource}
               onViewSource={(index) => void viewSourceOnCanvas(index)}
@@ -312,11 +357,13 @@ export function AndroidPadComposePanel({
       <AndroidPromptTemplateModal
         open={templateOpen}
         onClose={() => setTemplateOpen(false)}
+        onManageTemplates={() => setTemplateManagerOpen(true)}
         onPick={(text) => {
           const current = useStudioStore.getState().prompt;
-          setField("prompt", current ? `${current}\n${text}` : text);
+          setField("prompt", appendPromptTemplateText(current, text));
         }}
       />
+      <PromptTemplateManagerModal open={templateManagerOpen} onClose={() => setTemplateManagerOpen(false)} />
     </div>
   );
 }

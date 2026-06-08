@@ -44,23 +44,17 @@ func IterEvents(raw string) iter.Seq[Event] {
 // ExtractImageResult parses raw SSE text and returns the image base64.
 // Priority:
 //  1. response.output_item.done with item.type == image_generation_call and item.result
-//  2. last partial_image_b64 seen (fallback)
-//  3. JSON walk of the entire body (non-SSE responses)
+//  2. JSON walk of the entire body (non-SSE responses)
 //
-// Returns ErrNoImageInResponse if nothing matches.
+// Partial preview frames are intentionally not treated as success. If the
+// stream only delivered partial_image previews but never produced the final
+// image result, callers should retry instead of persisting a blurry preview as
+// if it were the completed image.
 func ExtractImageResult(raw string) (ImageResult, error) {
-	var partialB64, partialPrompt string
-
 	for ev := range IterEvents(raw) {
 		evType, _ := ev["type"].(string)
 
 		if evType == "response.image_generation_call.partial_image" {
-			if v, ok := ev["partial_image_b64"].(string); ok && v != "" {
-				partialB64 = v
-			}
-			if v, ok := ev["revised_prompt"].(string); ok && v != "" {
-				partialPrompt = v
-			}
 			continue
 		}
 
@@ -83,25 +77,10 @@ func ExtractImageResult(raw string) (ImageResult, error) {
 				SourceEvent:   "final",
 			}, nil
 		}
-		if partialB64 != "" {
-			return ImageResult{
-				ImageB64:      partialB64,
-				RevisedPrompt: partialPrompt,
-				SourceEvent:   "partial",
-			}, nil
-		}
 	}
 
 	if r, ok := findImageResultInJSON(raw); ok {
 		return r, nil
-	}
-
-	if partialB64 != "" {
-		return ImageResult{
-			ImageB64:      partialB64,
-			RevisedPrompt: partialPrompt,
-			SourceEvent:   "partial",
-		}, nil
 	}
 
 	return ImageResult{}, ErrNoImageInResponse

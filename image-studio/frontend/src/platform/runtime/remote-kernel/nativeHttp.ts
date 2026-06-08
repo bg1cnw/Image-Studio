@@ -67,31 +67,21 @@ function ensureAndroidProgressHook() {
   progressHookWindow = browserWindow;
 }
 
-function streamLineFromPayload(payload: unknown): string {
-  if (typeof payload === "string") return payload;
-  if (!payload || typeof payload !== "object") return "";
-  const line = (payload as { line?: unknown }).line;
-  return typeof line === "string" ? line : "";
-}
-
 export async function nativeHttpRequestText(
   url: string,
   method: string,
   headers: Record<string, string>,
   body: BodyInit | null | undefined,
   signal?: AbortSignal,
-  onStreamLine?: (line: string) => void,
+  onStreamPayload?: (payload: unknown) => void,
   proxyConfig?: NativeHTTPProxyConfig,
 ): Promise<NativeTextResponse> {
   const requestKey = `native-http-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
   const encoded = await encodeRequestBody(body, headers);
   if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
   ensureAndroidProgressHook();
-  if (onStreamLine) {
-    nativeHttpProgressHandlers.set(requestKey, (payload) => {
-      const line = streamLineFromPayload(payload);
-      if (line) onStreamLine(line);
-    });
+  if (onStreamPayload) {
+    nativeHttpProgressHandlers.set(requestKey, onStreamPayload);
   }
   let aborted = false;
   const onAbort = () => {
@@ -107,7 +97,7 @@ export async function nativeHttpRequestText(
       headers,
       bodyBase64: encoded.bodyBase64,
       contentType: encoded.contentType,
-      streamLines: Boolean(onStreamLine),
+      streamLines: Boolean(onStreamPayload),
       proxyMode: proxyConfig?.proxyMode || "system",
       proxyURL: proxyConfig?.proxyURL || "",
     });

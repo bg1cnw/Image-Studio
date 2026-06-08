@@ -22,6 +22,31 @@ cd android-shell
 ./gradlew assembleRelease
 ```
 
+Local verification without a connected device:
+
+```bash
+cd ..
+node scripts/verify-local-android-shell.mjs
+```
+
+This script assembles the debug APK, checks `versionName` / `versionCode`,
+verifies the APK signature, confirms the built frontend assets are embedded
+into the package, and runs the Android JVM unit tests for shell-side parsing
+logic.
+
+If you already have a device or emulator attached over `adb`, you can also ask
+the script to install and launch the debug APK:
+
+```bash
+IMAGE_STUDIO_ANDROID_DEVICE_SMOKE=1 node scripts/verify-local-android-shell.mjs
+```
+
+Optionally pin a specific device:
+
+```bash
+IMAGE_STUDIO_ANDROID_DEVICE_SMOKE=1 IMAGE_STUDIO_ANDROID_SERIAL=<serial> node scripts/verify-local-android-shell.mjs
+```
+
 MuMu emulator debugging:
 
 - See `../docs/mumu-android-debug.md` for the shared ADB connection,

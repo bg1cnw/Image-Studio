@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import {
+  BuildBatchOutputPath,
   EventsOn,
   EventsOff,
   Generate as wailsGenerate,
@@ -13,8 +14,10 @@ import {
   RegisterMediaAsset,
   RegisterImportedImageAsset,
   SetKeepLogsEnabled,
+  SetCleanupPreviewCacheOnExitEnabled,
   SetOutputDir,
   CheckForAppUpdate,
+  WriteAppUpdateProbe,
   probeCurrentUpstream,
   setKernelRuntimeMode,
 } from "../platform/runtime/host";
@@ -22,7 +25,10 @@ import type { backend } from "../../wailsjs/go/models";
 import {
   APIMode,
   AppUpdateInfo,
+  BatchProcessResultLink,
+  BatchProcessSourceImage,
   BackgroundValue,
+  EditSourceMode,
   HistoryItem,
   ImageStyleValue,
   InputFidelityValue,
@@ -33,6 +39,7 @@ import {
   OutputFormatValue,
   Preset,
   ProgressInfo,
+  PromptTemplate,
   QualityValue,
   RequestPolicy,
   SizeValue,
@@ -60,6 +67,12 @@ import {
   scheduleCompatibilityExport,
   writeIgnoredReleaseTag,
 } from "../lib/compatState";
+import { normalizeAppUpdateInfo } from "../lib/appUpdate.ts";
+import { appVersion } from "../lib/version.ts";
+import {
+  readSavePromptSuppressed,
+  writeSavePromptSuppressed,
+} from "../lib/savePromptPreference";
 import {
   normalizeCompletionSoundConfig,
   playCompletionSound,
@@ -67,6 +80,10 @@ import {
   readCompletionSoundConfig,
   shouldPlayCompletionSound,
 } from "../lib/completionSound";
+import {
+  persistPromptTemplates,
+  readStoredPromptTemplates,
+} from "../lib/promptTemplates";
 import {
   loadCustomAspectRatios,
   makeCustomAspectRatio,
@@ -88,8 +105,11 @@ import { dispatchFullscreenResize, setNativeFullscreen } from "../platform/nativ
 import {
   activeRuntimePatch,
   apiModeLabel,
+  defaultBatchProcessConfig,
   defaultLoopGenerationConfig,
   normalizeBatchCount,
+  normalizeBatchProcessConcurrency,
+  normalizeBatchProcessConfig,
   normalizeConcurrencyLimit,
   normalizeLoopGenerationConcurrency,
   normalizeLoopGenerationConfig,
@@ -101,6 +121,7 @@ import {
   type RunningJobMeta,
   type WorkspacePatch,
 } from "./workspaceRuntime";
+import { getStreamPreviewDisableReason } from "./streamPreviewPolicy";
 import {
   buildAspectSizeSelection,
   buildExactSizeValue,
@@ -146,7 +167,7 @@ import { createMediaActions } from "./studioStore.media";
 import { createProfileActions } from "./studioStore.profiles";
 import { createWorkspaceActions } from "./studioStore.workspaces";
 import { createImageActions } from "./studioStore.images";
-import { saveHistoryItemToDirectory } from "../lib/saveResultImage";
+import { saveHistoryItemToDirectory, saveHistoryItemToDirectoryAs } from "../lib/saveResultImage";
 import {
   currentImageIdForWorkspaceSnapshot,
   removeStreamPreview,
@@ -154,9 +175,10 @@ import {
   streamPreviewStatePatch,
   type StreamPreviewPayload,
 } from "./studioStore.streamPreview";
+import type { GenerateOptionsLike } from "../platform/runtime/hostTypes";
 
-type RuntimeGenerateOptions = backend.GenerateOptions & {
-  sourceImages?: SourceImage[];
+type RuntimeGenerateOptions = GenerateOptionsLike & {
+  sourceImages?: Array<SourceImage | BatchProcessSourceImage>;
 };
 
 type JobSnapshot = {
@@ -170,6 +192,8 @@ type JobSnapshot = {
   currentImage: HistoryItem | null;
   styleTag: string;
   loopGeneration: LoopGenerationConfig;
+  editSourceMode: EditSourceMode;
+  batchProcessLink?: BatchProcessResultLink;
 };
 
 type LaunchOneJobHooks = {
@@ -184,6 +208,9 @@ type LoopRunController = {
   mode: Mode;
   payload: RuntimeGenerateOptions;
   snapshotBase: Omit<JobSnapshot, "batchIndex">;
+  batchSources?: BatchProcessSourceImage[];
+  batchOutputDir?: string;
+  batchOutputPrefix?: string;
   stopped: boolean;
 };
 
@@ -193,6 +220,12 @@ function stopLoopRun(workspaceId: string): void {
   const controller = loopRunControllers.get(workspaceId);
   if (controller) controller.stopped = true;
   loopRunControllers.delete(workspaceId);
+}
+
+function directoryFromPath(path: string): string {
+  const normalized = path.trim();
+  const idx = Math.max(normalized.lastIndexOf("/"), normalized.lastIndexOf("\\"));
+  return idx >= 0 ? normalized.slice(0, idx) : "";
 }
 
 function launchQueuedLoopJobs(controller: LoopRunController): void {
@@ -217,10 +250,24 @@ function launchQueuedLoopJobs(controller: LoopRunController): void {
     const batchIndex = controller.launchedJobs;
     controller.launchedJobs += 1;
     const payloadSeed = controller.payload.seed ? controller.payload.seed + batchIndex : 0;
-    const nextPayload: RuntimeGenerateOptions = { ...controller.payload, seed: payloadSeed };
+    const batchSource = controller.batchSources?.[batchIndex];
+    const nextPayload: RuntimeGenerateOptions = {
+      ...controller.payload,
+      seed: payloadSeed,
+      imagePaths: batchSource ? [batchSource.path] : controller.payload.imagePaths,
+      sourceImages: batchSource ? [batchSource] : controller.payload.sourceImages,
+    };
     void launchOneJob(controller.mode, nextPayload, {
       ...controller.snapshotBase,
       batchIndex,
+      sources: batchSource ? [batchSource as SourceImage] : controller.snapshotBase.sources,
+      batchProcessLink: batchSource
+        ? {
+            sourcePath: batchSource.path,
+            outputDir: controller.batchOutputDir || "",
+            outputNamePrefix: controller.batchOutputPrefix || "processed-",
+          }
+        : undefined,
     }, {
       onSettled: (status) => {
         const current = loopRunControllers.get(controller.workspaceId);
@@ -241,29 +288,14 @@ function launchQueuedLoopJobs(controller: LoopRunController): void {
   }
 }
 
-const SAVE_PROMPT_SUPPRESSED_KEY = "gptcodex.savePromptSuppressed";
 const KEEP_LOGS_KEY = "gptcodex.keepLogs";
+const CLEANUP_PREVIEW_CACHE_ON_EXIT_KEY = "gptcodex.cleanupPreviewCacheOnExit";
+const AUTO_RETRY_ENABLED_KEY = "gptcodex.autoRetryEnabled";
+const PROTECT_STREAM_PREVIEW_KEY = "gptcodex.protectStreamPreview";
 const INITIAL_HISTORY_LOAD = 18;
 const HISTORY_MEDIA_HYDRATE_CONCURRENCY = 4;
 
 let deferredHistoryLoadPromise: Promise<void> | null = null;
-
-function readSavePromptSuppressed(): boolean {
-  try {
-    return localStorage.getItem(SAVE_PROMPT_SUPPRESSED_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function writeSavePromptSuppressed(value: boolean): void {
-  try {
-    if (value) localStorage.setItem(SAVE_PROMPT_SUPPRESSED_KEY, "1");
-    else localStorage.removeItem(SAVE_PROMPT_SUPPRESSED_KEY);
-  } catch {
-    // localStorage can be unavailable in tests/previews.
-  }
-}
 
 function readKeepLogs(): boolean {
   try {
@@ -282,25 +314,55 @@ function writeKeepLogs(value: boolean): void {
   }
 }
 
-function normalizeAppUpdate(raw: unknown): AppUpdateInfo | null {
-  if (!raw || typeof raw !== "object") return null;
-  const source = raw as Record<string, unknown>;
-  const currentVersion = typeof source.currentVersion === "string" ? source.currentVersion.trim() : "";
-  const latestVersion = typeof source.latestVersion === "string" ? source.latestVersion.trim() : "";
-  const releaseTag = typeof source.releaseTag === "string" ? source.releaseTag.trim() : "";
-  const releaseURL = typeof source.releaseURL === "string" ? source.releaseURL.trim() : "";
-  const hasUpdate = source.hasUpdate === true;
-  if (!currentVersion || !latestVersion || !releaseTag || !releaseURL) return null;
-  return {
-    currentVersion,
-    latestVersion,
-    releaseTag,
-    releaseURL,
-    hasUpdate,
-    releaseName: typeof source.releaseName === "string" ? source.releaseName.trim() : "",
-    publishedAt: typeof source.publishedAt === "string" ? source.publishedAt.trim() : "",
-    body: typeof source.body === "string" ? source.body.trim() : "",
-  };
+function readCleanupPreviewCacheOnExit(): boolean {
+  try {
+    return localStorage.getItem(CLEANUP_PREVIEW_CACHE_ON_EXIT_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeCleanupPreviewCacheOnExit(value: boolean): void {
+  try {
+    if (value) localStorage.setItem(CLEANUP_PREVIEW_CACHE_ON_EXIT_KEY, "1");
+    else localStorage.removeItem(CLEANUP_PREVIEW_CACHE_ON_EXIT_KEY);
+  } catch {
+    // localStorage can be unavailable in tests/previews.
+  }
+}
+
+function readProtectStreamPreview(): boolean {
+  try {
+    return localStorage.getItem(PROTECT_STREAM_PREVIEW_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+function readAutoRetryEnabled(): boolean {
+  try {
+    return localStorage.getItem(AUTO_RETRY_ENABLED_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+function writeAutoRetryEnabled(value: boolean): void {
+  try {
+    if (value) localStorage.removeItem(AUTO_RETRY_ENABLED_KEY);
+    else localStorage.setItem(AUTO_RETRY_ENABLED_KEY, "0");
+  } catch {
+    // localStorage can be unavailable in tests/previews.
+  }
+}
+
+function writeProtectStreamPreview(value: boolean): void {
+  try {
+    if (value) localStorage.removeItem(PROTECT_STREAM_PREVIEW_KEY);
+    else localStorage.setItem(PROTECT_STREAM_PREVIEW_KEY, "0");
+  } catch {
+    // localStorage can be unavailable in tests/previews.
+  }
 }
 
 function normalizeBackgroundValue(value: unknown): BackgroundValue {
@@ -470,6 +532,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   moderation: "low",
   userIdentifier: "",
   partialImages: 1,
+  protectStreamPreview: true,
+  autoRetryEnabled: true,
   kernelRuntimeMode: "auto",
   baseURL: "",
   textModelID: "",
@@ -535,12 +599,16 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   savePromptQueue: [],
   savePromptSuppressed: readSavePromptSuppressed(),
   keepLogs: readKeepLogs(),
+  cleanupPreviewCacheOnExit: readCleanupPreviewCacheOnExit(),
   completionSound: readCompletionSoundConfig(),
   ignoredReleaseTag: readIgnoredReleaseTag(),
   appUpdate: null,
   appUpdateModalOpen: false,
   promptHistory: [],
+  promptTemplates: [],
   batchCount: 1,
+  editSourceMode: "manual",
+  batchProcess: defaultBatchProcessConfig(),
   loopGeneration: defaultLoopGenerationConfig(),
   presets: [],
   customAspectRatios: [],
@@ -612,7 +680,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     }
     const nextSize = buildExactSizeValue(width, height);
     if (!nextSize) {
-      state.pushToast("请输入 64 到 8192 之间的整数尺寸", "warn");
+      state.pushToast("请输入 64 到 3840 之间的整数尺寸，并满足最长边 3840、宽高比不超过 3:1、总像素不超过 8294400", "warn");
       return false;
     }
     set({ size: nextSize, customSizeModalOpen: false });
@@ -671,6 +739,11 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     writeKeepLogs(value);
     set({ keepLogs: value });
     await SetKeepLogsEnabled(value).catch(() => undefined);
+  },
+  setCleanupPreviewCacheOnExit: async (value) => {
+    writeCleanupPreviewCacheOnExit(value);
+    set({ cleanupPreviewCacheOnExit: value });
+    await SetCleanupPreviewCacheOnExitEnabled(value).catch(() => undefined);
   },
   ignoreAppUpdate: (releaseTag) => {
     const trimmed = releaseTag.trim();
@@ -737,6 +810,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     // 其他全局偏好字段
     const normalizedValue = key === "batchCount"
       ? normalizeBatchCount(value)
+      : key === "batchProcess"
+        ? normalizeBatchProcessConfig(value)
       : key === "background"
         ? normalizeBackgroundValue(value)
         : key === "outputCompression"
@@ -747,8 +822,12 @@ export const useStudioStore = create<StudioState>((set, get) => ({
               ? normalizeImageStyleValue(value)
               : key === "userIdentifier"
                 ? normalizeUserIdentifierValue(value)
-                : key === "partialImages"
-                  ? normalizePartialImagesValue(value)
+                  : key === "partialImages"
+                    ? normalizePartialImagesValue(value)
+                    : key === "protectStreamPreview"
+                      ? value !== false
+                    : key === "autoRetryEnabled"
+                      ? value !== false
       : key === "loopGeneration"
         ? normalizeLoopGenerationConfig(value)
         : value;
@@ -771,11 +850,30 @@ export const useStudioStore = create<StudioState>((set, get) => ({
           w.id === get().activeWorkspaceId ? { ...w, batchCount: value } : w
         )),
       });
+    } else if (key === "mode") {
+      const value = normalizedValue as Mode;
+      if (value === "edit" && get().sources.length === 0 && get().currentImage?.savedPath && get().size !== "auto") {
+        set({ size: "auto" });
+      }
     } else if (key === "loopGeneration") {
       const value = normalizedValue as LoopGenerationConfig;
       set({
         workspaces: get().workspaces.map((w) => (
           w.id === get().activeWorkspaceId ? { ...w, loopGeneration: value } : w
+        )),
+      });
+    } else if (key === "editSourceMode") {
+      const value = normalizedValue as EditSourceMode;
+      set({
+        workspaces: get().workspaces.map((w) => (
+          w.id === get().activeWorkspaceId ? { ...w, editSourceMode: value } : w
+        )),
+      });
+    } else if (key === "batchProcess") {
+      const value = normalizedValue as StudioState["batchProcess"];
+      set({
+        workspaces: get().workspaces.map((w) => (
+          w.id === get().activeWorkspaceId ? { ...w, batchProcess: value } : w
         )),
       });
     } else if (key === "errorMessage") {
@@ -785,7 +883,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     } else if (key === "errorRawPath") {
       set({ workspaces: patchWorkspaceRuntime(get().workspaces, get().activeWorkspaceId, { errorRawPath: value as string | null }) });
     } else if (key === "lastPayload") {
-      set({ workspaces: patchWorkspaceRuntime(get().workspaces, get().activeWorkspaceId, { lastPayload: value as backend.GenerateOptions | null }) });
+      set({ workspaces: patchWorkspaceRuntime(get().workspaces, get().activeWorkspaceId, { lastPayload: value as GenerateOptionsLike | null }) });
     }
     if (key === "kernelRuntimeMode") {
       try { localStorage.setItem("gptcodex.kernelRuntimeMode", String(value)); } catch {}
@@ -806,6 +904,10 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       try { localStorage.setItem("gptcodex.userIdentifier", String(value)); } catch {}
     } else if (key === "partialImages") {
       try { localStorage.setItem("gptcodex.partialImages", String(value)); } catch {}
+    } else if (key === "protectStreamPreview") {
+      writeProtectStreamPreview(value !== false);
+    } else if (key === "autoRetryEnabled") {
+      writeAutoRetryEnabled(value !== false);
     }
   },
   setFullscreen: async (value) => {
@@ -863,6 +965,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   },
 
   selectSourceImage: async () => imageActions.selectSourceImage(),
+  chooseBatchInputDir: async () => imageActions.chooseBatchInputDir(),
+  refreshBatchInputDir: async () => imageActions.refreshBatchInputDir(),
   removeSource: (index) => imageActions.removeSource(index),
   clearSources: () => imageActions.clearSources(),
   reorderSources: (from, to) => imageActions.reorderSources(from, to),
@@ -884,26 +988,61 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     }
     const cleanedBaseURL = cleanBaseURL(s.baseURL);
     const batchCount = normalizeBatchCount(s.batchCount);
+    const batchProcess = normalizeBatchProcessConfig(s.batchProcess);
     const loopGeneration = normalizeLoopGenerationConfig(s.loopGeneration);
-    const loopEnabled = loopGeneration.enabled;
-    const requestedJobCount = loopEnabled ? normalizeLoopGenerationCount(loopGeneration.totalCount) : batchCount;
+    const batchProcessEnabled = s.mode === "edit" && s.editSourceMode === "batch" && batchProcess.enabled;
+    const loopEnabled = !batchProcessEnabled && loopGeneration.enabled;
+    const requestedJobCount = loopEnabled
+      ? normalizeLoopGenerationCount(loopGeneration.totalCount)
+      : batchProcessEnabled
+        ? batchProcess.discoveredSources.length
+        : batchCount;
     const requestedConcurrency = loopEnabled
       ? Math.min(requestedJobCount, normalizeLoopGenerationConcurrency(loopGeneration.concurrency))
-      : batchCount;
+      : batchProcessEnabled
+        ? Math.min(requestedJobCount, normalizeBatchProcessConcurrency(batchProcess.concurrency))
+        : batchCount;
+    const runtimePlatform = readRuntimePlatformState();
     if (loopEnabled && loopGeneration.autoSave && !loopGeneration.autoSaveDir.trim()) {
       set({ errorMessage: "请先为循环出图配置自动另存为路径", errorCanRetry: false, errorRawPath: null });
       return;
     }
+    if (batchProcessEnabled) {
+      if (runtimePlatform.isAndroid) {
+        set({ errorMessage: "批处理模式暂仅支持桌面端", errorCanRetry: false, errorRawPath: null });
+        return;
+      }
+      if (!batchProcess.inputDir.trim()) {
+        set({ errorMessage: "请先选择批处理输入目录", errorCanRetry: false, errorRawPath: null });
+        return;
+      }
+      if (batchProcess.discoveredSources.length === 0) {
+        set({ errorMessage: "批处理目录中没有可处理的图片", errorCanRetry: false, errorRawPath: null });
+        return;
+      }
+      if (batchProcess.outputMode === "custom_dir" && !batchProcess.outputDir.trim()) {
+        set({ errorMessage: "请先选择独立输出路径", errorCanRetry: false, errorRawPath: null });
+        return;
+      }
+    }
     const activeProfile = s.profiles.find((p) => p.id === s.activeProfileId);
     const concurrencyLimit = normalizeConcurrencyLimit(activeProfile?.concurrencyLimit ?? 0);
+    const fallbackProfile = activeProfile?.fallbackProfileId
+      ? s.profiles.find((profile) => profile.id === activeProfile.fallbackProfileId) ?? null
+      : null;
+    const fallbackProfileKey = fallbackProfile
+      ? await GetStoredAPIKey(keyringUserFor(fallbackProfile.id)).catch(() => "")
+      : "";
     if (concurrencyLimit > 0) {
       const activeCount = workspaceRunningCount(s, s.apiMode);
       const available = concurrencyLimit - activeCount;
-      const requiredConcurrency = loopEnabled ? requestedConcurrency : batchCount;
+      const requiredConcurrency = requestedConcurrency;
       if (available < requiredConcurrency) {
         const apiLabel = s.apiMode === "responses" ? "Responses API" : "Images API";
         set({
-          errorMessage: loopEnabled
+          errorMessage: batchProcessEnabled
+            ? `${apiLabel} 并发限制 ${concurrencyLimit},当前还可提交 ${Math.max(0, available)} 个,批处理并发需要 ${requiredConcurrency} 个。`
+            : loopEnabled
             ? `${apiLabel} 并发限制 ${concurrencyLimit},当前还可提交 ${Math.max(0, available)} 个,循环模式并发需要 ${requiredConcurrency} 个。`
             : `${apiLabel} 并发限制 ${concurrencyLimit},当前还可提交 ${Math.max(0, available)} 个,本次需要 ${batchCount} 个。`,
           errorCanRetry: false,
@@ -913,7 +1052,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       }
     }
     let editSourcePaths: string[] = [];
-    if (s.mode === "edit") {
+    if (s.mode === "edit" && !batchProcessEnabled) {
       editSourcePaths = s.sources.map((src) => src.path).filter(Boolean);
       if (editSourcePaths.length === 0 && s.currentImage) {
         const materialized = await materializeHistoryItem(s.currentImage).catch(() => null);
@@ -922,9 +1061,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         }
       }
       if (editSourcePaths.length === 0) {
-        const platform = readRuntimePlatformState();
         set({
-          errorMessage: platform.isAndroid
+          errorMessage: runtimePlatform.isAndroid
             ? "图生图模式需要先从相册或历史添加源图"
             : "图生图模式需要先添加源图(或从文件管理器拖图到画板)",
           errorCanRetry: false,
@@ -985,8 +1123,15 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       imageModelID: s.imageModelID,
     }, s.customAspectRatios);
     const resolvedQuality = normalizeQualitySelection(s.quality, s.imageModelID);
+    const streamPreviewDisableReason = getStreamPreviewDisableReason({
+      enabled: s.protectStreamPreview,
+      isAndroid: runtimePlatform.isAndroid,
+      requestedConcurrency,
+      resolvedSize,
+    });
+    const forceDisableStreamPreview = streamPreviewDisableReason !== null;
 
-    const basePayload: backend.GenerateOptions = {
+    const basePayload: GenerateOptionsLike = {
       apiKey: s.apiKey,
       mode: s.mode,
       requestedJobId: "",
@@ -1017,11 +1162,24 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       noPromptRevision: true,
       concurrencyLimit,
       partialImages: s.partialImages,
-      disablePreview: s.partialImages === 0 || (loopEnabled && !loopGeneration.livePreview),
+      fallbackProfile: fallbackProfile && fallbackProfileKey.trim() && fallbackProfile.baseURL.trim()
+        ? {
+            baseURL: cleanBaseURL(fallbackProfile.baseURL),
+            apiKey: fallbackProfileKey.trim(),
+            textModelID: fallbackProfile.textModelID,
+            imageModelID: fallbackProfile.imageModelID,
+            reasoningEffort: fallbackProfile.reasoningEffort,
+            apiMode: fallbackProfile.apiMode,
+            requestPolicy: fallbackProfile.requestPolicy,
+            imagesNewAPICompat: fallbackProfile.imagesNewAPICompat === true,
+          }
+        : undefined,
+      autoRetryEnabled: s.autoRetryEnabled,
+      disablePreview: s.partialImages === 0 || (loopEnabled && !loopGeneration.livePreview) || forceDisableStreamPreview,
     };
     const remotePayload: RuntimeGenerateOptions = {
       ...basePayload,
-      sourceImages: s.mode === "edit" ? s.sources : undefined,
+      sourceImages: s.mode === "edit" && !batchProcessEnabled ? s.sources : undefined,
     };
     const persistedPayload = basePayload;
 
@@ -1034,6 +1192,17 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       lastPayload: persistedPayload,
       workspaces: patchWorkspaceRuntime(get().workspaces, workspaceId, { lastPayload: persistedPayload }),
     });
+    if (forceDisableStreamPreview && s.partialImages > 0 && (!loopEnabled || loopGeneration.livePreview)) {
+      get().pushToast(
+        streamPreviewDisableReason === "android_large_size"
+          ? `当前大尺寸任务已自动关闭流式预览，优先保证最终图完整。`
+          : runtimePlatform.isAndroid
+            ? `并发 ${requestedConcurrency} 路任务已自动关闭流式预览，优先保证最终图完整。`
+            : `高并发(${requestedConcurrency})已自动关闭流式预览，优先保证最终图完整。`,
+        "info",
+        5000,
+      );
+    }
 
     const snapshotBase = {
       workspaceId,
@@ -1045,7 +1214,27 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       currentImage: s.currentImage,
       styleTag: s.styleTag,
       loopGeneration,
+      editSourceMode: s.editSourceMode,
     } as const;
+
+    if (batchProcessEnabled) {
+      const controller: LoopRunController = {
+        workspaceId,
+        totalJobs: batchProcess.discoveredSources.length,
+        maxConcurrent: requestedConcurrency,
+        launchedJobs: 0,
+        mode: s.mode,
+        payload: remotePayload,
+        snapshotBase,
+        batchSources: batchProcess.discoveredSources,
+        batchOutputDir: batchProcess.outputMode === "custom_dir" ? batchProcess.outputDir : "",
+        batchOutputPrefix: batchProcess.fileNamePrefix,
+        stopped: false,
+      };
+      loopRunControllers.set(workspaceId, controller);
+      launchQueuedLoopJobs(controller);
+      return;
+    }
 
     if (loopEnabled) {
       const controller: LoopRunController = {
@@ -1104,6 +1293,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   applyHistoryParams: (item) => imageActions.applyHistoryParams(item),
   regenerateFromHistory: async (item) => imageActions.regenerateFromHistory(item),
   viewSourceOnCanvas: async (index) => imageActions.viewSourceOnCanvas(index),
+  compareSourceOnCanvas: async (index) => imageActions.compareSourceOnCanvas(index),
   reuseAsSource: async (item) => imageActions.reuseAsSource(item),
   deleteHistoryItem: async (id) => imageActions.deleteHistoryItem(id),
   saveCurrentImageAs: async () => imageActions.saveCurrentImageAs(),
@@ -1114,6 +1304,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       const workspaceId = genId();
       const preview = buildMacWorkspacePreview(workspaceId);
       await SetKeepLogsEnabled(readKeepLogs()).catch(() => undefined);
+      await SetCleanupPreviewCacheOnExitEnabled(readCleanupPreviewCacheOnExit()).catch(() => undefined);
       applyTheme("dark");
       document.documentElement.style.setProperty("--font-scale", "1");
       setKernelRuntimeMode("auto");
@@ -1184,7 +1375,10 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         canvasViewResetTick: 0,
         fullscreen: false,
         promptHistory: [],
+        promptTemplates: [],
         batchCount: 1,
+        editSourceMode: "manual",
+        batchProcess: defaultBatchProcessConfig(),
         loopGeneration: normalizeLoopGenerationConfig(preview.workspace.loopGeneration),
         presets: [],
         customAspectRatios: [],
@@ -1205,10 +1399,12 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         upstreamReturnTarget: "app",
         starPromptOpen: false,
         starPromptSource: "auto",
+        autoRetryEnabled: readAutoRetryEnabled(),
         savePromptItem: null,
         savePromptQueue: [],
         savePromptSuppressed: readSavePromptSuppressed(),
         keepLogs: readKeepLogs(),
+        cleanupPreviewCacheOnExit: readCleanupPreviewCacheOnExit(),
         completionSound: readCompletionSoundConfig(),
         ignoredReleaseTag: readIgnoredReleaseTag(),
         appUpdate: null,
@@ -1225,6 +1421,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     const items = trimHistory(initialHistoryPage.items);
     const historyHasMore = !!initialHistoryPage.nextCursor;
     let promptHistory: string[] = [];
+    let promptTemplates: PromptTemplate[] = [];
     let presets: Preset[] = [];
     const customAspectRatios = loadCustomAspectRatios();
     let theme: ThemeMode = "system";
@@ -1237,6 +1434,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       const raw = localStorage.getItem("gptcodex.presets");
       if (raw) presets = JSON.parse(raw);
     } catch {}
+    promptTemplates = readStoredPromptTemplates();
     try {
       const raw = localStorage.getItem("gptcodex.theme");
       if (raw === "system" || raw === "light" || raw === "dark") theme = raw;
@@ -1252,9 +1450,10 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       if (v === "auto" || v === "local" || v === "remote") kernelRuntimeMode = v;
     } catch {}
     const keepLogs = readKeepLogs();
+    const cleanupPreviewCacheOnExit = readCleanupPreviewCacheOnExit();
     const completionSound = readCompletionSoundConfig();
     const ignoredReleaseTag = readIgnoredReleaseTag();
-    const updateInfo = normalizeAppUpdate(await CheckForAppUpdate().catch(() => null));
+    const updateInfo = normalizeAppUpdateInfo(await CheckForAppUpdate().catch(() => null));
     const shouldShowUpdate = !!updateInfo?.hasUpdate && updateInfo.releaseTag !== ignoredReleaseTag;
     const noPromptRevision = true;
     const proxyConfig = loadProxyConfig();
@@ -1292,6 +1491,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     try {
       partialImages = normalizePartialImagesValue(localStorage.getItem("gptcodex.partialImages"));
     } catch {}
+    const protectStreamPreview = readProtectStreamPreview();
+    const autoRetryEnabled = readAutoRetryEnabled();
     // ---- v0.1.6 profile 列表加载 / 迁移 -----------------------------------
     // 1) 优先读新格式 gptcodex.profiles。
     // 2) 缺失时尝试从老 gptcodex.{responses,images}.* + 老 keyring 项合成 0-2
@@ -1403,6 +1604,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     document.documentElement.style.setProperty("--font-scale", String(fontScale));
     setKernelRuntimeMode(kernelRuntimeMode);
     await SetKeepLogsEnabled(keepLogs).catch(() => undefined);
+    await SetCleanupPreviewCacheOnExitEnabled(cleanupPreviewCacheOnExit).catch(() => undefined);
     // 用户自定义输出目录 —— 推给 backend,并记为可信输出根。
     const trustedRoots = new Set(loadTrustedOutputRoots());
     try {
@@ -1436,6 +1638,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       userIdentifier,
       partialImages,
       batchCount: 1,
+      editSourceMode: "manual",
+      batchProcess: defaultBatchProcessConfig(),
       loopGeneration: defaultLoopGenerationConfig(),
       sources: [],
       currentImageId: null,
@@ -1457,7 +1661,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       ? false
       : !activeProfile || !activeKey.trim() || !baseURL.trim();
     set({
-      apiKey: activeKey, history: items, promptHistory, presets, customAspectRatios, theme, fontScale,
+      apiKey: activeKey, history: items, promptHistory, promptTemplates, presets, customAspectRatios, theme, fontScale,
       historyHasMore,
       historyLoading: false,
       historyCursorBeforeDayStart: initialHistoryPage.nextCursor?.beforeDayStart ?? null,
@@ -1472,10 +1676,14 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       moderation,
       userIdentifier,
       partialImages,
+      protectStreamPreview,
+      autoRetryEnabled,
       profiles,
       activeProfileId,
       workspaces: [initialWorkspace],
       activeWorkspaceId: wsId,
+      editSourceMode: initialWorkspace.editSourceMode,
+      batchProcess: normalizeBatchProcessConfig(initialWorkspace.batchProcess),
       loopGeneration: normalizeLoopGenerationConfig(initialWorkspace.loopGeneration),
       // Android 走首页 hero 引导，不用启动即弹设置；桌面仍保留首次引导。
       settingsOpen: shouldAutoOpenSettings,
@@ -1487,11 +1695,24 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       savePromptQueue: [],
       savePromptSuppressed: readSavePromptSuppressed(),
       keepLogs,
+      cleanupPreviewCacheOnExit,
       completionSound,
       ignoredReleaseTag,
       appUpdate: shouldShowUpdate ? updateInfo : null,
       appUpdateModalOpen: shouldShowUpdate,
     });
+    void WriteAppUpdateProbe({
+      appVersion,
+      currentVersion: updateInfo?.currentVersion ?? appVersion,
+      latestVersion: updateInfo?.latestVersion ?? "",
+      releaseTag: updateInfo?.releaseTag ?? "",
+      releaseURL: updateInfo?.releaseURL ?? "",
+      ignoredReleaseTag,
+      updateInfoAvailable: !!updateInfo,
+      hasUpdate: updateInfo?.hasUpdate === true,
+      shouldShowUpdate,
+      appUpdateModalOpen: shouldShowUpdate,
+    }).catch(() => undefined);
     enableCompatibilityExport();
     void backfillHistoryPreviewRefs(items);
   },
@@ -1608,6 +1829,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   openResultGrid: () => mediaActions.openResultGrid(),
   closeResultGrid: () => mediaActions.closeResultGrid(),
   selectBatchResult: async (item) => mediaActions.selectBatchResult(item),
+  stepBatchResult: async (delta) => mediaActions.stepBatchResult(delta),
   pushToast: (text, kind = "info", ttl = 3500, action) => mediaActions.pushToast(text, kind, ttl, action),
   dismissToast: (id) => mediaActions.dismissToast(id),
   resultDetail: null,
@@ -1775,6 +1997,48 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   renameWorkspace: (id, name) => workspaceActions.renameWorkspace(id, name),
 
   importHistory: async () => mediaActions.importHistory(),
+
+  addPromptTemplate: (label, text) => {
+    const trimmedLabel = label.trim().slice(0, 40);
+    const trimmedText = text.trim();
+    if (!trimmedLabel || !trimmedText) return null;
+    const next: PromptTemplate = {
+      id: genId(),
+      label: trimmedLabel,
+      text: trimmedText,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    const list = [...get().promptTemplates, next];
+    persistPromptTemplates(list);
+    set({ promptTemplates: list });
+    return next.id;
+  },
+
+  updatePromptTemplate: (id, patch) => {
+    const index = get().promptTemplates.findIndex((item) => item.id === id);
+    if (index < 0) return false;
+    const current = get().promptTemplates[index];
+    const label = patch.label !== undefined ? patch.label.trim().slice(0, 40) : current.label;
+    const text = patch.text !== undefined ? patch.text.trim() : current.text;
+    if (!label || !text) return false;
+    const list = get().promptTemplates.map((item, itemIndex) => itemIndex === index ? {
+      ...item,
+      label,
+      text,
+      updatedAt: Date.now(),
+    } : item);
+    persistPromptTemplates(list);
+    set({ promptTemplates: list });
+    return true;
+  },
+
+  deletePromptTemplate: (id) => {
+    const list = get().promptTemplates.filter((item) => item.id !== id);
+    if (list.length === get().promptTemplates.length) return;
+    persistPromptTemplates(list);
+    set({ promptTemplates: list });
+  },
 
   retryLast: async () => {
     const s = get();
@@ -2017,6 +2281,20 @@ async function launchOneJob(
             );
           }
           settle("success");
+          if (snapshot.batchProcessLink?.sourcePath) {
+            const targetDirectory = snapshot.batchProcessLink.outputDir.trim()
+              || directoryFromPath(snapshot.batchProcessLink.sourcePath);
+            void BuildBatchOutputPath(
+              snapshot.batchProcessLink.sourcePath,
+              targetDirectory,
+              snapshot.batchProcessLink.outputNamePrefix,
+            ).then((targetPath) => {
+              const suggestedName = targetPath.split(/[\\/]/).pop() || `${snapshot.batchProcessLink?.outputNamePrefix || "processed-"}image.png`;
+              return saveHistoryItemToDirectoryAs(historyItem, targetDirectory, suggestedName);
+            }).catch((error: any) => {
+              store.getState().pushToast(`批处理保存失败:${error?.message ?? error}`, "warn", 6000);
+            });
+          }
           if (loopMode && snapshot.loopGeneration.autoSave && snapshot.loopGeneration.autoSaveDir.trim()) {
             void saveHistoryItemToDirectory(historyItem, snapshot.loopGeneration.autoSaveDir).catch((error: any) => {
               store.getState().pushToast(`自动另存为失败:${error?.message ?? error}`, "warn", 6000);
@@ -2090,8 +2368,8 @@ async function launchOneJob(
       settle("error");
     });
     const started = mode === "edit"
-      ? await wailsEdit({ ...payload, requestedJobId: jobId } as backend.GenerateOptions)
-      : await wailsGenerate({ ...payload, requestedJobId: jobId } as backend.GenerateOptions);
+      ? await wailsEdit({ ...payload, requestedJobId: jobId })
+      : await wailsGenerate({ ...payload, requestedJobId: jobId });
     if (started.jobId && started.jobId !== jobId) {
       cleanup();
       throw new Error(`job id 不一致: expected ${jobId}, got ${started.jobId}`);

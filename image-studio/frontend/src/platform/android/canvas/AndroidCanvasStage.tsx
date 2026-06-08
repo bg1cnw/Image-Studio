@@ -45,6 +45,7 @@ export function AndroidCanvasStage() {
     toggleFullscreen,
     batchResults, resultGridOpen, selectBatchResult, closeResultGrid,
     canvasViewResetTick,
+    stepBatchResult,
   } = useStudioStore();
   const streamPreviewItems = streamPreviewItemsFromPreviews(streamPreviews, {
     workspaceId: activeWorkspaceId,
@@ -69,6 +70,8 @@ export function AndroidCanvasStage() {
   }
   const showingLiveBatchGrid = isRunning && liveBatchSlotCount > 1;
   const showingResultGrid = showingLiveBatchGrid || (resultGridOpen && batchResults.length > 1);
+  const currentBatchIndex = currentImage ? batchResults.findIndex((item) => item.id === currentImage.id) : -1;
+  const canNavigateBatchResults = currentBatchIndex >= 0 && batchResults.length > 1;
 
   const stageRef = useRef<Konva.Stage | null>(null);
   const roRef = useRef<ResizeObserver | null>(null);
@@ -416,6 +419,7 @@ export function AndroidCanvasStage() {
 
   useCanvasShortcuts({
     brushSize,
+    canNavigateBatchResults,
     cancel,
     compareB,
     copyCurrentImage: () => {
@@ -435,6 +439,9 @@ export function AndroidCanvasStage() {
     errorMessage,
     isMac: false,
     isRunning,
+    navigateBatchResult: (delta) => {
+      void stepBatchResult(delta);
+    },
     redo,
     removeAnnotation,
     resetView,
@@ -475,6 +482,8 @@ export function AndroidCanvasStage() {
           bUrl={compareB.fullUrl}
           split={compareSplit}
           onSplit={setCompareSplit}
+          aLabel="当前图"
+          bLabel={compareB.id.startsWith("source-preview:") ? "参考图" : "对比图"}
         />
       ) : null}
       {!showingResultGrid && currentImage && !compareB && hostSize.w > 0 && hostSize.h > 0 ? (

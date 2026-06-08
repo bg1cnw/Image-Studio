@@ -1,4 +1,5 @@
 import type {
+  BatchProcessConfig,
   HistoryItem,
   LoopGenerationConfig,
   SourceImage,
@@ -175,6 +176,15 @@ function buildWorkspace(
     autoSaveDir: "",
     livePreview: true,
   };
+  const batchProcess: BatchProcessConfig = {
+    enabled: false,
+    inputDir: "",
+    outputMode: "source_dir",
+    outputDir: "",
+    concurrency: 2,
+    fileNamePrefix: "processed-",
+    discoveredSources: [],
+  };
   return {
     id: workspaceId,
     name: "联调样例",
@@ -193,6 +203,8 @@ function buildWorkspace(
     userIdentifier: "",
     partialImages: 1,
     batchCount: 1,
+    editSourceMode: "manual",
+    batchProcess,
     loopGeneration,
     sources,
     currentImageId: currentImage.id,

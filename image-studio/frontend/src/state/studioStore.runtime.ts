@@ -14,12 +14,13 @@ import {
 } from "../lib/storage";
 import { suggestedImportNameForHistory } from "../lib/security";
 import type {
+  BatchProcessConfig,
   HistoryItem,
   Workspace,
 } from "../types/domain";
 import type { StudioState } from "./studioStore.types";
 import { currentImageIdForWorkspaceSnapshot } from "./studioStore.streamPreview";
-import { normalizeLoopGenerationConfig } from "./workspaceRuntime";
+import { normalizeBatchProcessConfig, normalizeLoopGenerationConfig } from "./workspaceRuntime";
 
 export function historyItemsByIds(history: HistoryItem[], ids: string[]): HistoryItem[] {
   if (ids.length === 0) return [];
@@ -194,6 +195,8 @@ export function saveActiveWorkspaceSnapshot(s: StudioState): Workspace[] {
       userIdentifier: s.userIdentifier,
       partialImages: s.partialImages,
       batchCount: s.batchCount,
+      editSourceMode: s.editSourceMode,
+      batchProcess: normalizeBatchProcessConfig(s.batchProcess),
       loopGeneration: normalizeLoopGenerationConfig(s.loopGeneration),
       sources: s.sources,
       currentImageId: currentImageIdForWorkspaceSnapshot(s.currentImage, s.streamPreview, s.streamPreviews, w.currentImageId),

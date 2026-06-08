@@ -136,14 +136,27 @@ Gradle 构建时执行前端 `build:android`，把 `image-studio/frontend/dist/`
 - `compute-version.sh`:从 tag 或 wails.json 计算版本元数据。
 - `sync-version-metadata.mjs`:同步 wails/frontend/package 版本。
 - `verify-local-platform-kernel.mjs`:跨平台内核本地全量验证。
+- `verify-local-live-verify.mjs`:以本地 mock upstream 驱动 `live-verify.mjs` 的 smoke 验证。
+- `verify-local-android-shell.mjs`:Android shell 本地 APK 与 JVM 单测验证。
 - `verify-local-macos-release.mjs`:macOS release 包验证。
+- `init-manual-verification.mjs`:初始化手工验证目录、报告模板与取证子目录。
+- `issue-close-data.json`:可关单 issue、暂不关闭原因、统一验证基线的结构化数据源。
+- `issue-close-helper.mjs`:读取 `issue-close-data.json`，列出可关单 issue、输出评论模板、生成 dry-run 计划，并在显式授权时对 GitHub issue 执行评论/关闭。
+- `render-issue-close-comments.mjs`:从 `issue-close-data.json` 生成 `docs/issue-close-comments.md`。
+- `render-issue-close-summary.mjs`:把 `issue-close-tooling.json` 渲染成 Markdown summary。
+- `verify-issue-close-tooling.mjs`:校验 issue 关单数据源、渲染文档、helper 输出与 GitHub 当前 open issue 状态是否一致。
+- `prepare-external-verification-bundle.mjs`:把 `#30/#36` 的手工验证模板、最新总链证据和 issue 关单评论包整理到统一交接目录。
+- `verify-output-paths.mjs`:统一解析各类验证结果的输出文件路径。
 - `local-smoke-check.mjs`:本地 mock upstream smoke。
 - `live-verify.mjs`:真实上游 direct vs worker 对比验证。
+- `render-verify-platform-summary.mjs`:把本地平台验证 JSON 渲染成 GitHub job summary。
+- `render-live-verify-summary.mjs`:把真实上游验证 JSON 渲染成 GitHub job summary。
 
 ## Workflows
 
 - `.github/workflows/release.yml`:并行构建桌面产物，构建 Android APK，并在 tag release 时发布。
 - `.github/workflows/verify-platform-kernel.yml`:自动化验证本地可证明部分。
+- `.github/workflows/verify-issue-close-tooling.yml`:手动触发 issue 关单工具链验证。
 - `.github/workflows/live-verify-platform-kernel.yml`:手动触发真实上游验证。
 
 ## 维护约束

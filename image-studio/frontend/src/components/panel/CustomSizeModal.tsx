@@ -4,7 +4,10 @@ import { useStudioStore } from "../../state/studioStore";
 import {
   formatSizeValue,
   MAX_EXACT_SIZE,
+  MAX_OPENAI_IMAGE_ASPECT_RATIO,
+  MAX_OPENAI_IMAGE_PIXELS,
   MIN_EXACT_SIZE,
+  normalizeExactSizeDimensions,
   parseSizeValue,
   reduceAspectRatioLabel,
 } from "./sizeCapabilities";
@@ -37,9 +40,14 @@ export function CustomSizeModal() {
     const width = Number(widthInput);
     const height = Number(heightInput);
     if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return "";
-    return width % 8 === 0 && height % 8 === 0
-      ? "当前尺寸已对齐到 8 的倍数。"
-      : "当前尺寸不是 8 的倍数，部分上游可能会拒绝。";
+    const normalized = normalizeExactSizeDimensions(width, height);
+    if (!normalized) {
+      return `请保持宽高都在 ${MIN_EXACT_SIZE} 到 ${MAX_EXACT_SIZE}px 之间，并满足最长边不超过 ${MAX_EXACT_SIZE}px。`;
+    }
+    if (normalized.width !== width || normalized.height !== height) {
+      return `当前输入会被收口为 ${normalized.width}×${normalized.height}，因为上游要求最长边不超过 ${MAX_EXACT_SIZE}px、宽高比不超过 ${MAX_OPENAI_IMAGE_ASPECT_RATIO}:1、总像素不超过 ${MAX_OPENAI_IMAGE_PIXELS}。`;
+    }
+    return `当前尺寸满足上游限制：最长边 <= ${MAX_EXACT_SIZE}px，宽高比 <= ${MAX_OPENAI_IMAGE_ASPECT_RATIO}:1，总像素 <= ${MAX_OPENAI_IMAGE_PIXELS}。`;
   }, [heightInput, widthInput]);
 
   const handleApply = (event?: FormEvent<HTMLFormElement>) => {
@@ -70,7 +78,7 @@ export function CustomSizeModal() {
             <div>
               <div className="text-[13px] font-semibold text-zinc-900 dark:text-zinc-100">设置精确尺寸</div>
               <div className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
-                请输入 {MIN_EXACT_SIZE} 到 {MAX_EXACT_SIZE} 之间的整数像素值。
+                请输入 {MIN_EXACT_SIZE} 到 {MAX_EXACT_SIZE} 之间的整数像素值。最长边不能超过 {MAX_EXACT_SIZE}px，宽高比不能超过 {MAX_OPENAI_IMAGE_ASPECT_RATIO}:1，总像素不能超过 {MAX_OPENAI_IMAGE_PIXELS}。
               </div>
             </div>
             {ratioHint ? (

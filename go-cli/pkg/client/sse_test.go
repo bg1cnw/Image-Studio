@@ -51,7 +51,7 @@ func TestExtractFinalImageResult(t *testing.T) {
 	}
 }
 
-func TestExtractFallsBackToPartial(t *testing.T) {
+func TestExtractPartialOnlyReturnsSentinelError(t *testing.T) {
 	pngB64 := base64.StdEncoding.EncodeToString([]byte("\x89PNG\r\n\x1a\nfake"))
 	raw := strings.Join([]string{
 		sseLine(t, map[string]any{"type": "response.created", "sequence_number": 0}),
@@ -61,15 +61,9 @@ func TestExtractFallsBackToPartial(t *testing.T) {
 		}),
 		sseLine(t, map[string]any{"type": "response.completed", "response": map[string]any{"status": "completed"}}),
 	}, "\n")
-	res, err := ExtractImageResult(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.ImageB64 != pngB64 {
-		t.Errorf("image b64 mismatch")
-	}
-	if res.SourceEvent != "partial" {
-		t.Errorf("source_event = %q, want partial", res.SourceEvent)
+	_, err := ExtractImageResult(raw)
+	if !errors.Is(err, ErrNoImageInResponse) {
+		t.Fatalf("err = %v, want ErrNoImageInResponse", err)
 	}
 }
 
