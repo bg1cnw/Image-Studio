@@ -283,3 +283,47 @@ func TestRegisterImportedImageAssetCreatesManagedAVIFPreview(t *testing.T) {
 		t.Fatal("empty imported full body")
 	}
 }
+
+func TestRegisterMediaAssetRebuildsMissingThumb(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	root, err := defaultOutputDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	imagesDir := imagesSubdir(root)
+	if err := os.MkdirAll(imagesDir, secureDirMode); err != nil {
+		t.Fatal(err)
+	}
+	fullPath := filepath.Join(imagesDir, "rebuilt.png")
+	f, err := os.OpenFile(fullPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, secureFileMode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	img := image.NewRGBA(image.Rect(0, 0, 640, 320))
+	for y := 0; y < 320; y++ {
+		for x := 0; x < 640; x++ {
+			img.Set(x, y, color.RGBA{R: uint8(x % 255), G: uint8(y % 255), B: 160, A: 255})
+		}
+	}
+	if err := png.Encode(f, img); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	svc := NewService()
+	ref, err := svc.RegisterMediaAsset(fullPath, filepath.Join(thumbsSubdir(root), "rebuilt.avif"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ref.ThumbPath == "" {
+		t.Fatalf("expected rebuilt thumb path in ref: %+v", ref)
+	}
+	if _, err := os.Stat(ref.ThumbPath); err != nil {
+		t.Fatalf("expected rebuilt thumb to exist: %v", err)
+	}
+	if ref.PreviewWidth != 384 || ref.PreviewHeight != 192 {
+		t.Fatalf("rebuilt preview size = %dx%d, want 384x192", ref.PreviewWidth, ref.PreviewHeight)
+	}
+}

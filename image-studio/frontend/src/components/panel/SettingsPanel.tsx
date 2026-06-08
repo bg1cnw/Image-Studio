@@ -43,6 +43,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
     openUpstreamConfig, testAPIKey, isTestingKey,
     savePromptSuppressed, setSavePromptSuppressed,
     keepLogs, setKeepLogs,
+    cleanupPreviewCacheOnExit, setCleanupPreviewCacheOnExit,
     completionSound,
     setCompletionSoundEnabled,
     setCompletionSoundMode,
@@ -102,6 +103,14 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
   async function updateKeepLogs(value: boolean) {
     await setKeepLogs(value);
     pushToast(value ? "已开启日志保留" : "已关闭日志保留，退出应用后会自动清理 log", "success");
+  }
+
+  async function updateCleanupPreviewCacheOnExit(value: boolean) {
+    await setCleanupPreviewCacheOnExit(value);
+    pushToast(
+      value ? "已开启退出时清理预览缓存" : "已关闭退出时清理预览缓存",
+      "success",
+    );
   }
 
   async function chooseCompletionSoundFile() {
@@ -186,6 +195,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
         scheduleCompatibilityExport(useStudioStore.getState());
         pushToast(value ? "已开启流式预览保护" : "已关闭流式预览保护", "success");
       }}
+      onSetCleanupPreviewCacheOnExit={(value) => void updateCleanupPreviewCacheOnExit(value)}
       onSetProxyConfig={setProxyConfig}
       onSetSavePromptSuppressed={updateSavePromptSuppressed}
       onSetTheme={setTheme}
@@ -196,6 +206,7 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
       proxyMode={proxyMode}
       proxyURL={proxyURL}
       pruneHistory={(days) => void pruneHistory(days)}
+      cleanupPreviewCacheOnExit={cleanupPreviewCacheOnExit}
       savePromptSuppressed={savePromptSuppressed}
       surface={isAndroidPad ? "pad" : "phone"}
       testAPIKey={() => void testAPIKey()}
@@ -386,6 +397,20 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
             </div>
             <p className="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-300">
               默认关闭。关闭时当前会话仍可查看原始响应，退出应用后会自动清理输出目录中的 log。
+            </p>
+          </SettingsRow>
+
+          <SettingsRow label="退出时清理预览缓存">
+            <div className={`platform-seg flex flex-wrap gap-1 bg-black/[0.04] p-0.5 ring-1 ring-black/[0.05] dark:bg-white/[0.06] dark:ring-white/[0.06] ${usesFluentUI ? "rounded-[10px]" : "rounded-[18px]"}`}>
+              <SettingsSegButton active={!cleanupPreviewCacheOnExit} onClick={() => void updateCleanupPreviewCacheOnExit(false)}>
+                关闭
+              </SettingsSegButton>
+              <SettingsSegButton active={cleanupPreviewCacheOnExit} onClick={() => void updateCleanupPreviewCacheOnExit(true)}>
+                开启
+              </SettingsSegButton>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-300">
+              默认关闭。开启后，退出应用时会删除可重建的预览图和缩略图缓存；源图、结果图和历史记录不会删除。
             </p>
           </SettingsRow>
 

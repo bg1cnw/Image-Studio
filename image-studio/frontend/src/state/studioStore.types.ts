@@ -214,6 +214,7 @@ export interface StudioState {
   savePromptQueue: HistoryItem[];
   savePromptSuppressed: boolean;
   keepLogs: boolean;
+  cleanupPreviewCacheOnExit: boolean;
   completionSound: CompletionSoundConfig;
   ignoredReleaseTag: string;
   appUpdate: AppUpdateInfo | null;
@@ -222,6 +223,7 @@ export interface StudioState {
   closeSavePrompt: () => void;
   setSavePromptSuppressed: (value: boolean) => void;
   setKeepLogs: (value: boolean) => Promise<void>;
+  setCleanupPreviewCacheOnExit: (value: boolean) => Promise<void>;
   ignoreAppUpdate: (releaseTag: string) => void;
   dismissAppUpdateModal: () => void;
   setCompletionSoundEnabled: (value: boolean) => void;

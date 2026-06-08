@@ -14,6 +14,7 @@ import {
   RegisterMediaAsset,
   RegisterImportedImageAsset,
   SetKeepLogsEnabled,
+  SetCleanupPreviewCacheOnExitEnabled,
   SetOutputDir,
   CheckForAppUpdate,
   WriteAppUpdateProbe,
@@ -288,6 +289,7 @@ function launchQueuedLoopJobs(controller: LoopRunController): void {
 }
 
 const KEEP_LOGS_KEY = "gptcodex.keepLogs";
+const CLEANUP_PREVIEW_CACHE_ON_EXIT_KEY = "gptcodex.cleanupPreviewCacheOnExit";
 const AUTO_RETRY_ENABLED_KEY = "gptcodex.autoRetryEnabled";
 const PROTECT_STREAM_PREVIEW_KEY = "gptcodex.protectStreamPreview";
 const INITIAL_HISTORY_LOAD = 18;
@@ -307,6 +309,23 @@ function writeKeepLogs(value: boolean): void {
   try {
     if (value) localStorage.setItem(KEEP_LOGS_KEY, "1");
     else localStorage.removeItem(KEEP_LOGS_KEY);
+  } catch {
+    // localStorage can be unavailable in tests/previews.
+  }
+}
+
+function readCleanupPreviewCacheOnExit(): boolean {
+  try {
+    return localStorage.getItem(CLEANUP_PREVIEW_CACHE_ON_EXIT_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeCleanupPreviewCacheOnExit(value: boolean): void {
+  try {
+    if (value) localStorage.setItem(CLEANUP_PREVIEW_CACHE_ON_EXIT_KEY, "1");
+    else localStorage.removeItem(CLEANUP_PREVIEW_CACHE_ON_EXIT_KEY);
   } catch {
     // localStorage can be unavailable in tests/previews.
   }
@@ -580,6 +599,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   savePromptQueue: [],
   savePromptSuppressed: readSavePromptSuppressed(),
   keepLogs: readKeepLogs(),
+  cleanupPreviewCacheOnExit: readCleanupPreviewCacheOnExit(),
   completionSound: readCompletionSoundConfig(),
   ignoredReleaseTag: readIgnoredReleaseTag(),
   appUpdate: null,
@@ -719,6 +739,11 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     writeKeepLogs(value);
     set({ keepLogs: value });
     await SetKeepLogsEnabled(value).catch(() => undefined);
+  },
+  setCleanupPreviewCacheOnExit: async (value) => {
+    writeCleanupPreviewCacheOnExit(value);
+    set({ cleanupPreviewCacheOnExit: value });
+    await SetCleanupPreviewCacheOnExitEnabled(value).catch(() => undefined);
   },
   ignoreAppUpdate: (releaseTag) => {
     const trimmed = releaseTag.trim();
@@ -1279,6 +1304,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       const workspaceId = genId();
       const preview = buildMacWorkspacePreview(workspaceId);
       await SetKeepLogsEnabled(readKeepLogs()).catch(() => undefined);
+      await SetCleanupPreviewCacheOnExitEnabled(readCleanupPreviewCacheOnExit()).catch(() => undefined);
       applyTheme("dark");
       document.documentElement.style.setProperty("--font-scale", "1");
       setKernelRuntimeMode("auto");
@@ -1378,6 +1404,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         savePromptQueue: [],
         savePromptSuppressed: readSavePromptSuppressed(),
         keepLogs: readKeepLogs(),
+        cleanupPreviewCacheOnExit: readCleanupPreviewCacheOnExit(),
         completionSound: readCompletionSoundConfig(),
         ignoredReleaseTag: readIgnoredReleaseTag(),
         appUpdate: null,
@@ -1423,6 +1450,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       if (v === "auto" || v === "local" || v === "remote") kernelRuntimeMode = v;
     } catch {}
     const keepLogs = readKeepLogs();
+    const cleanupPreviewCacheOnExit = readCleanupPreviewCacheOnExit();
     const completionSound = readCompletionSoundConfig();
     const ignoredReleaseTag = readIgnoredReleaseTag();
     const updateInfo = normalizeAppUpdateInfo(await CheckForAppUpdate().catch(() => null));
@@ -1576,6 +1604,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     document.documentElement.style.setProperty("--font-scale", String(fontScale));
     setKernelRuntimeMode(kernelRuntimeMode);
     await SetKeepLogsEnabled(keepLogs).catch(() => undefined);
+    await SetCleanupPreviewCacheOnExitEnabled(cleanupPreviewCacheOnExit).catch(() => undefined);
     // 用户自定义输出目录 —— 推给 backend,并记为可信输出根。
     const trustedRoots = new Set(loadTrustedOutputRoots());
     try {
@@ -1666,6 +1695,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       savePromptQueue: [],
       savePromptSuppressed: readSavePromptSuppressed(),
       keepLogs,
+      cleanupPreviewCacheOnExit,
       completionSound,
       ignoredReleaseTag,
       appUpdate: shouldShowUpdate ? updateInfo : null,

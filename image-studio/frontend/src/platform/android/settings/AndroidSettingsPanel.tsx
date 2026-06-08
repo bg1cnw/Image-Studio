@@ -53,6 +53,7 @@ export type AndroidSettingsPanelProps = {
   onSetKernelRuntimeMode: (value: KernelRuntimeMode) => void;
   onSetAutoRetryEnabled: (value: boolean) => void;
   onSetProtectStreamPreview: (value: boolean) => void;
+  onSetCleanupPreviewCacheOnExit: (value: boolean) => void;
   onSetProxyConfig: (mode: ProxyMode, url?: string) => void;
   onSetSavePromptSuppressed: (value: boolean) => void;
   onSetTheme: (value: ThemeMode) => void;
@@ -62,6 +63,7 @@ export type AndroidSettingsPanelProps = {
   proxyMode: ProxyMode;
   proxyURL: string;
   pruneHistory: (days: number) => void;
+  cleanupPreviewCacheOnExit: boolean;
   savePromptSuppressed: boolean;
   surface: AndroidSettingsSurface;
   testAPIKey: () => void;
@@ -122,6 +124,7 @@ export function AndroidSettingsPanel({
   onSetKernelRuntimeMode,
   onSetAutoRetryEnabled,
   onSetProtectStreamPreview,
+  onSetCleanupPreviewCacheOnExit,
   onSetProxyConfig,
   onSetSavePromptSuppressed,
   onSetTheme,
@@ -131,6 +134,7 @@ export function AndroidSettingsPanel({
   proxyMode,
   proxyURL,
   pruneHistory,
+  cleanupPreviewCacheOnExit,
   savePromptSuppressed,
   surface,
   testAPIKey,
@@ -145,6 +149,7 @@ export function AndroidSettingsPanel({
     `主题 ${themeLabel(theme)}`,
     `字号 ${Math.round(fontScale * 100)}%`,
     savePromptSuppressed ? "保存提示 关" : "保存提示 开",
+    cleanupPreviewCacheOnExit ? "预览缓存退出清理 开" : "预览缓存退出清理 关",
     autoRetryEnabled ? "自动重试 开" : "自动重试 关",
     protectStreamPreview ? "预览保护 开" : "预览保护 关",
     completionSound.enabled ? "提示音 开" : "提示音 关",
@@ -314,6 +319,33 @@ export function AndroidSettingsPanel({
             onClick={() => onSetAutoRetryEnabled(false)}
           >
             关闭
+          </button>
+        </div>
+      </div>
+
+      <div className="android-settings-field android-settings-field-stacked">
+        <div>
+          <span className="android-settings-field-title">退出时清理预览缓存</span>
+          <span className="android-settings-field-subtitle">
+            {cleanupPreviewCacheOnExit
+              ? "退出应用时会删除可重建的预览图和缩略图缓存。"
+              : "默认关闭，避免每次重开后重新生成历史预览影响体验。"}
+          </span>
+        </div>
+        <div className="android-settings-segmented" role="group" aria-label="退出时清理预览缓存">
+          <button
+            type="button"
+            className={!cleanupPreviewCacheOnExit ? "active" : ""}
+            onClick={() => onSetCleanupPreviewCacheOnExit(false)}
+          >
+            关闭
+          </button>
+          <button
+            type="button"
+            className={cleanupPreviewCacheOnExit ? "active" : ""}
+            onClick={() => onSetCleanupPreviewCacheOnExit(true)}
+          >
+            开启
           </button>
         </div>
       </div>

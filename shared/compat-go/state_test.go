@@ -29,16 +29,17 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 		Client:    "test",
 		UpdatedAt: 123,
 		Settings: Settings{
-			ProxyMode:            "custom",
-			ProxyURL:             "http://127.0.0.1:7890",
-			Theme:                "dark",
-			OutputFormat:         "webp",
-			OutputDir:            "/tmp/images",
-			PromptHistory:        []string{"cat"},
-			ReducedEffects:       true,
-			SavePromptSuppressed: true,
-			KeepLogs:             true,
-			IgnoredReleaseTag:    "1.1.6",
+			ProxyMode:                 "custom",
+			ProxyURL:                  "http://127.0.0.1:7890",
+			Theme:                     "dark",
+			OutputFormat:              "webp",
+			OutputDir:                 "/tmp/images",
+			PromptHistory:             []string{"cat"},
+			ReducedEffects:            true,
+			SavePromptSuppressed:      true,
+			KeepLogs:                  true,
+			CleanupPreviewCacheOnExit: true,
+			IgnoredReleaseTag:         "1.1.6",
 			CompletionSound: &CompletionSoundSettings{
 				Enabled:    true,
 				Mode:       "custom",
@@ -78,7 +79,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if loaded.Client != "test" || loaded.ActiveProfile != "p1" || loaded.Settings.OutputDir != "/tmp/images" || !loaded.Settings.ReducedEffects || !loaded.Settings.SavePromptSuppressed || !loaded.Settings.KeepLogs || loaded.Settings.IgnoredReleaseTag != "1.1.6" {
+	if loaded.Client != "test" || loaded.ActiveProfile != "p1" || loaded.Settings.OutputDir != "/tmp/images" || !loaded.Settings.ReducedEffects || !loaded.Settings.SavePromptSuppressed || !loaded.Settings.KeepLogs || !loaded.Settings.CleanupPreviewCacheOnExit || loaded.Settings.IgnoredReleaseTag != "1.1.6" {
 		t.Fatalf("unexpected state: %#v", loaded)
 	}
 	if loaded.Settings.CompletionSound == nil || !loaded.Settings.CompletionSound.Enabled || loaded.Settings.CompletionSound.Mode != "custom" || loaded.Settings.CompletionSound.CustomName != "ding.wav" || loaded.Settings.CompletionSound.CustomData != "data:audio/wav;base64,AAAA" {

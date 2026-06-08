@@ -22,31 +22,32 @@ type State struct {
 }
 
 type Settings struct {
-	ProxyMode            string                   `json:"proxyMode,omitempty"`
-	ProxyURL             string                   `json:"proxyURL,omitempty"`
-	Theme                string                   `json:"theme,omitempty"`
-	FontScale            float64                  `json:"fontScale,omitempty"`
-	OutputFormat         string                   `json:"outputFormat,omitempty"`
-	Background           string                   `json:"background,omitempty"`
-	OutputCompression    *int                     `json:"outputCompression,omitempty"`
-	InputFidelity        string                   `json:"inputFidelity,omitempty"`
-	ImageStyle           string                   `json:"imageStyle,omitempty"`
-	Moderation           string                   `json:"moderation,omitempty"`
-	UserIdentifier       string                   `json:"userIdentifier,omitempty"`
-	PartialImages        *int                     `json:"partialImages,omitempty"`
-	ProtectStreamPreview *bool                    `json:"protectStreamPreview,omitempty"`
-	AutoRetryEnabled     *bool                    `json:"autoRetryEnabled,omitempty"`
-	PromptTemplates      []PromptTemplate         `json:"promptTemplates,omitempty"`
-	OutputDir            string                   `json:"outputDir,omitempty"`
-	PromptHistory        []string                 `json:"promptHistory,omitempty"`
-	Presets              []Preset                 `json:"presets,omitempty"`
-	KernelRuntimeMode    string                   `json:"kernelRuntimeMode,omitempty"`
-	ReducedEffects       bool                     `json:"reducedEffects,omitempty"`
-	TrustedOutputRoots   []string                 `json:"trustedOutputRoots,omitempty"`
-	SavePromptSuppressed bool                     `json:"savePromptSuppressed,omitempty"`
-	KeepLogs             bool                     `json:"keepLogs,omitempty"`
-	IgnoredReleaseTag    string                   `json:"ignoredReleaseTag,omitempty"`
-	CompletionSound      *CompletionSoundSettings `json:"completionSound,omitempty"`
+	ProxyMode                 string                   `json:"proxyMode,omitempty"`
+	ProxyURL                  string                   `json:"proxyURL,omitempty"`
+	Theme                     string                   `json:"theme,omitempty"`
+	FontScale                 float64                  `json:"fontScale,omitempty"`
+	OutputFormat              string                   `json:"outputFormat,omitempty"`
+	Background                string                   `json:"background,omitempty"`
+	OutputCompression         *int                     `json:"outputCompression,omitempty"`
+	InputFidelity             string                   `json:"inputFidelity,omitempty"`
+	ImageStyle                string                   `json:"imageStyle,omitempty"`
+	Moderation                string                   `json:"moderation,omitempty"`
+	UserIdentifier            string                   `json:"userIdentifier,omitempty"`
+	PartialImages             *int                     `json:"partialImages,omitempty"`
+	ProtectStreamPreview      *bool                    `json:"protectStreamPreview,omitempty"`
+	AutoRetryEnabled          *bool                    `json:"autoRetryEnabled,omitempty"`
+	PromptTemplates           []PromptTemplate         `json:"promptTemplates,omitempty"`
+	OutputDir                 string                   `json:"outputDir,omitempty"`
+	PromptHistory             []string                 `json:"promptHistory,omitempty"`
+	Presets                   []Preset                 `json:"presets,omitempty"`
+	KernelRuntimeMode         string                   `json:"kernelRuntimeMode,omitempty"`
+	ReducedEffects            bool                     `json:"reducedEffects,omitempty"`
+	TrustedOutputRoots        []string                 `json:"trustedOutputRoots,omitempty"`
+	SavePromptSuppressed      bool                     `json:"savePromptSuppressed,omitempty"`
+	KeepLogs                  bool                     `json:"keepLogs,omitempty"`
+	CleanupPreviewCacheOnExit bool                     `json:"cleanupPreviewCacheOnExit,omitempty"`
+	IgnoredReleaseTag         string                   `json:"ignoredReleaseTag,omitempty"`
+	CompletionSound           *CompletionSoundSettings `json:"completionSound,omitempty"`
 }
 
 type CompletionSoundSettings struct {

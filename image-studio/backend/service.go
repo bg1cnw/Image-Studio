@@ -34,12 +34,13 @@ import (
 type Service struct {
 	ctx context.Context
 
-	mu               sync.Mutex
-	jobs             map[string]*job
-	runningByAPIMode map[string]int
-	outputDir        string // 用户自定义输出目录;空时回退到 defaultOutputDir()
-	keepLogs         bool
-	apiKeys          apiKeyStore
+	mu                        sync.Mutex
+	jobs                      map[string]*job
+	runningByAPIMode          map[string]int
+	outputDir                 string // 用户自定义输出目录;空时回退到 defaultOutputDir()
+	keepLogs                  bool
+	cleanupPreviewCacheOnExit bool
+	apiKeys                   apiKeyStore
 
 	trustedOutputRoots map[string]struct{}
 	mediaAssets        map[string]mediaAsset

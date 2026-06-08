@@ -165,6 +165,24 @@ func (s *Service) RegisterMediaAsset(savedPath, thumbPath string) (MediaAssetRef
 			allowedThumb = ""
 		}
 	}
+	if allowedThumb == "" {
+		if rebuilt, width, height, rebuildErr := rebuildGeneratedThumb(allowedFull); rebuildErr == nil {
+			allowedThumb = rebuilt
+			asset, mediaErr := s.registerGeneratedMedia(allowedFull, allowedThumb, width, height)
+			if mediaErr != nil {
+				return MediaAssetRef{}, mediaErr
+			}
+			return MediaAssetRef{
+				ImageID:       asset.ID,
+				SavedPath:     asset.FullPath,
+				ThumbPath:     asset.ThumbPath,
+				PreviewURL:    asset.PreviewURL,
+				FullURL:       asset.FullURL,
+				PreviewWidth:  asset.PreviewWidth,
+				PreviewHeight: asset.PreviewHeight,
+			}, nil
+		}
+	}
 	width, height := 0, 0
 	if allowedThumb != "" {
 		if cfg, cfgErr := imageConfig(allowedThumb); cfgErr == nil {
@@ -184,6 +202,36 @@ func (s *Service) RegisterMediaAsset(savedPath, thumbPath string) (MediaAssetRef
 		PreviewWidth:  asset.PreviewWidth,
 		PreviewHeight: asset.PreviewHeight,
 	}, nil
+}
+
+func rebuildGeneratedThumb(fullPath string) (thumbPath string, width int, height int, err error) {
+	root, err := outputRootForManagedImagePath(fullPath)
+	if err != nil {
+		return "", 0, 0, err
+	}
+	base := strings.TrimSuffix(filepath.Base(fullPath), filepath.Ext(fullPath))
+	thumbPath = filepath.Join(thumbsSubdir(root), base+".avif")
+	width, height, err = createAVIFThumbnail(fullPath, thumbPath, mediaThumbMaxEdge)
+	if err != nil {
+		return "", 0, 0, err
+	}
+	thumbPath, err = filepath.Abs(thumbPath)
+	if err != nil {
+		return "", 0, 0, err
+	}
+	return thumbPath, width, height, nil
+}
+
+func outputRootForManagedImagePath(fullPath string) (string, error) {
+	abs, err := filepath.Abs(fullPath)
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Dir(abs)
+	if filepath.Base(dir) != "images" {
+		return "", fmt.Errorf("not a generated image path: %s", abs)
+	}
+	return filepath.Dir(dir), nil
 }
 
 func mediaIDForPath(path string) string {

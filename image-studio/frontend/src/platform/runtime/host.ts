@@ -624,6 +624,13 @@ export function SetKeepLogsEnabled(enabled: boolean): Promise<void> {
   return Promise.resolve();
 }
 
+export function SetCleanupPreviewCacheOnExitEnabled(enabled: boolean): Promise<void> {
+  if (hasServiceMethod("SetCleanupPreviewCacheOnExitEnabled")) {
+    return invokeService<void>(unsupportedMessage, "SetCleanupPreviewCacheOnExitEnabled", enabled);
+  }
+  return Promise.resolve();
+}
+
 export function SetOutputDir(path: string): Promise<void> {
   if (hasServiceMethod("SetOutputDir")) {
     return invokeService<void>(unsupportedMessage, "SetOutputDir", path);
