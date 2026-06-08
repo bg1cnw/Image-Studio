@@ -59,7 +59,12 @@ export function AndroidCanvasStage() {
   });
   const orderedBatchResults = sortHistoryItemsByCreatedAtAsc(batchResults);
   const navigationItems = orderedNavigationItemsForCurrent(currentImage?.id, history, batchResults);
-  const liveBatchSlotCount = Math.max(jobsTotal, batchResults.length + runningJobs.length, batchResults.length + streamPreviewItems.length);
+  const liveBatchSlotCount = Math.max(
+    runningJobs.length,
+    batchResults.length,
+    streamPreviewItems.length,
+    Math.min(runningJobs.length, batchResults.length + streamPreviewItems.length),
+  );
   const liveBatchSlots: BatchGridSlot[] = Array.from({ length: liveBatchSlotCount }, (_, index) => ({ type: "pending", id: `pending-${index}` }));
   for (const item of batchResults) {
     const index = typeof item.batchIndex === "number" ? item.batchIndex : liveBatchSlots.findIndex((slot) => slot.type === "pending");
@@ -71,7 +76,7 @@ export function AndroidCanvasStage() {
       liveBatchSlots[index] = { type: "preview", item };
     }
   }
-  const showingLiveBatchGrid = isRunning && liveBatchSlotCount > 1;
+  const showingLiveBatchGrid = isRunning && liveBatchSlotCount > 0;
   const showingResultGrid = showingLiveBatchGrid || (resultGridOpen && batchResults.length > 1);
   const currentBatchIndex = currentImage ? navigationItems.findIndex((item) => item.id === currentImage.id) : -1;
   const canNavigateBatchResults = currentBatchIndex >= 0 && navigationItems.length > 1;
@@ -472,7 +477,7 @@ export function AndroidCanvasStage() {
           onSelect={selectBatchResult}
           onClose={closeResultGrid}
           showClose={!showingLiveBatchGrid}
-          title={showingLiveBatchGrid ? `本批预览 · ${jobsCompleted}/${jobsTotal}` : undefined}
+          title={showingLiveBatchGrid ? `当前并发预览 · ${runningJobs.length} 路 · ${jobsCompleted}/${jobsTotal}` : undefined}
         />
       ) : null}
       {!showingResultGrid && currentImage && compareB ? (

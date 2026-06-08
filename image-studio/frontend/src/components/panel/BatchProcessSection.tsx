@@ -170,21 +170,34 @@ export function BatchProcessSection({
               </Seg>
               {batchProcess.autoAspectResolution !== "" ? (
                 <>
-                  <div className="grid grid-cols-5 gap-2">
-                    {(["256", "512", "1k", "2k", "4k"] as const).map((value) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setBatchProcess({ ...batchProcess, autoAspectResolution: value })}
-                        className={`border px-2 py-2 text-[11px] font-medium transition-colors ${
-                          batchProcess.autoAspectResolution === value
-                            ? "border-[color:var(--accent)]/35 bg-[var(--accent-soft)] text-[var(--accent)]"
-                            : "border-black/[0.08] text-zinc-600 hover:border-[color:var(--accent)]/30 hover:text-zinc-900 dark:border-white/[0.08] dark:text-zinc-300"
-                        } ${usesFluentUI ? "rounded-[8px]" : "rounded-[12px]"}`}
-                      >
-                        {value.toUpperCase()}
-                      </button>
-                    ))}
+                  <div className={`border border-[color:var(--accent)]/18 bg-[var(--accent-soft)]/55 px-3 py-3 dark:border-[color:var(--accent)]/20 ${usesFluentUI ? "rounded-[12px]" : "rounded-[16px]"}`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-[12px] font-semibold text-zinc-900 dark:text-zinc-100">统一分辨率档位</div>
+                        <div className="mt-0.5 text-[11px] leading-5 text-zinc-500 dark:text-zinc-400">
+                          每张图按自己的比例自动适配，但都会使用这里选定的分辨率档位。
+                        </div>
+                      </div>
+                      <span className={`shrink-0 border border-[color:var(--accent)]/25 bg-white/75 px-2.5 py-1 text-[11px] font-semibold text-[var(--accent)] dark:bg-white/10 ${usesFluentUI ? "rounded-[9px]" : "rounded-full"}`}>
+                        当前 {batchProcess.autoAspectResolution.toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-5 gap-2">
+                      {(["256", "512", "1k", "2k", "4k"] as const).map((value) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setBatchProcess({ ...batchProcess, autoAspectResolution: value })}
+                          className={`border px-2 py-3 text-[12px] font-semibold transition-colors ${
+                            batchProcess.autoAspectResolution === value
+                              ? "border-[color:var(--accent)]/35 bg-white text-[var(--accent)] shadow-sm dark:bg-zinc-900"
+                              : "border-black/[0.08] bg-white/70 text-zinc-600 hover:border-[color:var(--accent)]/30 hover:text-zinc-900 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-zinc-300"
+                          } ${usesFluentUI ? "rounded-[10px]" : "rounded-[14px]"}`}
+                        >
+                          {value.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <div className={`border border-black/[0.06] bg-[var(--surface)] px-3 py-2 text-[11px] text-zinc-500 dark:border-white/[0.04] dark:text-zinc-400 ${usesFluentUI ? "rounded-[10px]" : "rounded-[14px]"}`}>
                     开启后，批处理会按每张源图自身宽高比自动适配尺寸，同时统一使用这里选定的分辨率档位。适合同一提示词但源图比例不同的目录批处理。
