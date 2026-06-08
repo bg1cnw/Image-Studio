@@ -5,6 +5,7 @@
 ## 生成能力
 
 - 文生图与图生图，支持多张参考图。
+- 桌面端图生图批处理:可在图生图里切换到批处理模式，按目录逐张处理图片，默认保存回原图目录，也可单独指定输出目录。详见 [batch-img2img](./batch-img2img/README.md)。
 - 输入图源:文件对话框、拖拽窗口、剪贴板粘贴、历史复用、双击历史项设为源图。
 - 参数:Auto 与固定尺寸、Auto / high / medium / low 质量、PNG / JPEG / WebP 输出格式、seed、negative prompt、风格 chip。
 - 尺寸语义:比例与分辨率是同一个 `size` 的拆分视图；当比例切到 `Auto` 时，底层尺寸会整体交给上游决定。细节见 [size-auto.md](./size-auto.md)。

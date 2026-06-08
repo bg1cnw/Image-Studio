@@ -351,24 +351,22 @@ jobs:
           New-Item -ItemType Directory -Force -Path image-studio/build/bin | Out-Null
           Copy-Item "dist/image-studio-${{ needs.prepare-version.outputs.app_version }}-${{ matrix.input_artifact }}/image-studio-${{ needs.prepare-version.outputs.app_version }}-${{ matrix.input_artifact }}" "image-studio/build/bin/${{ matrix.input_binary }}"
 
-      - name: Validate MSIX identity configuration
-        shell: pwsh
+      - name: Detect MSIX identity configuration
+        id: msix_identity
+        shell: bash
         env:
           IMAGE_STUDIO_MSIX_IDENTITY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_IDENTITY_NAME }}
           IMAGE_STUDIO_MSIX_PUBLISHER: ${{ vars.IMAGE_STUDIO_MSIX_PUBLISHER }}
           IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME }}
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:IMAGE_STUDIO_MSIX_IDENTITY_NAME)) {
-            throw "Missing repository variable IMAGE_STUDIO_MSIX_IDENTITY_NAME."
-          }
-          if ([string]::IsNullOrWhiteSpace($env:IMAGE_STUDIO_MSIX_PUBLISHER)) {
-            throw "Missing repository variable IMAGE_STUDIO_MSIX_PUBLISHER."
-          }
-          if ([string]::IsNullOrWhiteSpace($env:IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME)) {
-            throw "Missing repository variable IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME."
-          }
+          if [ -n "$IMAGE_STUDIO_MSIX_IDENTITY_NAME" ] && [ -n "$IMAGE_STUDIO_MSIX_PUBLISHER" ] && [ -n "$IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Build MSIX package
+        if: steps.msix_identity.outputs.available == 'true'
         shell: pwsh
         env:
           IMAGE_STUDIO_MSIX_IDENTITY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_IDENTITY_NAME }}
@@ -384,7 +382,14 @@ jobs:
             -SourceExe "image-studio/build/bin/${{ matrix.input_binary }}" `
             -OutputPath "dist/msix/image-studio-${{ needs.prepare-version.outputs.app_version }}-${{ matrix.artifact_suffix }}"
 
+      - name: Warn on skipped MSIX package
+        if: steps.msix_identity.outputs.available != 'true'
+        shell: bash
+        run: |
+          echo "::warning::Skipping MSIX packaging because IMAGE_STUDIO_MSIX_IDENTITY_NAME / IMAGE_STUDIO_MSIX_PUBLISHER / IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME are not all configured."
+
       - name: Upload MSIX artifact
+        if: steps.msix_identity.outputs.available == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: image-studio-${{ needs.prepare-version.outputs.app_version }}-${{ matrix.artifact_suffix }}
@@ -398,13 +403,29 @@ jobs:
       - prepare-version
       - build-windows-msix
     steps:
+      - name: Detect MSIX identity configuration
+        id: msix_identity
+        shell: bash
+        env:
+          IMAGE_STUDIO_MSIX_IDENTITY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_IDENTITY_NAME }}
+          IMAGE_STUDIO_MSIX_PUBLISHER: ${{ vars.IMAGE_STUDIO_MSIX_PUBLISHER }}
+          IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME }}
+        run: |
+          if [ -n "$IMAGE_STUDIO_MSIX_IDENTITY_NAME" ] && [ -n "$IMAGE_STUDIO_MSIX_PUBLISHER" ] && [ -n "$IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Download MSIX artifacts
+        if: steps.msix_identity.outputs.available == 'true'
         uses: actions/download-artifact@v4
         with:
           path: dist/msix
           pattern: image-studio-${{ needs.prepare-version.outputs.app_version }}-windows-*.msix
 
       - name: Build MSIX bundle
+        if: steps.msix_identity.outputs.available == 'true'
         shell: pwsh
         run: |
           $makeAppx = Get-ChildItem -Path (Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin") -Filter makeappx.exe -Recurse -ErrorAction Stop |
@@ -426,7 +447,14 @@ jobs:
             throw "makeappx bundle failed with exit code $LASTEXITCODE."
           }
 
+      - name: Warn on skipped MSIX bundle
+        if: steps.msix_identity.outputs.available != 'true'
+        shell: bash
+        run: |
+          echo "::warning::Skipping MSIX bundle because IMAGE_STUDIO_MSIX_IDENTITY_NAME / IMAGE_STUDIO_MSIX_PUBLISHER / IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME are not all configured."
+
       - name: Upload MSIX bundle artifact
+        if: steps.msix_identity.outputs.available == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: image-studio-${{ needs.prepare-version.outputs.app_version }}-windows.msixbundle
