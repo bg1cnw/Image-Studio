@@ -355,9 +355,9 @@ jobs:
         id: msix_identity
         shell: bash
         env:
-          IMAGE_STUDIO_MSIX_IDENTITY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_IDENTITY_NAME }}
-          IMAGE_STUDIO_MSIX_PUBLISHER: ${{ vars.IMAGE_STUDIO_MSIX_PUBLISHER }}
-          IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME }}
+          IMAGE_STUDIO_MSIX_IDENTITY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_IDENTITY_NAME || 'Image-Studio.Image-Studio' }}
+          IMAGE_STUDIO_MSIX_PUBLISHER: ${{ vars.IMAGE_STUDIO_MSIX_PUBLISHER || 'CN=D9AC33A5-F2A0-4194-9BCA-D17B6B918495' }}
+          IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME || 'Image-Studio' }}
         run: |
           if [ -n "$IMAGE_STUDIO_MSIX_IDENTITY_NAME" ] && [ -n "$IMAGE_STUDIO_MSIX_PUBLISHER" ] && [ -n "$IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME" ]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
@@ -369,9 +369,9 @@ jobs:
         if: steps.msix_identity.outputs.available == 'true'
         shell: pwsh
         env:
-          IMAGE_STUDIO_MSIX_IDENTITY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_IDENTITY_NAME }}
-          IMAGE_STUDIO_MSIX_PUBLISHER: ${{ vars.IMAGE_STUDIO_MSIX_PUBLISHER }}
-          IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME }}
+          IMAGE_STUDIO_MSIX_IDENTITY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_IDENTITY_NAME || 'Image-Studio.Image-Studio' }}
+          IMAGE_STUDIO_MSIX_PUBLISHER: ${{ vars.IMAGE_STUDIO_MSIX_PUBLISHER || 'CN=D9AC33A5-F2A0-4194-9BCA-D17B6B918495' }}
+          IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME || 'Image-Studio' }}
         run: |
           ./scripts/build-msix.ps1 `
             -Architecture "${{ matrix.package_arch }}" `
@@ -407,9 +407,9 @@ jobs:
         id: msix_identity
         shell: bash
         env:
-          IMAGE_STUDIO_MSIX_IDENTITY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_IDENTITY_NAME }}
-          IMAGE_STUDIO_MSIX_PUBLISHER: ${{ vars.IMAGE_STUDIO_MSIX_PUBLISHER }}
-          IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME }}
+          IMAGE_STUDIO_MSIX_IDENTITY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_IDENTITY_NAME || 'Image-Studio.Image-Studio' }}
+          IMAGE_STUDIO_MSIX_PUBLISHER: ${{ vars.IMAGE_STUDIO_MSIX_PUBLISHER || 'CN=D9AC33A5-F2A0-4194-9BCA-D17B6B918495' }}
+          IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME || 'Image-Studio' }}
         run: |
           if [ -n "$IMAGE_STUDIO_MSIX_IDENTITY_NAME" ] && [ -n "$IMAGE_STUDIO_MSIX_PUBLISHER" ] && [ -n "$IMAGE_STUDIO_MSIX_PUBLISHER_DISPLAY_NAME" ]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
