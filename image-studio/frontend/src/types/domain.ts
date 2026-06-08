@@ -57,12 +57,17 @@ export type ThemeMode = "system" | "light" | "dark";
 export type CompletionSoundMode = "default" | "custom";
 export type EditSourceMode = "manual" | "batch";
 export type BatchProcessOutputMode = "source_dir" | "custom_dir";
+export type SystemNotificationPermissionState = "default" | "granted" | "denied" | "unsupported";
 
 export interface CompletionSoundConfig {
   enabled: boolean;
   mode: CompletionSoundMode;
   customName: string;
   customDataURL: string;
+}
+
+export interface CompletionNotificationConfig {
+  enabled: boolean;
 }
 
 export interface SizeOption { value: SizeValue; label: string; }

@@ -81,6 +81,15 @@ import {
   shouldPlayCompletionSound,
 } from "../lib/completionSound";
 import {
+  normalizeCompletionNotificationConfig,
+  persistCompletionNotificationConfig,
+  readCompletionNotificationConfig,
+  readSystemNotificationPermission,
+  requestSystemNotificationPermission,
+  shouldSendCompletionNotification,
+  showSystemNotification,
+} from "../lib/completionNotification";
+import {
   persistPromptTemplates,
   readStoredPromptTemplates,
 } from "../lib/promptTemplates";
@@ -160,7 +169,6 @@ import {
   ensureFullHistoryItem as ensureFullHistoryItemRuntime,
   materializeHistoryItem as materializeHistoryItemRuntime,
   STYLE_SUFFIXES,
-  tryNotify,
   withMediaAssetRef,
 } from "./studioStore.runtime";
 import { createMediaActions } from "./studioStore.media";
@@ -601,6 +609,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   keepLogs: readKeepLogs(),
   cleanupPreviewCacheOnExit: readCleanupPreviewCacheOnExit(),
   completionSound: readCompletionSoundConfig(),
+  completionNotification: readCompletionNotificationConfig(),
+  completionNotificationPermission: readSystemNotificationPermission(),
   ignoredReleaseTag: readIgnoredReleaseTag(),
   appUpdate: null,
   appUpdateModalOpen: false,
@@ -789,6 +799,30 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   },
   previewCompletionSound: async () => {
     await playCompletionSound(get().completionSound, { force: true });
+  },
+  setCompletionNotificationEnabled: async (value) => {
+    if (!value) {
+      const next = normalizeCompletionNotificationConfig({ ...get().completionNotification, enabled: false });
+      persistCompletionNotificationConfig(next);
+      const permission = readSystemNotificationPermission();
+      set({
+        completionNotification: next,
+        completionNotificationPermission: permission,
+      });
+      return permission;
+    }
+    const permission = await requestSystemNotificationPermission();
+    set({ completionNotificationPermission: permission });
+    if (permission !== "granted") return permission;
+    const next = normalizeCompletionNotificationConfig({ ...get().completionNotification, enabled: true });
+    persistCompletionNotificationConfig(next);
+    set({ completionNotification: next });
+    return permission;
+  },
+  requestCompletionNotificationPermission: async () => {
+    const permission = await requestSystemNotificationPermission();
+    set({ completionNotificationPermission: permission });
+    return permission;
   },
   workspaces: [],
   activeWorkspaceId: "",
@@ -1406,6 +1440,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         keepLogs: readKeepLogs(),
         cleanupPreviewCacheOnExit: readCleanupPreviewCacheOnExit(),
         completionSound: readCompletionSoundConfig(),
+        completionNotification: readCompletionNotificationConfig(),
+        completionNotificationPermission: readSystemNotificationPermission(),
         ignoredReleaseTag: readIgnoredReleaseTag(),
         appUpdate: null,
         appUpdateModalOpen: false,
@@ -1452,6 +1488,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     const keepLogs = readKeepLogs();
     const cleanupPreviewCacheOnExit = readCleanupPreviewCacheOnExit();
     const completionSound = readCompletionSoundConfig();
+    const completionNotification = readCompletionNotificationConfig();
+    const completionNotificationPermission = readSystemNotificationPermission();
     const ignoredReleaseTag = readIgnoredReleaseTag();
     const updateInfo = normalizeAppUpdateInfo(await CheckForAppUpdate().catch(() => null));
     const shouldShowUpdate = !!updateInfo?.hasUpdate && updateInfo.releaseTag !== ignoredReleaseTag;
@@ -1697,6 +1735,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       keepLogs,
       cleanupPreviewCacheOnExit,
       completionSound,
+      completionNotification,
+      completionNotificationPermission,
       ignoredReleaseTag,
       appUpdate: shouldShowUpdate ? updateInfo : null,
       appUpdateModalOpen: shouldShowUpdate,
@@ -2253,12 +2293,19 @@ async function launchOneJob(
             completedNow,
             totalNow,
           });
+          const shouldNotifyCompletion = shouldSendCompletionNotification({
+            config: store.getState().completionNotification,
+            completedNow,
+            totalNow,
+            windowHidden: willNotify,
+          });
           if (shouldPlaySound) {
             void playCompletionSound(store.getState().completionSound);
           }
-          // 桌面通知 —— 点击拉前台 + 直达详情抽屉
-          if (willNotify && (!loopMode || isFinalLoopResult)) {
-            tryNotify("Image Studio · 已完成", r.prompt ?? "", () => {
+          if (shouldNotifyCompletion && (!loopMode || isFinalLoopResult)) {
+            const notificationBody = (r.revisedPrompt ?? r.prompt ?? payload.prompt ?? "").trim()
+              || (historyItem.mode === "edit" ? "图片编辑任务已完成" : "图片生成任务已完成");
+            showSystemNotification("Image Studio · 已完成", notificationBody, () => {
               store.getState().openResultDetail(historyItem);
             });
           }

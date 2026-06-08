@@ -17,6 +17,7 @@ import type {
   OutputFormatValue,
   CustomAspectRatio,
   CompletionSoundConfig,
+  CompletionNotificationConfig,
   Preset,
   ProgressInfo,
   PromptTemplate,
@@ -27,6 +28,7 @@ import type {
   SourceImage,
   StreamPreview,
   StreamPreviewMap,
+  SystemNotificationPermissionState,
   ThemeMode,
   Toast,
   UpstreamProfile,
@@ -216,6 +218,8 @@ export interface StudioState {
   keepLogs: boolean;
   cleanupPreviewCacheOnExit: boolean;
   completionSound: CompletionSoundConfig;
+  completionNotification: CompletionNotificationConfig;
+  completionNotificationPermission: SystemNotificationPermissionState;
   ignoredReleaseTag: string;
   appUpdate: AppUpdateInfo | null;
   appUpdateModalOpen: boolean;
@@ -231,6 +235,8 @@ export interface StudioState {
   setCompletionSoundCustom: (input: { name: string; dataURL: string }) => void;
   resetCompletionSoundCustom: () => void;
   previewCompletionSound: () => Promise<void>;
+  setCompletionNotificationEnabled: (value: boolean) => Promise<SystemNotificationPermissionState>;
+  requestCompletionNotificationPermission: () => Promise<SystemNotificationPermissionState>;
   materializeCurrentImage: (item: HistoryItem) => Promise<HistoryItem>;
   retryLast: () => Promise<void>;
   setHistoryRailCollapsed: (collapsed: boolean) => void;
