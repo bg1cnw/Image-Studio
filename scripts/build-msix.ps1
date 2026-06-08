@@ -99,7 +99,7 @@ try {
     $manifest = $manifest.Replace("{{PACKAGE_PUBLISHER}}", $Publisher)
     $manifest = $manifest.Replace("{{PACKAGE_VERSION}}", $packageVersion)
     $manifest = $manifest.Replace("{{PROCESSOR_ARCHITECTURE}}", $Architecture)
-    $manifest = $manifest.Replace("{{DISPLAY_NAME}}", "Image Studio")
+    $manifest = $manifest.Replace("{{DISPLAY_NAME}}", "Image-Studio")
     $manifest = $manifest.Replace("{{PUBLISHER_DISPLAY_NAME}}", $PublisherDisplayName)
     $manifest = $manifest.Replace("{{DESCRIPTION}}", "Open-source image generation and editing desktop app")
     Test-MsixManifest $manifest
