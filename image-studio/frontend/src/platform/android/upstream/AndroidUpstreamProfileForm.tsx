@@ -152,6 +152,25 @@ export function AndroidUpstreamProfileForm({
 
       {draft.apiMode === "responses" ? (
         <>
+          <AndroidField label="Responses 传输" hint="这是 Responses API 的传输方式，不是 Realtime API。">
+            <div className="android-upstream-option-grid two">
+              {[
+                { id: "sse", title: "HTTP SSE", meta: "默认，兼容性更稳" },
+                { id: "websocket", title: "WebSocket", meta: "需要上游支持" },
+              ].map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={(draft.responsesTransport ?? "sse") === option.id ? "active" : ""}
+                  onClick={() => onPatchDraft({ responsesTransport: option.id as UpstreamProfile["responsesTransport"] })}
+                >
+                  <strong>{option.title}</strong>
+                  <small>{option.meta}</small>
+                </button>
+              ))}
+            </div>
+          </AndroidField>
+
           <AndroidField label="文本模型 ID">
             <input
               type="text"

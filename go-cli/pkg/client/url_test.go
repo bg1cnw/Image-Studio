@@ -12,6 +12,8 @@ func TestValidateBaseURL(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "https ok", raw: " https://relay.example.com/ ", want: "https://relay.example.com"},
+		{name: "https trailing v1 trimmed", raw: "https://relay.example.com/v1", want: "https://relay.example.com"},
+		{name: "https nested path trailing v1 trimmed", raw: "https://relay.example.com/proxy/v1/", want: "https://relay.example.com/proxy"},
 		{name: "http localhost ok", raw: "http://localhost:8787/api", want: "http://localhost:8787/api"},
 		{name: "http loopback ip ok", raw: "http://127.0.0.1:8080", want: "http://127.0.0.1:8080"},
 		{name: "http remote rejected", raw: "http://relay.example.com", wantErr: true},

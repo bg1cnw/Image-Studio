@@ -28,6 +28,7 @@ export function readPreviewScenario(): PreviewScenario | null {
   }
 }
 
+
 function buildHistory(now: number): HistoryItem[] {
   const batchPrompt = "赛博雨夜角色海报，湿地街道反光，红青霓虹边缘光，35mm，电影感，超细节";
   const batchDefs = Array.from({ length: 9 }, (_, index) => ({
@@ -152,6 +153,7 @@ function buildPreviewProfile(now: number): UpstreamProfile {
     id: "preview-profile",
     name: "Preview Responses",
     apiMode: "responses",
+    responsesTransport: "sse",
     requestPolicy: "openai",
     baseURL: "https://code1.linzefeng.top",
     textModelID: "gpt-4.1-mini",
@@ -182,7 +184,9 @@ function buildWorkspace(
     outputMode: "source_dir",
     outputDir: "",
     concurrency: 2,
+    retryOnFailure: false,
     fileNamePrefix: "processed-",
+    autoAspectResolution: "",
     discoveredSources: [],
   };
   return {

@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -13,6 +14,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 // startSSEServer returns an httptest.Server that streams the given lines as SSE.
@@ -395,4 +398,126 @@ type injectingTransport struct {
 func (i *injectingTransport) Stream(ctx context.Context, req Request, rawSink io.Writer, progress chan<- string) error {
 	req.URL = i.url + "/v1/responses"
 	return i.inner.Stream(ctx, req, rawSink, progress)
+}
+
+func TestBuildResponsesWebSocketCreatePayloadStripsHTTPOnlyFields(t *testing.T) {
+	raw, err := BuildPayload(Options{
+		APIKey:       "sk-test",
+		Prompt:       "hello",
+		BaseURL:      "https://relay.example.com",
+		TextModelID:  "gpt-5.5",
+		ImageModelID: "gpt-image-2",
+	})
+	if err != nil {
+		t.Fatalf("BuildPayload: %v", err)
+	}
+	wsPayload, err := buildResponsesWebSocketCreatePayload(raw)
+	if err != nil {
+		t.Fatalf("buildResponsesWebSocketCreatePayload: %v", err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(wsPayload, &decoded); err != nil {
+		t.Fatalf("json decode: %v", err)
+	}
+	if decoded["type"] != "response.create" {
+		t.Fatalf("type = %v, want response.create", decoded["type"])
+	}
+	if _, ok := decoded["stream"]; ok {
+		t.Fatalf("websocket payload must not include stream")
+	}
+}
+
+func TestRequestResponsesOverWebSocketSucceedsWhenFinalArrivesBeforeDisconnect(t *testing.T) {
+	pngB64 := base64.StdEncoding.EncodeToString([]byte("\x89PNG\r\n\x1a\nfake"))
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+			t.Fatalf("expected websocket upgrade")
+		}
+		upgrader := websocket.Upgrader{}
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Fatalf("upgrade: %v", err)
+		}
+		defer conn.Close()
+		_, msg, err := conn.ReadMessage()
+		if err != nil {
+			t.Fatalf("read: %v", err)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(msg, &payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if payload["type"] != "response.create" {
+			t.Fatalf("type = %v, want response.create", payload["type"])
+		}
+		_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.created","response":{"id":"resp_123"}}`))
+		_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.output_item.done","item":{"type":"image_generation_call","result":"`+pngB64+`"}}`))
+		_ = conn.Close()
+	}))
+	defer srv.Close()
+
+	result, err := requestResponsesWithWebSocketReplay(
+		context.Background(),
+		Options{
+			APIKey:             "sk-test",
+			Prompt:             "hello",
+			BaseURL:            strings.Replace(srv.URL, "http://", "http://", 1),
+			ResponsesTransport: ResponsesTransportWebSocket,
+		},
+		io.Discard,
+		nil,
+		nil,
+		1,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("requestResponsesWithWebSocketReplay: %v", err)
+	}
+	if result.ImageB64 != pngB64 {
+		t.Fatalf("result image mismatch")
+	}
+}
+
+func TestRequestResponsesWithWebSocketReplayFallsBackToSSEOnHandshakeFailure(t *testing.T) {
+	pngB64 := base64.StdEncoding.EncodeToString([]byte("\x89PNG\r\n\x1a\nfallback"))
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/v1/responses" && strings.EqualFold(r.Header.Get("Upgrade"), "websocket"):
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUpgradeRequired)
+			_, _ = w.Write([]byte(`{"error":{"message":"WebSocket upgrade required (Upgrade: websocket)"}}`))
+		case r.URL.Path == "/v1/responses":
+			w.Header().Set("Content-Type", "text/event-stream")
+			fmt.Fprintln(w, `data: {"type":"response.created"}`)
+			fmt.Fprintln(w, `data: {"type":"response.output_item.done","item":{"type":"image_generation_call","result":"`+pngB64+`"}}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	var raw bytes.Buffer
+	result, err := requestResponsesWithWebSocketReplay(
+		context.Background(),
+		Options{
+			APIKey:             "sk-test",
+			Prompt:             "hello",
+			BaseURL:            srv.URL,
+			ResponsesTransport: ResponsesTransportWebSocket,
+		},
+		&raw,
+		nil,
+		nil,
+		1,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("requestResponsesWithWebSocketReplay: %v", err)
+	}
+	if result.ImageB64 != pngB64 {
+		t.Fatalf("result image mismatch")
+	}
+	if !strings.Contains(raw.String(), "websocket-error-1") {
+		t.Fatalf("expected raw log to record websocket handshake failure, got %q", raw.String())
+	}
 }

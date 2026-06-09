@@ -21,6 +21,7 @@ export function WindowsComposePanel({
   batchCount,
   batchProcess,
   chooseBatchInputDir,
+  chooseBatchInputFiles,
   chooseBatchOutputDir,
   clearSources,
   currentImageSavedPath,
@@ -60,6 +61,7 @@ export function WindowsComposePanel({
   batchCount: number;
   batchProcess: BatchProcessConfig;
   chooseBatchInputDir: () => void;
+  chooseBatchInputFiles: () => void;
   chooseBatchOutputDir: () => void;
   clearSources: () => void;
   currentImageSavedPath?: string | null;
@@ -129,6 +131,7 @@ export function WindowsComposePanel({
             batchCount={batchCount}
             batchProcess={batchProcess}
             chooseBatchInputDir={chooseBatchInputDir}
+            chooseBatchInputFiles={chooseBatchInputFiles}
             chooseBatchOutputDir={chooseBatchOutputDir}
             clearSources={clearSources}
             currentImageSavedPath={currentImageSavedPath}

@@ -3,6 +3,7 @@ import {
   REASONING_EFFORT_OPTIONS,
   type APIMode,
   type RequestPolicy,
+  type ResponsesTransport,
   type UpstreamProfile,
 } from "../../types/domain";
 import { requestPolicyLabel } from "../../lib/profiles";
@@ -65,6 +66,10 @@ export function UpstreamProfileEditor({
   const requestPolicyOptions = [
     { id: "openai" as RequestPolicy, title: requestPolicyLabel("openai"), sub: "默认。只发送 OpenAI 官方公开字段。" },
     { id: "compat" as RequestPolicy, title: requestPolicyLabel("compat"), sub: "兼容部分 relay 扩展字段，例如 seed / negative_prompt。" },
+  ];
+  const responsesTransportOptions = [
+    { id: "sse" as ResponsesTransport, title: "HTTP SSE", sub: "默认，兼容性更稳" },
+    { id: "websocket" as ResponsesTransport, title: "WebSocket mode", sub: "需要上游支持" },
   ];
   const selectedAPIMode = apiModeOptions.find((option) => option.id === draft.apiMode) ?? apiModeOptions[0];
   const selectedRequestPolicy = requestPolicyOptions.find((option) => option.id === draft.requestPolicy) ?? requestPolicyOptions[0];
@@ -217,6 +222,36 @@ export function UpstreamProfileEditor({
 
       {draft.apiMode === "responses" ? (
         <>
+          <Field
+            label={(
+              <span className="flex items-center justify-between gap-3">
+                <span>Responses 传输</span>
+                <span className="shrink-0 text-[11px] font-medium text-[var(--accent)]">
+                  已选 {(draft.responsesTransport ?? "sse") === "websocket" ? "WebSocket mode" : "HTTP SSE"}
+                </span>
+              </span>
+            )}
+          >
+            <div className={`grid gap-2 ${isAndroidPhone ? "grid-cols-1" : "grid-cols-2"}`}>
+              {responsesTransportOptions.map((option) => {
+                const active = (draft.responsesTransport ?? "sse") === option.id;
+                return (
+                  <OptionCard
+                    key={option.id}
+                    active={active}
+                    usesFluentUI={usesFluentUI}
+                    title={option.title}
+                    sub={option.sub}
+                    onClick={() => onPatchDraft({ responsesTransport: option.id })}
+                  />
+                );
+              })}
+            </div>
+            <Hint>
+              这是 Responses API 的传输方式，不是 Realtime API。当前仅桌面本地内核与 Android 壳层支持 WebSocket mode。
+            </Hint>
+          </Field>
+
           <Field label="文本模型 ID">
             <input
               type="text"

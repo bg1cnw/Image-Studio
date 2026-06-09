@@ -6,6 +6,7 @@ import { BatchProcessSection } from "./BatchProcessSection";
 export function MacComposeSources({
   batchProcess,
   chooseBatchInputDir,
+  chooseBatchInputFiles,
   chooseBatchOutputDir,
   compareSourceOnCanvas,
   clearSources,
@@ -19,6 +20,7 @@ export function MacComposeSources({
 }: {
   batchProcess: BatchProcessConfig;
   chooseBatchInputDir: () => void;
+  chooseBatchInputFiles: () => void;
   chooseBatchOutputDir: () => void;
   compareSourceOnCanvas: (index: number) => void;
   clearSources: () => void;
@@ -39,6 +41,7 @@ export function MacComposeSources({
         setEditSourceMode={(next) => setField("editSourceMode", next)}
         setBatchProcess={(next) => setField("batchProcess", next)}
         onChooseInputDir={chooseBatchInputDir}
+        onChooseInputFiles={chooseBatchInputFiles}
         onChooseOutputDir={chooseBatchOutputDir}
         onRefreshInputDir={refreshBatchInputDir}
       />

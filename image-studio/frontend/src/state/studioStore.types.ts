@@ -1,4 +1,5 @@
 import type { GenerateOptionsLike } from "../platform/runtime/hostTypes";
+import type { SavePromptRequest } from "../lib/savePromptState";
 import type {
   Annotation,
   AppUpdateInfo,
@@ -17,6 +18,7 @@ import type {
   OutputFormatValue,
   CustomAspectRatio,
   CompletionSoundConfig,
+  CompletionNotificationConfig,
   Preset,
   ProgressInfo,
   PromptTemplate,
@@ -27,6 +29,7 @@ import type {
   SourceImage,
   StreamPreview,
   StreamPreviewMap,
+  SystemNotificationPermissionState,
   ThemeMode,
   Toast,
   UpstreamProfile,
@@ -92,6 +95,7 @@ export interface StudioState {
   imageModelID: string;
   reasoningEffort: import("../types/domain").ReasoningEffortValue;
   apiMode: APIMode;
+  responsesTransport: import("../types/domain").ResponsesTransport;
   requestPolicy: RequestPolicy;
   imagesNewAPICompat: boolean;
   noPromptRevision: boolean;
@@ -159,6 +163,7 @@ export interface StudioState {
   createProfile: (input: {
     name?: string;
     apiMode: APIMode;
+    responsesTransport?: import("../types/domain").ResponsesTransport;
     baseURL?: string;
     requestPolicy?: RequestPolicy;
     imagesNewAPICompat?: boolean;
@@ -175,6 +180,7 @@ export interface StudioState {
   setActiveProfile: (id: string) => Promise<void>;
   selectSourceImage: () => Promise<void>;
   chooseBatchInputDir: () => Promise<void>;
+  chooseBatchInputFiles: () => Promise<void>;
   refreshBatchInputDir: () => Promise<void>;
   viewSourceOnCanvas: (index: number) => Promise<void>;
   compareSourceOnCanvas: (index: number) => Promise<void>;
@@ -210,16 +216,18 @@ export interface StudioState {
   resultDetail: HistoryItem | null;
   openResultDetail: (item: HistoryItem) => Promise<void>;
   closeResultDetail: () => void;
-  savePromptItem: HistoryItem | null;
-  savePromptQueue: HistoryItem[];
+  savePromptRequest: SavePromptRequest | null;
+  savePromptQueue: SavePromptRequest[];
   savePromptSuppressed: boolean;
   keepLogs: boolean;
   cleanupPreviewCacheOnExit: boolean;
   completionSound: CompletionSoundConfig;
+  completionNotification: CompletionNotificationConfig;
+  completionNotificationPermission: SystemNotificationPermissionState;
   ignoredReleaseTag: string;
   appUpdate: AppUpdateInfo | null;
   appUpdateModalOpen: boolean;
-  enqueueSavePrompt: (item: HistoryItem) => void;
+  enqueueSavePrompt: (request: SavePromptRequest) => void;
   closeSavePrompt: () => void;
   setSavePromptSuppressed: (value: boolean) => void;
   setKeepLogs: (value: boolean) => Promise<void>;
@@ -231,6 +239,8 @@ export interface StudioState {
   setCompletionSoundCustom: (input: { name: string; dataURL: string }) => void;
   resetCompletionSoundCustom: () => void;
   previewCompletionSound: () => Promise<void>;
+  setCompletionNotificationEnabled: (value: boolean) => Promise<SystemNotificationPermissionState>;
+  requestCompletionNotificationPermission: () => Promise<SystemNotificationPermissionState>;
   materializeCurrentImage: (item: HistoryItem) => Promise<HistoryItem>;
   retryLast: () => Promise<void>;
   setHistoryRailCollapsed: (collapsed: boolean) => void;

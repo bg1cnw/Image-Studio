@@ -7,7 +7,7 @@ import { useStudioStore } from "../../state/studioStore";
 import {
   GetOutputDir, OpenOutputDir, OpenExternalURL, ChooseOutputDir, SetOutputDir,
 } from "../../platform/runtime/host";
-import type { KernelRuntimeMode, ProxyMode } from "../../types/domain";
+import type { KernelRuntimeMode, ProxyMode, SystemNotificationPermissionState } from "../../types/domain";
 import { Modal } from "../common/Modal";
 import { rememberTrustedOutputRoot } from "../../lib/storage";
 import { scheduleCompatibilityExport } from "../../lib/compatState";
@@ -45,11 +45,15 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
     keepLogs, setKeepLogs,
     cleanupPreviewCacheOnExit, setCleanupPreviewCacheOnExit,
     completionSound,
+    completionNotification,
+    completionNotificationPermission,
     setCompletionSoundEnabled,
     setCompletionSoundMode,
     setCompletionSoundCustom,
     resetCompletionSoundCustom,
     previewCompletionSound,
+    setCompletionNotificationEnabled,
+    requestCompletionNotificationPermission,
   } = useStudioStore();
 
   const [outputDir, setOutputDir] = useState("");
@@ -136,6 +140,47 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
       })();
     }, { once: true });
     input.click();
+  }
+
+  function systemNotificationPermissionLabel(permission: SystemNotificationPermissionState): string {
+    if (permission === "granted") return "已允许";
+    if (permission === "denied") return "已拒绝";
+    if (permission === "unsupported") return "当前平台不支持";
+    return "尚未授权";
+  }
+
+  async function updateCompletionNotificationEnabled(value: boolean) {
+    const permission = await setCompletionNotificationEnabled(value);
+    if (!value) {
+      pushToast("已关闭系统通知", "success");
+      return;
+    }
+    if (permission === "granted") {
+      pushToast("已开启系统通知", "success");
+      return;
+    }
+    if (permission === "unsupported") {
+      pushToast("当前平台不支持系统通知", "warn", 5000);
+      return;
+    }
+    if (permission === "denied") {
+      pushToast("系统通知权限已被拒绝，请在系统设置中允许后重试", "warn", 6000);
+      return;
+    }
+    pushToast("请先允许系统通知权限", "warn");
+  }
+
+  async function askCompletionNotificationPermission() {
+    const permission = await requestCompletionNotificationPermission();
+    if (permission === "granted") {
+      pushToast("系统通知权限已授权", "success");
+    } else if (permission === "denied") {
+      pushToast("系统通知权限已被拒绝，请在系统设置中允许后重试", "warn", 6000);
+    } else if (permission === "unsupported") {
+      pushToast("当前平台不支持系统通知", "warn", 5000);
+    } else {
+      pushToast("系统通知权限仍未授权", "warn");
+    }
   }
 
   function closeSettings() {
@@ -472,6 +517,28 @@ export function SettingsPanel({ open, onClose }: { open: boolean; onClose: () =>
             </div>
             <p className="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-300">
               整批生成全部完成后只播放一次。当前 {completionSound.mode === "custom" && completionSound.customName ? `使用 ${completionSound.customName}` : "使用内置默认音"}。
+            </p>
+          </SettingsRow>
+
+          <SettingsRow label="系统通知">
+            <div className={`platform-seg flex flex-wrap gap-1 bg-black/[0.04] p-0.5 ring-1 ring-black/[0.05] dark:bg-white/[0.06] dark:ring-white/[0.06] ${usesFluentUI ? "rounded-[10px]" : "rounded-[18px]"}`}>
+              <SettingsSegButton active={completionNotification.enabled} onClick={() => void updateCompletionNotificationEnabled(true)}>
+                <Bell className="w-3 h-3" /> 开启
+              </SettingsSegButton>
+              <SettingsSegButton active={!completionNotification.enabled} onClick={() => void updateCompletionNotificationEnabled(false)}>
+                关闭
+              </SettingsSegButton>
+            </div>
+            <div className="mt-2 flex gap-1.5">
+              <button
+                onClick={() => void askCompletionNotificationPermission()}
+                className={`flex-1 inline-flex min-h-[34px] items-center justify-center gap-1.5 border border-black/[0.08] px-3 ${isMac ? "py-2.5 text-[13px]" : "py-2 text-[12px]"} font-medium text-zinc-700 transition-colors hover:border-[color:var(--accent)]/35 hover:text-[var(--accent)] dark:border-white/[0.08] dark:text-zinc-300 ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
+              >
+                {completionNotificationPermission === "granted" ? "重新检查权限" : "申请权限"}
+              </button>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-300">
+              整批任务全部完成后，仅在窗口不在前台时发送系统通知。当前权限：{systemNotificationPermissionLabel(completionNotificationPermission)}。
             </p>
           </SettingsRow>
 

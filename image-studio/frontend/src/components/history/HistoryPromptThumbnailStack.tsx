@@ -29,7 +29,7 @@ function HistoryPromptThumbnailStackLayer({ item, index }: { item: HistoryItem; 
   return (
     <span className={`timeline-prompt-card-layer layer-${index}`}>
       {loadState === "ready" ? (
-        <img src={imageSrc} alt="" loading="eager" decoding="async" />
+        <img src={imageSrc} alt="" loading="eager" decoding="async" draggable={false} />
       ) : (
         <span className="timeline-prompt-card-fallback" />
       )}

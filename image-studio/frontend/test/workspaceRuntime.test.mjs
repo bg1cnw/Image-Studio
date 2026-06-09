@@ -42,6 +42,34 @@ test("normalizes api mode and concurrency values", () => {
   assert.equal(runtime.normalizeBatchCount(3.8), 3);
   assert.equal(runtime.normalizeBatchCount(0), 1);
   assert.equal(runtime.normalizeBatchCount(99), 9);
+  assert.equal(runtime.normalizeBatchProcessAutoAspectResolution("2k"), "2k");
+  assert.equal(runtime.normalizeBatchProcessAutoAspectResolution("oops"), "");
+});
+
+test("normalizes batch process config and keeps scanned image dimensions", () => {
+  const value = runtime.normalizeBatchProcessConfig({
+    enabled: true,
+    inputDir: " /tmp/src ",
+    outputMode: "custom_dir",
+    outputDir: " /tmp/out ",
+    concurrency: 3.8,
+    retryOnFailure: true,
+    fileNamePrefix: "processed-",
+    autoAspectResolution: "4k",
+    discoveredSources: [
+      { path: "/tmp/a.png", name: "a.png", size: 12, width: 1200, height: 800 },
+      { path: " ", name: "bad", size: 0 },
+    ],
+  });
+  assert.equal(value.enabled, true);
+  assert.equal(value.inputDir, "/tmp/src");
+  assert.equal(value.outputDir, "/tmp/out");
+  assert.equal(value.concurrency, 3);
+  assert.equal(value.retryOnFailure, true);
+  assert.equal(value.autoAspectResolution, "4k");
+  assert.deepEqual(value.discoveredSources, [
+    { path: "/tmp/a.png", name: "a.png", size: 12, width: 1200, height: 800, previewUrl: undefined, previewWidth: undefined, previewHeight: undefined },
+  ]);
 });
 
 test("patches only the target workspace runtime", () => {

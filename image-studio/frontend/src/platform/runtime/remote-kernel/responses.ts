@@ -7,6 +7,7 @@ import {
   shouldUseAndroidNativeHTTP,
 } from "./common.ts";
 import { nativeHttpRequestText } from "./nativeHttp.ts";
+import { nativeWebSocketResponsesRequest } from "./nativeWebSocket.ts";
 import { buildResponsesPayload } from "./requestPayloads.ts";
 import {
   MAX_ATTEMPTS,
@@ -17,6 +18,19 @@ import {
   type RemoteJobRequest,
   type RemoteJobResult,
 } from "./types.ts";
+
+type ResponsesWSRunStateSnapshot = {
+  attemptIndex: number;
+  socketEpoch: number;
+  createdAt: number;
+  lastActivityAt: number;
+  requestPayload: string;
+  latestEventType: string;
+  partialPreviewCount: number;
+  hasFinalImage: boolean;
+  completed: boolean;
+  cancelled: boolean;
+};
 
 function summarizeSSELine(line: string): string {
   const stripped = line.trim();
@@ -120,6 +134,21 @@ function emitPartialPreview(event: any, callbacks: RemoteJobCallbacks) {
   });
 }
 
+function updateRunStateFromEvent(state: ResponsesWSRunStateSnapshot, event: any) {
+  if (!event?.type) return;
+  state.lastActivityAt = Date.now();
+  state.latestEventType = event.type;
+  if (event.type === "response.image_generation_call.partial_image") {
+    state.partialPreviewCount += 1;
+  }
+  if (event.type === "response.output_item.done" && event?.item?.type === "image_generation_call" && event?.item?.result) {
+    state.hasFinalImage = true;
+  }
+  if (event.type === "response.completed") {
+    state.completed = true;
+  }
+}
+
 function walkForImageCall(value: any): any | null {
   if (!value) return null;
   if (Array.isArray(value)) {
@@ -181,6 +210,22 @@ function extractImageResult(raw: string): ExtractedImageResult | null {
   return null;
 }
 
+function buildWebSocketCreatePayload(body: string): string {
+  const parsed = JSON.parse(body) as Record<string, unknown>;
+  delete parsed.stream;
+  delete parsed.background;
+  parsed.type = "response.create";
+  return JSON.stringify(parsed);
+}
+
+function isWebSocketHandshakeFailure(error: unknown): boolean {
+  const message = String((error as any)?.message || error || "").toLowerCase();
+  return message.includes("bad handshake")
+    || message.includes("upgrade: websocket")
+    || message.includes("websocket upgrade required")
+    || message.includes("websocket handshake failed");
+}
+
 export async function requestResponsesOnce(
   request: RemoteJobRequest,
   attempt: number,
@@ -200,14 +245,28 @@ export async function requestResponsesOnce(
   }, STATUS_INTERVAL_MS);
   try {
     const proxyMode = request.payload.proxyMode === "none" || request.payload.proxyMode === "custom" ? request.payload.proxyMode : "system";
+    const responsesTransport = request.payload.responsesTransport === "websocket" ? "websocket" : "sse";
     if (shouldUseAndroidNativeHTTP()) {
       let receivedNativeStreamPayload = false;
+      const runState: ResponsesWSRunStateSnapshot = {
+        attemptIndex: attempt,
+        socketEpoch: 1,
+        createdAt: Date.now(),
+        lastActivityAt: Date.now(),
+        requestPayload: body,
+        latestEventType: "",
+        partialPreviewCount: 0,
+        hasFinalImage: false,
+        completed: false,
+        cancelled: false,
+      };
       const consumeNativePayload = (payload: unknown) => {
         receivedNativeStreamPayload = true;
         const parsed = parseNativeProgressPayload(payload);
         if (parsed.line) {
           bytesReceived += parsed.line.length + 1;
         }
+        updateRunStateFromEvent(runState, parsed.event);
         emitPartialPreview(parsed.event, callbacks);
         const summary = parsed.event ? summarizeSSEEvent(parsed.event) : summarizeSSELine(parsed.line);
         if (summary) {
@@ -216,19 +275,63 @@ export async function requestResponsesOnce(
           callbacks.onProgress?.(lastStage, nowSeconds(startedAt), bytesReceived);
         }
       };
-      const response = await nativeHttpRequestText(
-        url,
-        "POST",
-        {
-          Authorization: `Bearer ${request.payload.apiKey}`,
-          "Content-Type": "application/json",
-          Accept: "text/event-stream, application/json",
-        },
-        body,
-        callbacks.signal,
-        consumeNativePayload,
-        { proxyMode, proxyURL: request.payload.proxyURL || "" },
-      );
+      const requestOnce = async (socketEpoch: number) => {
+        runState.socketEpoch = socketEpoch;
+        return responsesTransport === "websocket"
+          ? await nativeWebSocketResponsesRequest(
+              `native-ws-${attempt}-${socketEpoch}-${Math.random().toString(36).slice(2, 10)}`,
+              normalizeBaseURL(request.payload.baseURL),
+              request.payload.apiKey,
+              buildWebSocketCreatePayload(body),
+              callbacks.signal,
+              consumeNativePayload,
+              { proxyMode, proxyURL: request.payload.proxyURL || "" },
+            )
+          : await nativeHttpRequestText(
+              url,
+              "POST",
+              {
+                Authorization: `Bearer ${request.payload.apiKey}`,
+                "Content-Type": "application/json",
+                Accept: "text/event-stream, application/json",
+              },
+              body,
+              callbacks.signal,
+              consumeNativePayload,
+              { proxyMode, proxyURL: request.payload.proxyURL || "" },
+            );
+      };
+      let response: Awaited<ReturnType<typeof requestOnce>>;
+      try {
+        response = await requestOnce(1);
+      } catch (error) {
+        if (responsesTransport === "websocket" && isWebSocketHandshakeFailure(error)) {
+          callbacks.onLog?.("Responses WebSocket 握手失败，当前上游不兼容该 WS 路径，自动切回 HTTP SSE...");
+          response = await nativeHttpRequestText(
+            url,
+            "POST",
+            {
+              Authorization: `Bearer ${request.payload.apiKey}`,
+              "Content-Type": "application/json",
+              Accept: "text/event-stream, application/json",
+            },
+            body,
+            callbacks.signal,
+            consumeNativePayload,
+            { proxyMode, proxyURL: request.payload.proxyURL || "" },
+          );
+        } else if (responsesTransport === "websocket" && !runState.hasFinalImage) {
+          callbacks.onLog?.("WebSocket 连接中断，正在重新连接并重放本次生成...");
+          try {
+            response = await requestOnce(2);
+          } catch (retryError) {
+            callbacks.onLog?.(`WebSocket 重连失败: ${String((retryError as any)?.message || retryError)}`);
+            throw retryError;
+          }
+        } else {
+          throw error;
+        }
+      }
       raw = response.body || "";
       if (response.resultImageB64) {
         return {

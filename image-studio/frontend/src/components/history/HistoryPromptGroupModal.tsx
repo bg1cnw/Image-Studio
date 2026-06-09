@@ -172,7 +172,7 @@ function HistoryPromptModalThumbnail({
       onContextMenu={openMenu}
       onDragStart={handleDragStart}
     >
-      <img src={imageSrc} alt={item.prompt} loading="eager" decoding="async" />
+      <img src={imageSrc} alt={item.prompt} loading="eager" decoding="async" draggable={false} />
       <HistoryModeBadge mode={item.mode} className="history-prompt-modal-thumb-mode" />
       <span className="history-prompt-modal-thumb-index">#{displayIndex}</span>
       {isCompare ? <span className="history-prompt-modal-thumb-compare">B</span> : null}

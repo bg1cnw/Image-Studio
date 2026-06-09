@@ -26,6 +26,7 @@ export namespace backend {
 	    proxyMode: string;
 	    proxyURL: string;
 	    apiMode: string;
+	    responsesTransport: string;
 	    requestPolicy: string;
 	    imagesNewAPICompat: boolean;
 	    noPromptRevision: boolean;
@@ -66,6 +67,7 @@ export namespace backend {
 	        this.proxyMode = source["proxyMode"];
 	        this.proxyURL = source["proxyURL"];
 	        this.apiMode = source["apiMode"];
+	        this.responsesTransport = source["responsesTransport"];
 	        this.requestPolicy = source["requestPolicy"];
 	        this.imagesNewAPICompat = source["imagesNewAPICompat"];
 	        this.noPromptRevision = source["noPromptRevision"];
@@ -209,6 +211,8 @@ export namespace backend {
 	    baseURL: string;
 	    proxyMode: string;
 	    proxyURL: string;
+	    apiMode: string;
+	    responsesTransport: string;
 
 	    static createFrom(source: any = {}) {
 	        return new ProbeUpstreamOptions(source);
@@ -220,11 +224,16 @@ export namespace backend {
 	        this.baseURL = source["baseURL"];
 	        this.proxyMode = source["proxyMode"];
 	        this.proxyURL = source["proxyURL"];
+	        this.apiMode = source["apiMode"];
+	        this.responsesTransport = source["responsesTransport"];
 	    }
 	}
 	export class ProbeUpstreamResult {
 	    modelCount: number;
 	    models?: UpstreamModelDescriptor[];
+	    responsesTransport?: string;
+	    responsesTransportOK?: boolean;
+	    responsesTransportError?: string;
 
 	    static createFrom(source: any = {}) {
 	        return new ProbeUpstreamResult(source);
@@ -234,6 +243,9 @@ export namespace backend {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.modelCount = source["modelCount"];
 	        this.models = this.convertValues(source["models"], UpstreamModelDescriptor);
+	        this.responsesTransport = source["responsesTransport"];
+	        this.responsesTransportOK = source["responsesTransportOK"];
+	        this.responsesTransportError = source["responsesTransportError"];
 	    }
 
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

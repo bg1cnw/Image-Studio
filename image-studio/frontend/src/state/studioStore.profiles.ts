@@ -10,6 +10,7 @@ import {
   genProfileId,
   keyringUserFor,
   nextDefaultProfileName,
+  normalizeResponsesTransport,
   pickActiveProfile,
 } from "../lib/profiles";
 import { cleanBaseURL } from "../lib/security";
@@ -26,6 +27,7 @@ export function createProfileActions(store: StateAdapter) {
     async createProfile(input: {
       name?: string;
       apiMode: APIMode;
+      responsesTransport?: UpstreamProfile["responsesTransport"];
       baseURL?: string;
       requestPolicy?: RequestPolicy;
       imagesNewAPICompat?: boolean;
@@ -42,6 +44,7 @@ export function createProfileActions(store: StateAdapter) {
         id,
         name: input.name?.trim() || nextDefaultProfileName(list),
         apiMode: input.apiMode,
+        responsesTransport: normalizeResponsesTransport(input.apiMode === "responses" ? input.responsesTransport : "sse"),
         requestPolicy: input.requestPolicy ?? "openai",
         imagesNewAPICompat: input.imagesNewAPICompat === true,
         baseURL: cleanBaseURL(input.baseURL ?? ""),
@@ -76,6 +79,9 @@ export function createProfileActions(store: StateAdapter) {
         ...current,
         name: patch.name !== undefined ? patch.name.trim() : current.name,
         apiMode: patch.apiMode ?? current.apiMode,
+        responsesTransport: patch.responsesTransport !== undefined
+          ? normalizeResponsesTransport(patch.responsesTransport)
+          : normalizeResponsesTransport(current.responsesTransport),
         requestPolicy: patch.requestPolicy ?? current.requestPolicy,
         imagesNewAPICompat: patch.imagesNewAPICompat ?? current.imagesNewAPICompat ?? false,
         baseURL: patch.baseURL !== undefined ? cleanBaseURL(patch.baseURL) : current.baseURL,
@@ -100,6 +106,7 @@ export function createProfileActions(store: StateAdapter) {
         const apiKey = patch.apiKey !== undefined ? patch.apiKey.trim() : store.getState().apiKey;
         store.setState({
           apiMode: next.apiMode,
+          responsesTransport: next.responsesTransport ?? "sse",
           requestPolicy: next.requestPolicy,
           imagesNewAPICompat: next.imagesNewAPICompat ?? false,
           baseURL: next.baseURL,
@@ -138,6 +145,7 @@ export function createProfileActions(store: StateAdapter) {
             imageModelID: "",
             reasoningEffort: "xhigh",
             apiMode: "responses",
+            responsesTransport: "sse",
             requestPolicy: "openai",
             imagesNewAPICompat: false,
             upstreamModalOpen: false,
@@ -176,6 +184,7 @@ export function createProfileActions(store: StateAdapter) {
         profiles: nextProfiles,
         activeProfileId: id,
         apiMode: profile.apiMode,
+        responsesTransport: profile.responsesTransport ?? "sse",
         requestPolicy: profile.requestPolicy,
         imagesNewAPICompat: profile.imagesNewAPICompat ?? false,
         baseURL: profile.baseURL,

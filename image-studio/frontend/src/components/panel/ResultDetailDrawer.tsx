@@ -1,8 +1,13 @@
 import { ClipboardCopy, Folder, RotateCw, Save, Sparkles } from "lucide-react";
 import { useStudioStore } from "../../state/studioStore";
-import { OpenOutputDir } from "../../platform/runtime/host";
+import { BeginNativeFileDrag, OpenOutputDir } from "../../platform/runtime/host";
 import { submitShortcutLabel } from "../../platform";
 import { historyPreviewSrc, useBlobURL } from "../../lib/images";
+import {
+  buildHistoryItemDragExport,
+  writeImageFileDragData,
+  writeInternalHistoryItemDragData,
+} from "../../lib/dragExport.ts";
 import { androidSaveHint, androidTarget, openOutputLocationForPlatform } from "../../platform/android/bridge";
 import { saveHistoryItemAs } from "../../lib/saveResultImage";
 import { Modal } from "../common/Modal";
@@ -14,7 +19,7 @@ export function ResultDetailDrawer() {
   const close = useStudioStore((s) => s.closeResultDetail);
   const setField = useStudioStore((s) => s.setField);
   const pushToast = useStudioStore((s) => s.pushToast);
-  const { usesFluentUI } = usePlatform();
+  const { usesFluentUI, isMac } = usePlatform();
 
   if (!item) return null;
   const detail = item;
@@ -22,6 +27,25 @@ export function ResultDetailDrawer() {
   const created = new Date(detail.createdAt).toLocaleString();
   const previewURL = useBlobURL(detail.previewBlob ?? detail.imageBlob ?? null, detail.imageB64 ?? null);
   const imageSrc = historyPreviewSrc(detail, previewURL);
+  const dragSpec = buildHistoryItemDragExport(detail);
+
+  function handlePreviewDragStart(event: React.DragEvent<HTMLDivElement>) {
+    if (!dragSpec) {
+      event.preventDefault();
+      return;
+    }
+    event.stopPropagation();
+    if (isMac && detail.savedPath) {
+      event.preventDefault();
+      void BeginNativeFileDrag(detail.savedPath).catch((error) => {
+        console.error("[drag-export] native-file-drag failed", error);
+      });
+      return;
+    }
+    event.dataTransfer.effectAllowed = "copy";
+    writeInternalHistoryItemDragData(event.dataTransfer, detail);
+    writeImageFileDragData(event.dataTransfer, dragSpec);
+  }
 
   function copy(text: string, label: string) {
     navigator.clipboard.writeText(text).then(
@@ -51,11 +75,17 @@ export function ResultDetailDrawer() {
     <Modal open onClose={close} title="生成详情" width={720}>
       <div className="grid gap-4 md:grid-cols-[minmax(0,280px)_minmax(0,1fr)]">
         <section className={`platform-card border border-black/[0.05] bg-white/72 p-3 shadow-[var(--shadow-card)] dark:border-white/[0.06] dark:bg-white/[0.03] ${usesFluentUI ? "rounded-[12px]" : "rounded-[18px]"}`}>
-          <div className={`flex items-center justify-center border border-black/[0.08] bg-[var(--surface)] p-2 dark:border-white/[0.06] ${usesFluentUI ? "rounded-[10px]" : "rounded-[16px]"}`}>
+          <div
+            draggable={!!dragSpec}
+            onDragStart={handlePreviewDragStart}
+            title={dragSpec ? "拖到文件夹复制原图" : undefined}
+            className={`flex items-center justify-center border border-black/[0.08] bg-[var(--surface)] p-2 dark:border-white/[0.06] ${usesFluentUI ? "rounded-[10px]" : "rounded-[16px]"}`}
+          >
             <img
               src={imageSrc}
               alt="生成结果"
               decoding="async"
+              draggable={false}
               className={`max-h-[300px] max-w-full object-contain ${usesFluentUI ? "rounded-[8px]" : "rounded-[12px]"}`}
             />
           </div>

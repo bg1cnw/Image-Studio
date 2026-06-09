@@ -181,6 +181,24 @@ export function mediaFullUrlFromImageId(imageId?: string | null): string {
   return imageId ? `/media/full/${imageId}` : "";
 }
 
+export function sortHistoryItemsByCreatedAtAsc<T extends { createdAt: number; id: string }>(items: T[]): T[] {
+  return [...items].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+}
+
+export function orderedNavigationItemsForCurrent<T extends { createdAt: number; id: string }>(
+  currentId: string | null | undefined,
+  historyItems: T[],
+  batchItems: T[],
+): T[] {
+  const orderedBatchItems = sortHistoryItemsByCreatedAtAsc(batchItems);
+  if (currentId && orderedBatchItems.some((item) => item.id === currentId)) return orderedBatchItems;
+
+  const orderedHistoryItems = sortHistoryItemsByCreatedAtAsc(historyItems);
+  if (currentId && orderedHistoryItems.some((item) => item.id === currentId)) return orderedHistoryItems;
+
+  return orderedBatchItems.length > 1 ? orderedBatchItems : orderedHistoryItems;
+}
+
 export function isTransientPreviewItem(
   item: {
     id?: string | null;

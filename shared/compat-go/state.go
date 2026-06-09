@@ -61,6 +61,7 @@ type UpstreamProfile struct {
 	ID                 string `json:"id"`
 	Name               string `json:"name"`
 	APIMode            string `json:"apiMode"`
+	ResponsesTransport string `json:"responsesTransport,omitempty"`
 	RequestPolicy      string `json:"requestPolicy"`
 	ImagesNewAPICompat bool   `json:"imagesNewAPICompat,omitempty"`
 	BaseURL            string `json:"baseURL"`
@@ -215,6 +216,9 @@ func Normalize(state State) State {
 	for i := range state.Profiles {
 		if state.Profiles[i].ReasoningEffort == "" {
 			state.Profiles[i].ReasoningEffort = "xhigh"
+		}
+		if state.Profiles[i].ResponsesTransport == "" {
+			state.Profiles[i].ResponsesTransport = "sse"
 		}
 	}
 	if state.History == nil {

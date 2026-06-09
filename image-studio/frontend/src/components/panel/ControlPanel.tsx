@@ -46,7 +46,7 @@ export function ControlPanel({
     apiMode, requestPolicy, baseURL, profiles, imageModelID,
     customAspectRatios,
     setField, clearError, pushToast,
-    selectSourceImage, chooseBatchInputDir, refreshBatchInputDir, removeSource, clearSources, viewSourceOnCanvas,
+    selectSourceImage, chooseBatchInputDir, chooseBatchInputFiles, refreshBatchInputDir, removeSource, clearSources, viewSourceOnCanvas,
     compareSourceOnCanvas,
     openCustomAspectRatioModal,
     openCustomSizeModal,
@@ -247,6 +247,7 @@ export function ControlPanel({
           batchCount={batchCount}
           batchProcess={batchProcess}
           chooseBatchInputDir={chooseBatchInputDir}
+          chooseBatchInputFiles={chooseBatchInputFiles}
           chooseBatchOutputDir={chooseBatchOutputDir}
           clearSources={clearSources}
           currentImageSavedPath={currentImage?.savedPath ?? null}
@@ -291,6 +292,7 @@ export function ControlPanel({
           batchCount={batchCount}
           batchProcess={batchProcess}
           chooseBatchInputDir={chooseBatchInputDir}
+          chooseBatchInputFiles={chooseBatchInputFiles}
           chooseBatchOutputDir={chooseBatchOutputDir}
           clearSources={clearSources}
           currentImageSavedPath={currentImage?.savedPath ?? null}
@@ -334,6 +336,7 @@ export function ControlPanel({
           batchCount={batchCount}
           batchProcess={batchProcess}
           chooseBatchInputDir={chooseBatchInputDir}
+          chooseBatchInputFiles={chooseBatchInputFiles}
           chooseBatchOutputDir={chooseBatchOutputDir}
           mode={mode}
           sources={sources}

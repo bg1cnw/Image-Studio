@@ -33,6 +33,7 @@ export type RemoteGeneratePayload = {
   proxyMode?: string;
   proxyURL?: string;
   apiMode: string;
+  responsesTransport?: string;
   requestPolicy: RequestPolicy;
   imagesNewAPICompat?: boolean;
   noPromptRevision: boolean;
@@ -46,6 +47,7 @@ export type RemoteGeneratePayload = {
     imageModelID: string;
     reasoningEffort?: string;
     apiMode: string;
+    responsesTransport?: string;
     requestPolicy: RequestPolicy;
     imagesNewAPICompat?: boolean;
   };

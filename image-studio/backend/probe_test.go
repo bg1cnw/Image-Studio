@@ -129,6 +129,51 @@ func TestProbeUpstreamUsesCustomProxy(t *testing.T) {
 	}
 }
 
+func TestProbeUpstreamReportsStructuredWebSocketProbeFailure(t *testing.T) {
+	var gotUpgrade bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/models" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"data":[{"id":"gpt-5.5"}]}`))
+			return
+		}
+		if r.URL.Path == "/v1/responses" {
+			if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+				gotUpgrade = true
+			}
+			http.Error(w, "ws unsupported", http.StatusBadRequest)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	got, err := probeUpstream(context.Background(), ProbeUpstreamOptions{
+		APIKey:             "sk-test",
+		BaseURL:            strings.Replace(srv.URL, "http://", "http://", 1),
+		APIMode:            "responses",
+		ResponsesTransport: "websocket",
+	})
+	if err != nil {
+		t.Fatalf("ProbeUpstream returned error: %v", err)
+	}
+	if got.ModelCount != 1 {
+		t.Fatalf("model count = %d, want 1", got.ModelCount)
+	}
+	if got.ResponsesTransport != "websocket" {
+		t.Fatalf("responsesTransport = %q, want websocket", got.ResponsesTransport)
+	}
+	if got.ResponsesTransportOK {
+		t.Fatalf("responsesTransportOK = true, want false")
+	}
+	if strings.TrimSpace(got.ResponsesTransportError) == "" {
+		t.Fatalf("responsesTransportError should not be empty")
+	}
+	if !gotUpgrade {
+		t.Fatalf("expected websocket probe upgrade attempt")
+	}
+}
+
 func TestServiceProbeUpstreamRequiresStartup(t *testing.T) {
 	svc := NewService()
 	_, err := svc.ProbeUpstream(ProbeUpstreamOptions{APIKey: "sk-test", BaseURL: "http://127.0.0.1:1"})

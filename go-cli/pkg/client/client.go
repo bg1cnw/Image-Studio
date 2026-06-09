@@ -173,7 +173,11 @@ func responsesAPIWithRetries(
 	}
 
 	for attempt := 1; attempt <= MaxAttempts; attempt++ {
-		rawPath := filepath.Join(outputDir, fmt.Sprintf("sse-response-%s-attempt%d.txt", timestamp, attempt))
+		rawPrefix := "sse-response"
+		if normalizeResponsesTransport(opts.ResponsesTransport) == ResponsesTransportWebSocket {
+			rawPrefix = "ws-response"
+		}
+		rawPath := filepath.Join(outputDir, fmt.Sprintf("%s-%s-attempt%d.txt", rawPrefix, timestamp, attempt))
 		lastPath = rawPath
 		onLog(fmt.Sprintf("第 %d/%d 次请求...", attempt, MaxAttempts))
 
@@ -182,7 +186,15 @@ func responsesAPIWithRetries(
 			return ImageResult{}, lastPath, fmt.Errorf("create raw response file: %w", err)
 		}
 
-		result, reqErr := RequestAndExtractWithPartial(ctx, transport, opts, f, onProgress, onPartial)
+		var (
+			result ImageResult
+			reqErr error
+		)
+		if normalizeResponsesTransport(opts.ResponsesTransport) == ResponsesTransportWebSocket {
+			result, reqErr = requestResponsesWithWebSocketReplay(ctx, opts, f, onProgress, onPartial, attempt, onLog)
+		} else {
+			result, reqErr = RequestAndExtractWithPartial(ctx, transport, opts, f, onProgress, onPartial)
+		}
 		f.Close()
 
 		if reqErr == nil {

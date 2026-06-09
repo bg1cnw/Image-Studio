@@ -18,7 +18,8 @@ export const STATUS_INTERVAL_MS = 10_000;
 const NO_PROMPT_REVISION_INSTRUCTIONS = "You are a tool runner. Pass the user prompt to image_generation VERBATIM. DO NOT rewrite, expand, polish, or revise it in any way. Use the exact text the user gave.";
 
 export function normalizeBaseURL(raw) {
-  return String(raw || "").trim().replace(/\/+$/, "");
+  const trimmed = String(raw || "").trim().replace(/\/+$/, "");
+  return trimmed.replace(/\/v1$/i, "");
 }
 
 export function normalizeAPIMode(apiMode) {

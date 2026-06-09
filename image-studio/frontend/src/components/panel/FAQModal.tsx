@@ -33,7 +33,7 @@ export function FAQModal({ open, onClose }: { open: boolean; onClose: () => void
             <ul>
               <li>
                 <strong>Responses API · CF 超时推荐</strong>:POST <code>/v1/responses</code>,通过模型内置的
-                <code>image_generation</code> 工具触发生图,SSE 流式接收。
+                <code>image_generation</code> 工具触发生图，支持 <code>HTTP SSE</code> 与 <code>WebSocket mode</code> 两种传输。
                 <strong>能防 Cloudflare 524/504 超时</strong>(图像推理常常超过 100 秒)。
                 <br />
                 <strong>Key 要绑「拥有 gpt-5.5 模型的分组」</strong>(中转站后台通常叫「余额分组」或「套餐分组」),
@@ -50,6 +50,12 @@ export function FAQModal({ open, onClose }: { open: boolean; onClose: () => void
             <p>
               <strong>选哪个?</strong>看你 key 绑的是哪个分组。
               两边都有的话优先 Responses(SSE 更抗 524)。
+            </p>
+            <p>
+              如果在 Responses API 配置里把传输切到 <strong>WebSocket mode</strong>，应用会在连接中断时快速重连一次；若仍然失败，通常说明上游或代理不兼容，建议切回 <strong>HTTP SSE</strong> 再试。
+            </p>
+            <p>
+              如果错误里直接出现 <code>WebSocket upgrade required (Upgrade: websocket)</code>，说明失败发生在握手阶段：当前链路没有把 WebSocket Upgrade 正确转发到上游，这种情况不是“生成到一半断了”，而是上游 / 代理当前不支持这个 WS 路径。
             </p>
           </div>
         </details>

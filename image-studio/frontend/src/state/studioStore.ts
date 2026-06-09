@@ -69,6 +69,7 @@ import {
 } from "../lib/compatState";
 import { normalizeAppUpdateInfo } from "../lib/appUpdate.ts";
 import { appVersion } from "../lib/version.ts";
+import { normalizeSavePromptRequest, type SavePromptRequest } from "../lib/savePromptState";
 import {
   readSavePromptSuppressed,
   writeSavePromptSuppressed,
@@ -80,6 +81,15 @@ import {
   readCompletionSoundConfig,
   shouldPlayCompletionSound,
 } from "../lib/completionSound";
+import {
+  normalizeCompletionNotificationConfig,
+  persistCompletionNotificationConfig,
+  readCompletionNotificationConfig,
+  readSystemNotificationPermission,
+  requestSystemNotificationPermission,
+  shouldSendCompletionNotification,
+  showSystemNotification,
+} from "../lib/completionNotification";
 import {
   persistPromptTemplates,
   readStoredPromptTemplates,
@@ -125,6 +135,7 @@ import { getStreamPreviewDisableReason } from "./streamPreviewPolicy";
 import {
   buildAspectSizeSelection,
   buildExactSizeValue,
+  buildReferenceResolutionSizeSelection,
   buildCustomAspectValue,
   deriveAspectPreset,
   deriveResolutionPreset,
@@ -158,9 +169,9 @@ import type { ModeConfig, PromptOptimizeRequest, Stroke, StudioState, UndoEntry 
 import {
   cryptoIDFallback,
   ensureFullHistoryItem as ensureFullHistoryItemRuntime,
+  historyItemsByIds,
   materializeHistoryItem as materializeHistoryItemRuntime,
   STYLE_SUFFIXES,
-  tryNotify,
   withMediaAssetRef,
 } from "./studioStore.runtime";
 import { createMediaActions } from "./studioStore.media";
@@ -185,6 +196,7 @@ type JobSnapshot = {
   workspaceId: string;
   apiMode: APIModeValue;
   batchIndex: number;
+  previewSlotIndex?: number;
   size: SizeValue;
   quality: QualityValue;
   outputFormat: OutputFormatValue;
@@ -205,12 +217,20 @@ type LoopRunController = {
   totalJobs: number;
   maxConcurrent: number;
   launchedJobs: number;
+  nextPreviewSlotIndex: number;
   mode: Mode;
   payload: RuntimeGenerateOptions;
   snapshotBase: Omit<JobSnapshot, "batchIndex">;
   batchSources?: BatchProcessSourceImage[];
   batchOutputDir?: string;
   batchOutputPrefix?: string;
+  batchAutoAspectResolution?: Exclude<import("../types/domain").BatchProcessAutoAspectResolution, ""> | "";
+  batchCapabilityInput?: {
+    apiMode: APIMode;
+    requestPolicy: RequestPolicy;
+    imageModelID?: string;
+  };
+  batchCustomAspectRatios?: import("../types/domain").CustomAspectRatio[];
   stopped: boolean;
 };
 
@@ -238,7 +258,8 @@ function launchQueuedLoopJobs(controller: LoopRunController): void {
     return;
   }
   const runtime = workspaceRuntimeFromState(state, controller.workspaceId);
-  if (runtime.jobsTotal === 0) {
+  const batchQueueMode = Array.isArray(controller.batchSources) && controller.batchSources.length > 0;
+  if (!batchQueueMode && runtime.jobsTotal === 0) {
     stopLoopRun(controller.workspaceId);
     return;
   }
@@ -246,20 +267,35 @@ function launchQueuedLoopJobs(controller: LoopRunController): void {
   while (!controller.stopped && controller.launchedJobs < controller.totalJobs) {
     const latestState = useStudioStore.getState();
     const latestRuntime = workspaceRuntimeFromState(latestState, controller.workspaceId);
-    if (latestRuntime.jobsTotal === 0 || latestRuntime.runningJobs.length >= controller.maxConcurrent) break;
+    if ((!batchQueueMode && latestRuntime.jobsTotal === 0) || latestRuntime.runningJobs.length >= controller.maxConcurrent) break;
     const batchIndex = controller.launchedJobs;
     controller.launchedJobs += 1;
+    const previewSlotIndex = controller.nextPreviewSlotIndex;
+    controller.nextPreviewSlotIndex = (controller.nextPreviewSlotIndex + 1) % Math.max(1, controller.maxConcurrent);
     const payloadSeed = controller.payload.seed ? controller.payload.seed + batchIndex : 0;
     const batchSource = controller.batchSources?.[batchIndex];
+    const batchPayloadSize = batchSource
+      && controller.snapshotBase.editSourceMode === "batch"
+      && controller.batchAutoAspectResolution
+      && controller.batchCapabilityInput
+      ? buildReferenceResolutionSizeSelection(
+          controller.batchAutoAspectResolution,
+          batchSource.width && batchSource.height ? { width: batchSource.width, height: batchSource.height } : null,
+          controller.batchCapabilityInput,
+          controller.batchCustomAspectRatios ?? [],
+        )
+      : controller.payload.size;
     const nextPayload: RuntimeGenerateOptions = {
       ...controller.payload,
       seed: payloadSeed,
+      size: batchPayloadSize,
       imagePaths: batchSource ? [batchSource.path] : controller.payload.imagePaths,
       sourceImages: batchSource ? [batchSource] : controller.payload.sourceImages,
     };
     void launchOneJob(controller.mode, nextPayload, {
       ...controller.snapshotBase,
       batchIndex,
+      previewSlotIndex,
       sources: batchSource ? [batchSource as SourceImage] : controller.snapshotBase.sources,
       batchProcessLink: batchSource
         ? {
@@ -272,13 +308,18 @@ function launchQueuedLoopJobs(controller: LoopRunController): void {
       onSettled: (status) => {
         const current = loopRunControllers.get(controller.workspaceId);
         if (!current || current !== controller) return;
-        if (status === "error") {
+        if (status === "error" && !batchQueueMode) {
           stopLoopRun(controller.workspaceId);
           return;
         }
         const currentState = useStudioStore.getState();
         const currentRuntime = workspaceRuntimeFromState(currentState, controller.workspaceId);
-        if (currentRuntime.jobsTotal === 0) {
+        if (batchQueueMode) {
+          if (current.launchedJobs >= current.totalJobs && currentRuntime.runningJobs.length === 0) {
+            stopLoopRun(controller.workspaceId);
+            return;
+          }
+        } else if (currentRuntime.jobsTotal === 0) {
           stopLoopRun(controller.workspaceId);
           return;
         }
@@ -440,6 +481,36 @@ function mergeHistoryMediaRef(current: HistoryItem | null, nextById: Map<string,
   return next ? withMediaAssetRef(current, next) : current;
 }
 
+function batchSavePromptRequestFromState(state: StudioState, workspaceId: string): SavePromptRequest | null {
+  const workspace = state.workspaces.find((entry) => entry.id === workspaceId);
+  const items = historyItemsByIds(state.history, workspace?.batchResultIds ?? []).sort((a, b) => {
+    const aIndex = typeof a.batchIndex === "number" ? a.batchIndex : Number.MAX_SAFE_INTEGER;
+    const bIndex = typeof b.batchIndex === "number" ? b.batchIndex : Number.MAX_SAFE_INTEGER;
+    if (aIndex !== bIndex) return aIndex - bIndex;
+    if (a.createdAt !== b.createdAt) return a.createdAt - b.createdAt;
+    return a.id.localeCompare(b.id);
+  });
+  if (items.length === 0) return null;
+  return {
+    kind: "batch",
+    items,
+    workspaceId,
+  };
+}
+
+function maybeEnqueueBatchSavePrompt(
+  store: typeof useStudioStore,
+  workspaceId: string,
+  completedNow: number,
+  totalNow: number,
+): void {
+  if (totalNow <= 1 || completedNow !== totalNow) return;
+  const batchRequest = batchSavePromptRequestFromState(store.getState(), workspaceId);
+  if (batchRequest) {
+    store.getState().enqueueSavePrompt(batchRequest);
+  }
+}
+
 async function hydrateHistoryPreviewRefs(items: HistoryItem[]): Promise<HistoryItem[]> {
   return mapWithConcurrency(items, HISTORY_MEDIA_HYDRATE_CONCURRENCY, async (item) => {
     if (!needsHistoryPreviewHydration(item)) return item;
@@ -542,6 +613,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   proxyMode: "system",
   proxyURL: "",
   apiMode: "responses",
+  responsesTransport: "sse",
   requestPolicy: "openai",
   imagesNewAPICompat: false,
   noPromptRevision: true,
@@ -595,12 +667,14 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   fullscreen: false,
   starPromptOpen: false,
   starPromptSource: "auto",
-  savePromptItem: null,
+  savePromptRequest: null,
   savePromptQueue: [],
   savePromptSuppressed: readSavePromptSuppressed(),
   keepLogs: readKeepLogs(),
   cleanupPreviewCacheOnExit: readCleanupPreviewCacheOnExit(),
   completionSound: readCompletionSoundConfig(),
+  completionNotification: readCompletionNotificationConfig(),
+  completionNotificationPermission: readSystemNotificationPermission(),
   ignoredReleaseTag: readIgnoredReleaseTag(),
   appUpdate: null,
   appUpdateModalOpen: false,
@@ -715,25 +789,34 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     set({ starPromptOpen: false });
     try { localStorage.setItem("gptcodex.starPrompted", "1"); } catch {}
   },
-  enqueueSavePrompt: (item) => {
+  enqueueSavePrompt: (request) => {
     if (get().savePromptSuppressed) return;
+    const normalized = normalizeSavePromptRequest(request);
+    if (!normalized) return;
+    const hydrated = normalized.kind === "batch"
+      ? {
+          ...normalized,
+          items: historyItemsByIds(normalized.items, normalized.items.map((item) => item.id)),
+        }
+      : normalized;
+    if (hydrated.kind === "batch" && hydrated.items.length === 0) return;
     set((state) => {
-      if (!state.savePromptItem) return { savePromptItem: item };
-      return { savePromptQueue: [...state.savePromptQueue, item].slice(-12) };
+      if (!state.savePromptRequest) return { savePromptRequest: hydrated };
+      return { savePromptQueue: [...state.savePromptQueue, hydrated].slice(-12) };
     });
   },
   closeSavePrompt: () => {
     set((state) => {
       const [next, ...rest] = state.savePromptQueue;
       return {
-        savePromptItem: next ?? null,
+        savePromptRequest: next ?? null,
         savePromptQueue: rest,
       };
     });
   },
   setSavePromptSuppressed: (value) => {
     writeSavePromptSuppressed(value);
-    set(value ? { savePromptSuppressed: true, savePromptQueue: [] } : { savePromptSuppressed: false });
+    set(value ? { savePromptSuppressed: true, savePromptRequest: null, savePromptQueue: [] } : { savePromptSuppressed: false });
   },
   setKeepLogs: async (value) => {
     writeKeepLogs(value);
@@ -789,6 +872,30 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   },
   previewCompletionSound: async () => {
     await playCompletionSound(get().completionSound, { force: true });
+  },
+  setCompletionNotificationEnabled: async (value) => {
+    if (!value) {
+      const next = normalizeCompletionNotificationConfig({ ...get().completionNotification, enabled: false });
+      persistCompletionNotificationConfig(next);
+      const permission = readSystemNotificationPermission();
+      set({
+        completionNotification: next,
+        completionNotificationPermission: permission,
+      });
+      return permission;
+    }
+    const permission = await requestSystemNotificationPermission();
+    set({ completionNotificationPermission: permission });
+    if (permission !== "granted") return permission;
+    const next = normalizeCompletionNotificationConfig({ ...get().completionNotification, enabled: true });
+    persistCompletionNotificationConfig(next);
+    set({ completionNotification: next });
+    return permission;
+  },
+  requestCompletionNotificationPermission: async () => {
+    const permission = await requestSystemNotificationPermission();
+    set({ completionNotificationPermission: permission });
+    return permission;
   },
   workspaces: [],
   activeWorkspaceId: "",
@@ -966,6 +1073,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
 
   selectSourceImage: async () => imageActions.selectSourceImage(),
   chooseBatchInputDir: async () => imageActions.chooseBatchInputDir(),
+  chooseBatchInputFiles: async () => imageActions.chooseBatchInputFiles(),
   refreshBatchInputDir: async () => imageActions.refreshBatchInputDir(),
   removeSource: (index) => imageActions.removeSource(index),
   clearSources: () => imageActions.clearSources(),
@@ -990,7 +1098,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     const batchCount = normalizeBatchCount(s.batchCount);
     const batchProcess = normalizeBatchProcessConfig(s.batchProcess);
     const loopGeneration = normalizeLoopGenerationConfig(s.loopGeneration);
-    const batchProcessEnabled = s.mode === "edit" && s.editSourceMode === "batch" && batchProcess.enabled;
+    const batchProcessActive = batchProcess.enabled || !!batchProcess.inputDir.trim() || batchProcess.discoveredSources.length > 0;
+    const batchProcessEnabled = s.mode === "edit" && s.editSourceMode === "batch" && batchProcessActive;
     const loopEnabled = !batchProcessEnabled && loopGeneration.enabled;
     const requestedJobCount = loopEnabled
       ? normalizeLoopGenerationCount(loopGeneration.totalCount)
@@ -1012,12 +1121,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         set({ errorMessage: "批处理模式暂仅支持桌面端", errorCanRetry: false, errorRawPath: null });
         return;
       }
-      if (!batchProcess.inputDir.trim()) {
-        set({ errorMessage: "请先选择批处理输入目录", errorCanRetry: false, errorRawPath: null });
-        return;
-      }
       if (batchProcess.discoveredSources.length === 0) {
-        set({ errorMessage: "批处理目录中没有可处理的图片", errorCanRetry: false, errorRawPath: null });
+        set({ errorMessage: "请先选择批处理输入目录，或直接选择多张图片加入队列", errorCanRetry: false, errorRawPath: null });
         return;
       }
       if (batchProcess.outputMode === "custom_dir" && !batchProcess.outputDir.trim()) {
@@ -1026,6 +1131,15 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       }
     }
     const activeProfile = s.profiles.find((p) => p.id === s.activeProfileId);
+    const responsesTransport = activeProfile?.responsesTransport ?? s.responsesTransport;
+    if (s.apiMode === "responses" && responsesTransport === "websocket" && s.kernelRuntimeMode === "remote" && !runtimePlatform.isAndroid) {
+      set({
+        errorMessage: "当前远程内核模式暂不支持 Responses WebSocket mode，请切回本地内核或关闭该开关。",
+        errorCanRetry: false,
+        errorRawPath: null,
+      });
+      return;
+    }
     const concurrencyLimit = normalizeConcurrencyLimit(activeProfile?.concurrencyLimit ?? 0);
     const fallbackProfile = activeProfile?.fallbackProfileId
       ? s.profiles.find((profile) => profile.id === activeProfile.fallbackProfileId) ?? null
@@ -1156,6 +1270,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       reasoningEffort: s.reasoningEffort,
       proxyMode: s.proxyMode,
       proxyURL: s.proxyURL,
+      responsesTransport: s.responsesTransport,
       requestPolicy: s.requestPolicy,
       imagesNewAPICompat: s.imagesNewAPICompat,
       apiMode: s.apiMode,
@@ -1170,11 +1285,12 @@ export const useStudioStore = create<StudioState>((set, get) => ({
             imageModelID: fallbackProfile.imageModelID,
             reasoningEffort: fallbackProfile.reasoningEffort,
             apiMode: fallbackProfile.apiMode,
+            responsesTransport: fallbackProfile.responsesTransport ?? "sse",
             requestPolicy: fallbackProfile.requestPolicy,
             imagesNewAPICompat: fallbackProfile.imagesNewAPICompat === true,
           }
         : undefined,
-      autoRetryEnabled: s.autoRetryEnabled,
+      autoRetryEnabled: batchProcessEnabled ? batchProcess.retryOnFailure : s.autoRetryEnabled,
       disablePreview: s.partialImages === 0 || (loopEnabled && !loopGeneration.livePreview) || forceDisableStreamPreview,
     };
     const remotePayload: RuntimeGenerateOptions = {
@@ -1223,12 +1339,20 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         totalJobs: batchProcess.discoveredSources.length,
         maxConcurrent: requestedConcurrency,
         launchedJobs: 0,
+        nextPreviewSlotIndex: 0,
         mode: s.mode,
         payload: remotePayload,
         snapshotBase,
         batchSources: batchProcess.discoveredSources,
         batchOutputDir: batchProcess.outputMode === "custom_dir" ? batchProcess.outputDir : "",
         batchOutputPrefix: batchProcess.fileNamePrefix,
+        batchAutoAspectResolution: batchProcess.autoAspectResolution,
+        batchCapabilityInput: {
+          apiMode: s.apiMode,
+          requestPolicy: s.requestPolicy,
+          imageModelID: s.imageModelID,
+        },
+        batchCustomAspectRatios: s.customAspectRatios,
         stopped: false,
       };
       loopRunControllers.set(workspaceId, controller);
@@ -1242,6 +1366,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         totalJobs: requestedJobCount,
         maxConcurrent: requestedConcurrency,
         launchedJobs: 0,
+        nextPreviewSlotIndex: 0,
         mode: s.mode,
         payload: remotePayload,
         snapshotBase,
@@ -1258,6 +1383,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       void launchOneJob(s.mode, p, {
         ...snapshotBase,
         batchIndex: i,
+        previewSlotIndex: i,
       });
     }
   },
@@ -1332,6 +1458,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         proxyMode: "system",
         proxyURL: "",
         apiMode: preview.profile.apiMode,
+        responsesTransport: preview.profile.responsesTransport ?? "sse",
         requestPolicy: preview.profile.requestPolicy,
         noPromptRevision: true,
         profiles: [preview.profile],
@@ -1400,12 +1527,14 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         starPromptOpen: false,
         starPromptSource: "auto",
         autoRetryEnabled: readAutoRetryEnabled(),
-        savePromptItem: null,
+        savePromptRequest: null,
         savePromptQueue: [],
         savePromptSuppressed: readSavePromptSuppressed(),
         keepLogs: readKeepLogs(),
         cleanupPreviewCacheOnExit: readCleanupPreviewCacheOnExit(),
         completionSound: readCompletionSoundConfig(),
+        completionNotification: readCompletionNotificationConfig(),
+        completionNotificationPermission: readSystemNotificationPermission(),
         ignoredReleaseTag: readIgnoredReleaseTag(),
         appUpdate: null,
         appUpdateModalOpen: false,
@@ -1452,6 +1581,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     const keepLogs = readKeepLogs();
     const cleanupPreviewCacheOnExit = readCleanupPreviewCacheOnExit();
     const completionSound = readCompletionSoundConfig();
+    const completionNotification = readCompletionNotificationConfig();
+    const completionNotificationPermission = readSystemNotificationPermission();
     const ignoredReleaseTag = readIgnoredReleaseTag();
     const updateInfo = normalizeAppUpdateInfo(await CheckForAppUpdate().catch(() => null));
     const shouldShowUpdate = !!updateInfo?.hasUpdate && updateInfo.releaseTag !== ignoredReleaseTag;
@@ -1534,6 +1665,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
           id,
           name: "Responses · 默认",
           apiMode: "responses",
+          responsesTransport: "sse",
           requestPolicy: "openai",
           imagesNewAPICompat: false,
           baseURL: legacyResponses.baseURL,
@@ -1554,6 +1686,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
           id,
           name: "Images · 默认",
           apiMode: "images",
+          responsesTransport: "sse",
           requestPolicy: "openai",
           imagesNewAPICompat: false,
           baseURL: legacyImages.baseURL,
@@ -1590,6 +1723,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       persistActiveProfileId(activeProfileId);
     }
     const apiMode: APIMode = activeProfile?.apiMode ?? "responses";
+    const responsesTransport = activeProfile?.responsesTransport ?? "sse";
     const requestPolicy: RequestPolicy = activeProfile?.requestPolicy ?? "openai";
     const imagesNewAPICompat = activeProfile?.imagesNewAPICompat === true;
     const baseURL = activeProfile?.baseURL ?? "";
@@ -1665,7 +1799,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       historyHasMore,
       historyLoading: false,
       historyCursorBeforeDayStart: initialHistoryPage.nextCursor?.beforeDayStart ?? null,
-      apiMode, requestPolicy, imagesNewAPICompat, baseURL, textModelID, imageModelID, reasoningEffort, kernelRuntimeMode, noPromptRevision,
+      apiMode, responsesTransport, requestPolicy, imagesNewAPICompat, baseURL, textModelID, imageModelID, reasoningEffort, kernelRuntimeMode, noPromptRevision,
       proxyMode: proxyConfig.mode,
       proxyURL: proxyConfig.url,
       outputFormat,
@@ -1691,12 +1825,14 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       customSizeModalOpen: false,
       upstreamModalOpen: false,
       upstreamReturnTarget: shouldAutoOpenSettings ? "settings" : "app",
-      savePromptItem: null,
+      savePromptRequest: null,
       savePromptQueue: [],
       savePromptSuppressed: readSavePromptSuppressed(),
       keepLogs,
       cleanupPreviewCacheOnExit,
       completionSound,
+      completionNotification,
+      completionNotificationPermission,
       ignoredReleaseTag,
       appUpdate: shouldShowUpdate ? updateInfo : null,
       appUpdateModalOpen: shouldShowUpdate,
@@ -1916,9 +2052,22 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     set({ isTestingKey: true });
     s.pushToast("正在测试连接...", "info", 8000);
     try {
-      await probeCurrentUpstream(cleanedBaseURL, s.apiKey.trim(), s.proxyMode, s.proxyURL);
+      const result = await probeCurrentUpstream(
+        cleanedBaseURL,
+        s.apiKey.trim(),
+        s.proxyMode,
+        s.proxyURL,
+        s.apiMode,
+        s.responsesTransport,
+      );
       set({ isTestingKey: false });
-      s.pushToast("连接 OK · 上游 models 列表可访问", "success");
+      if (result.responsesTransport === "websocket" && result.responsesTransportOK === false) {
+        s.pushToast(`基础连接 OK，但 Responses WebSocket 不可用:${result.responsesTransportError || "未返回具体原因"}`, "warn", 7000);
+      } else if (result.responsesTransport === "websocket") {
+        s.pushToast("连接 OK · /v1/models 可访问，Responses WebSocket 可用", "success");
+      } else {
+        s.pushToast("连接 OK · 上游 models 列表可访问", "success");
+      }
     } catch (e: any) {
       set({ isTestingKey: false });
       s.pushToast(`连接失败:${e?.message ?? e}`, "error", 6000);
@@ -2149,6 +2298,7 @@ async function launchOneJob(
             outputFormat: snapshot.outputFormat,
             currentImage: snapshot.currentImage,
             batchIndex: snapshot.batchIndex,
+            previewSlotIndex: snapshot.previewSlotIndex,
           }) ?? {}
         ));
       });
@@ -2193,6 +2343,7 @@ async function launchOneJob(
             moderation: payload.moderation === "auto" ? "auto" : "low",
             styleTag: snapshot.styleTag || undefined,
             batchIndex: snapshot.batchIndex,
+            previewSlotIndex: snapshot.previewSlotIndex,
             elapsedSec: Number(elapsedSec.toFixed(1)),
             savedPath: r.savedPath,
             rawPath: r.rawPath,
@@ -2253,12 +2404,19 @@ async function launchOneJob(
             completedNow,
             totalNow,
           });
+          const shouldNotifyCompletion = shouldSendCompletionNotification({
+            config: store.getState().completionNotification,
+            completedNow,
+            totalNow,
+            windowHidden: willNotify,
+          });
           if (shouldPlaySound) {
             void playCompletionSound(store.getState().completionSound);
           }
-          // 桌面通知 —— 点击拉前台 + 直达详情抽屉
-          if (willNotify && (!loopMode || isFinalLoopResult)) {
-            tryNotify("Image Studio · 已完成", r.prompt ?? "", () => {
+          if (shouldNotifyCompletion && (!loopMode || isFinalLoopResult)) {
+            const notificationBody = (r.revisedPrompt ?? r.prompt ?? payload.prompt ?? "").trim()
+              || (historyItem.mode === "edit" ? "图片编辑任务已完成" : "图片生成任务已完成");
+            showSystemNotification("Image Studio · 已完成", notificationBody, () => {
               store.getState().openResultDetail(historyItem);
             });
           }
@@ -2271,7 +2429,10 @@ async function launchOneJob(
               6000,
               { label: "查看详情", onClick: () => store.getState().openResultDetail(historyItem) },
             );
-            store.getState().enqueueSavePrompt(historyItem);
+            if (totalNow <= 1) {
+              store.getState().enqueueSavePrompt({ kind: "single", item: historyItem });
+            }
+            maybeEnqueueBatchSavePrompt(store, snapshot.workspaceId, completedNow, totalNow);
           } else if (isFinalLoopResult) {
             store.getState().pushToast(
               `循环出图完成 · ${completedNow} 张`,
@@ -2329,7 +2490,8 @@ async function launchOneJob(
             workspaces: patchWorkspaceRuntime(state.workspaces, snapshot.workspaceId, patch),
             ...(state.activeWorkspaceId === snapshot.workspaceId ? activeRuntimePatch(patch) : {}),
           } as Partial<StudioState>));
-          removeFromRunning();
+          const { completed: completedNow, total: totalNow } = removeFromRunning();
+          maybeEnqueueBatchSavePrompt(store, snapshot.workspaceId, completedNow, totalNow);
           settle("error");
         }
       })();
@@ -2364,7 +2526,8 @@ async function launchOneJob(
             : {}),
         } as Partial<StudioState>;
       });
-      removeFromRunning();
+      const { completed: completedNow, total: totalNow } = removeFromRunning();
+      maybeEnqueueBatchSavePrompt(store, snapshot.workspaceId, completedNow, totalNow);
       settle("error");
     });
     const started = mode === "edit"
@@ -2381,8 +2544,12 @@ async function launchOneJob(
       errorCanRetry: true,
       errorRawPath: null,
     };
+    let completedNow = 0;
+    let totalNow = 0;
     store.setState((state) => {
       const runtime = workspaceRuntimeFromState(state, snapshot.workspaceId);
+      completedNow = runtime.jobsCompleted + 1;
+      totalNow = runtime.jobsTotal;
       const nextMeta = { ...state.runningJobMeta };
       delete nextMeta[jobId];
       const remaining = runtime.runningJobs.filter((id) => id !== jobId);
@@ -2403,6 +2570,7 @@ async function launchOneJob(
         ...(state.activeWorkspaceId === snapshot.workspaceId ? activeRuntimePatch(nextPatch) : {}),
       } as Partial<StudioState>;
     });
+    maybeEnqueueBatchSavePrompt(store, snapshot.workspaceId, completedNow, totalNow);
     settle("error");
   }
 }

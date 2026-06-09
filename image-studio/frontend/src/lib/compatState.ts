@@ -2,6 +2,7 @@ import { LoadCompatibilityState, SaveCompatibilityState } from "../platform/runt
 import type {
   BatchProcessConfig,
   BackgroundValue,
+  CompletionNotificationConfig,
   CustomAspectRatio,
   EditSourceMode,
   CompletionSoundConfig,
@@ -33,6 +34,10 @@ import {
   normalizeCompletionSoundConfig,
   persistCompletionSoundConfig,
 } from "./completionSound";
+import {
+  normalizeCompletionNotificationConfig,
+  persistCompletionNotificationConfig,
+} from "./completionNotification";
 import { normalizePromptTemplates } from "./promptTemplates";
 
 const SCHEMA_VERSION = 1;
@@ -69,6 +74,7 @@ export type CompatibilityState = {
     cleanupPreviewCacheOnExit?: boolean;
     ignoredReleaseTag?: string;
     completionSound?: CompletionSoundConfig;
+    completionNotification?: CompletionNotificationConfig;
   };
   profiles: UpstreamProfile[];
   activeProfileId: string;
@@ -103,6 +109,7 @@ export type CompatibilityExportInput = {
   cleanupPreviewCacheOnExit: boolean;
   ignoredReleaseTag: string;
   completionSound: CompletionSoundConfig;
+  completionNotification: CompletionNotificationConfig;
 };
 
 let exportTimer: ReturnType<typeof setTimeout> | null = null;
@@ -162,6 +169,7 @@ export function compatibilityExportFingerprint(input: CompatibilityExportInput):
     cleanupPreviewCacheOnExit: input.cleanupPreviewCacheOnExit,
     ignoredReleaseTag: input.ignoredReleaseTag,
     completionSound: input.completionSound,
+    completionNotification: input.completionNotification,
     outputDir: readLocalStorageString("gptcodex.outputDir"),
     trustedOutputRoots: loadTrustedOutputRoots(),
     savePromptSuppressed: readLocalStorageString("gptcodex.savePromptSuppressed") === "1",
@@ -202,6 +210,7 @@ function buildCompatibilityState(input: CompatibilityExportInput): Compatibility
       cleanupPreviewCacheOnExit: input.cleanupPreviewCacheOnExit === true,
       ignoredReleaseTag: readLocalStorageString("gptcodex.ignoredReleaseTag"),
       completionSound: normalizeCompletionSoundConfig(input.completionSound),
+      completionNotification: normalizeCompletionNotificationConfig(input.completionNotification),
     },
     profiles: normalizeProfiles(input.profiles),
     activeProfileId: input.activeProfileId || "",
@@ -254,6 +263,7 @@ function applyCompatibilityLocalStorage(state: CompatibilityState): void {
     removeLocalStorage("gptcodex.ignoredReleaseTag");
   }
   persistCompletionSoundConfig(normalizeCompletionSoundConfig(settings.completionSound));
+  persistCompletionNotificationConfig(normalizeCompletionNotificationConfig(settings.completionNotification));
 }
 
 async function persistCompatibilityHistory(state: CompatibilityState): Promise<void> {
@@ -320,6 +330,7 @@ function normalizeSettings(raw: unknown): CompatibilityState["settings"] {
     cleanupPreviewCacheOnExit: source.cleanupPreviewCacheOnExit === true,
     ignoredReleaseTag: typeof source.ignoredReleaseTag === "string" ? source.ignoredReleaseTag.trim() : "",
     completionSound: normalizeCompletionSoundConfig(source.completionSound),
+    completionNotification: normalizeCompletionNotificationConfig(source.completionNotification),
   };
 }
 
@@ -363,6 +374,7 @@ function toSerializableHistoryItem(raw: unknown): HistoryItem | null {
     moderation: moderationOrUndefined(item.moderation),
     styleTag: stringOrUndefined(item.styleTag),
     batchIndex: numberOrUndefined(item.batchIndex),
+    previewSlotIndex: numberOrUndefined(item.previewSlotIndex),
     elapsedSec: numberOrUndefined(item.elapsedSec),
     savedPath: stringOrUndefined(item.savedPath),
     rawPath: stringOrUndefined(item.rawPath),
@@ -392,6 +404,7 @@ function historyFingerprint(item: HistoryItem) {
     moderation: item.moderation,
     styleTag: item.styleTag,
     batchIndex: item.batchIndex,
+    previewSlotIndex: item.previewSlotIndex,
     elapsedSec: item.elapsedSec,
     imageB64: item.imageB64,
   };
@@ -425,6 +438,7 @@ function cloneExportInput(input: CompatibilityExportInput): CompatibilityExportI
     cleanupPreviewCacheOnExit: input.cleanupPreviewCacheOnExit,
     ignoredReleaseTag: input.ignoredReleaseTag,
     completionSound: normalizeCompletionSoundConfig(input.completionSound),
+    completionNotification: normalizeCompletionNotificationConfig(input.completionNotification),
   };
 }
 
@@ -562,7 +576,11 @@ export function normalizeBatchProcess(value: unknown): BatchProcessConfig {
     outputMode: source.outputMode === "custom_dir" ? "custom_dir" : "source_dir",
     outputDir: typeof source.outputDir === "string" ? source.outputDir.trim() : "",
     concurrency: Number.isFinite(Number(source.concurrency)) ? Math.max(1, Math.min(9, Math.floor(Number(source.concurrency)))) : 2,
+    retryOnFailure: source.retryOnFailure === true,
     fileNamePrefix: typeof source.fileNamePrefix === "string" && source.fileNamePrefix.trim() ? source.fileNamePrefix.trim() : "processed-",
+    autoAspectResolution: source.autoAspectResolution === "256" || source.autoAspectResolution === "512" || source.autoAspectResolution === "1k" || source.autoAspectResolution === "2k" || source.autoAspectResolution === "4k"
+      ? source.autoAspectResolution
+      : "",
     discoveredSources,
   };
 }

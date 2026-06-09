@@ -408,6 +408,32 @@ export function buildResolutionSizeSelection(
   );
 }
 
+export function buildReferenceResolutionSizeSelection(
+  resolution: Exclude<ResolutionPreset, "auto">,
+  reference: { width: number; height: number } | null,
+  input: SizeCapabilityInput,
+  customRatios: CustomAspectRatio[] = [],
+): SizeValue {
+  if (!reference || !Number.isFinite(reference.width) || !Number.isFinite(reference.height) || reference.width <= 0 || reference.height <= 0) {
+    return buildResolutionSizeSelection("auto", resolution, input, customRatios);
+  }
+  if (supportsCustomAspectRatios(input)) {
+    const customReference = buildReferenceAspectRatio(reference.width, reference.height, customRatios);
+    if (customReference) {
+      const ratios = customRatios.some((item) => item.id === customReference.id)
+        ? customRatios
+        : [...customRatios, customReference];
+      return buildSizeSelection(buildCustomAspectValue(customReference.id), resolution, input, ratios);
+    }
+  }
+  return buildSizeSelection(
+    nearestBuiltinAspect(reference.width, reference.height).value,
+    resolution,
+    input,
+    customRatios,
+  );
+}
+
 export function normalizeResolutionSelection(resolution: ResolutionPreset, input: SizeCapabilityInput): ResolutionPreset {
   const allowed = availableResolutionPresets(input);
   if (allowed.includes(resolution)) return resolution;

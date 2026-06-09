@@ -8,6 +8,7 @@ export type Mode = "generate" | "edit";
 export type APIMode = "responses" | "images";
 export type RequestPolicy = "openai" | "compat";
 export type ReasoningEffortValue = "low" | "medium" | "high" | "xhigh";
+export type ResponsesTransport = "sse" | "websocket";
 
 // UpstreamProfile 是一组完整可用于生成的上游配置。用户可以保存多个,例如
 // 「gptcodex 主号 / gptcodex 备号 / OpenAI 直连」,在 UI 里下拉切换 active。
@@ -19,6 +20,7 @@ export interface UpstreamProfile {
   id: string;
   name: string;
   apiMode: APIMode;
+  responsesTransport?: ResponsesTransport;
   requestPolicy: RequestPolicy;
   imagesNewAPICompat?: boolean;
   baseURL: string;
@@ -57,12 +59,18 @@ export type ThemeMode = "system" | "light" | "dark";
 export type CompletionSoundMode = "default" | "custom";
 export type EditSourceMode = "manual" | "batch";
 export type BatchProcessOutputMode = "source_dir" | "custom_dir";
+export type BatchProcessAutoAspectResolution = "" | "256" | "512" | "1k" | "2k" | "4k";
+export type SystemNotificationPermissionState = "default" | "granted" | "denied" | "unsupported";
 
 export interface CompletionSoundConfig {
   enabled: boolean;
   mode: CompletionSoundMode;
   customName: string;
   customDataURL: string;
+}
+
+export interface CompletionNotificationConfig {
+  enabled: boolean;
 }
 
 export interface SizeOption { value: SizeValue; label: string; }
@@ -160,6 +168,8 @@ export interface BatchProcessSourceImage {
   path: string;
   name: string;
   size: number;
+  width?: number;
+  height?: number;
   previewUrl?: string;
   previewWidth?: number;
   previewHeight?: number;
@@ -171,7 +181,9 @@ export interface BatchProcessConfig {
   outputMode: BatchProcessOutputMode;
   outputDir: string;
   concurrency: number;
+  retryOnFailure: boolean;
   fileNamePrefix: string;
+  autoAspectResolution: BatchProcessAutoAspectResolution;
   discoveredSources: BatchProcessSourceImage[];
 }
 
@@ -209,6 +221,7 @@ export interface HistoryItem {
   moderation?: ModerationValue;
   styleTag?: string;
   batchIndex?: number;
+  previewSlotIndex?: number;
   elapsedSec?: number;     // generation duration in seconds
 
   savedPath?: string;
@@ -231,6 +244,7 @@ export interface StreamPreview {
   revisedPrompt?: string;
   partialImageIndex?: number;
   batchIndex?: number;
+  previewSlotIndex?: number;
   updatedAt: number;
 }
 

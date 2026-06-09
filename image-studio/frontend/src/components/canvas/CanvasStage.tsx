@@ -14,7 +14,7 @@ import { AnnotationShape } from "./AnnotationShape";
 import { useCanvasShortcuts } from "./useCanvasShortcuts";
 import { StreamPreviewBadge } from "./StreamPreviewBadge";
 import { streamPreviewItemsFromPreviews } from "../../state/studioStore.streamPreview";
-import { historyFullSrc } from "../../lib/images";
+import { historyFullSrc, orderedNavigationItemsForCurrent, sortHistoryItemsByCreatedAtAsc } from "../../lib/images";
 import { DragExportHandle } from "./DragExportHandle";
 
 export function CanvasStage() {
@@ -34,6 +34,7 @@ export function CanvasStage() {
     jobsTotal,
     jobsCompleted,
     toggleFullscreen,
+    history,
     batchResults, resultGridOpen, selectBatchResult, closeResultGrid,
     canvasViewResetTick,
     stepBatchResult,
@@ -48,22 +49,30 @@ export function CanvasStage() {
     outputFormat: useStudioStore.getState().outputFormat,
     currentImage,
   });
-  const liveBatchSlotCount = Math.max(jobsTotal, batchResults.length + runningJobs.length, batchResults.length + streamPreviewItems.length);
+  const orderedBatchResults = sortHistoryItemsByCreatedAtAsc(batchResults);
+  const navigationItems = orderedNavigationItemsForCurrent(currentImage?.id, history, batchResults);
+  const liveBatchSlotCount = runningJobs.length;
   const liveBatchSlots: BatchGridSlot[] = Array.from({ length: liveBatchSlotCount }, (_, index) => ({ type: "pending", id: `pending-${index}` }));
-  for (const item of batchResults) {
-    const index = typeof item.batchIndex === "number" ? item.batchIndex : liveBatchSlots.findIndex((slot) => slot.type === "pending");
-    if (index >= 0 && index < liveBatchSlots.length) liveBatchSlots[index] = { type: "result", item };
+  for (const item of [...orderedBatchResults].reverse()) {
+    const index = typeof item.previewSlotIndex === "number"
+      ? item.previewSlotIndex
+      : liveBatchSlots.findIndex((slot) => slot.type === "pending");
+    if (index >= 0 && index < liveBatchSlots.length && liveBatchSlots[index].type === "pending") {
+      liveBatchSlots[index] = { type: "result", item };
+    }
   }
   for (const item of streamPreviewItems) {
-    const index = typeof item.batchIndex === "number" ? item.batchIndex : liveBatchSlots.findIndex((slot) => slot.type === "pending");
-    if (index >= 0 && index < liveBatchSlots.length && liveBatchSlots[index].type === "pending") {
+    const index = typeof item.previewSlotIndex === "number"
+      ? item.previewSlotIndex
+      : liveBatchSlots.findIndex((slot) => slot.type === "pending");
+    if (index >= 0 && index < liveBatchSlots.length) {
       liveBatchSlots[index] = { type: "preview", item };
     }
   }
-  const showingLiveBatchGrid = isRunning && liveBatchSlotCount > 1;
+  const showingLiveBatchGrid = isRunning && liveBatchSlotCount > 0;
   const showingResultGrid = showingLiveBatchGrid || (resultGridOpen && batchResults.length > 1);
-  const currentBatchIndex = currentImage ? batchResults.findIndex((item) => item.id === currentImage.id) : -1;
-  const canNavigateBatchResults = currentBatchIndex >= 0 && batchResults.length > 1;
+  const currentBatchIndex = currentImage ? navigationItems.findIndex((item) => item.id === currentImage.id) : -1;
+  const canNavigateBatchResults = currentBatchIndex >= 0 && navigationItems.length > 1;
 
   // Hold-space-for-pan: while space is held, override tool to "pan".
   const [spacePan, setSpacePan] = useState(false);
@@ -465,13 +474,14 @@ export function CanvasStage() {
         ) : null}
         {showingResultGrid && (
           <BatchResultGrid
-            items={batchResults}
+            items={orderedBatchResults}
             slots={showingLiveBatchGrid ? liveBatchSlots : undefined}
             currentId={currentImage?.id ?? null}
             onSelect={selectBatchResult}
             onClose={closeResultGrid}
             showClose={!showingLiveBatchGrid}
-            title={showingLiveBatchGrid ? `本批预览 · ${jobsCompleted}/${jobsTotal}` : undefined}
+            title={showingLiveBatchGrid ? `当前并发预览 · ${runningJobs.length} 路 · ${jobsCompleted}/${jobsTotal}` : undefined}
+            livePreview={showingLiveBatchGrid}
           />
         )}
         {!showingResultGrid && currentImage && compareB && (

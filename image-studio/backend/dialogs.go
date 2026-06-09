@@ -66,6 +66,50 @@ func (s *Service) OpenImageDialog() (SelectFileResponse, error) {
 	return resp, nil
 }
 
+func (s *Service) OpenImagesDialog() (SelectFilesResponse, error) {
+	paths, err := runtime.OpenMultipleFilesDialog(s.ctx, runtime.OpenDialogOptions{
+		Title: "选择批处理源图片",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "支持的图片 (*.png;*.jpg;*.jpeg;*.webp)", Pattern: "*.png;*.jpg;*.jpeg;*.webp"},
+			{DisplayName: "所有文件 (*.*)", Pattern: "*.*"},
+		},
+	})
+	if err != nil {
+		return SelectFilesResponse{}, err
+	}
+	if len(paths) == 0 {
+		return SelectFilesResponse{}, nil
+	}
+	files := make([]BatchInputImage, 0, len(paths))
+	for _, path := range paths {
+		if strings.TrimSpace(path) == "" {
+			continue
+		}
+		info, statErr := os.Stat(path)
+		if statErr != nil || info.IsDir() {
+			continue
+		}
+		item := BatchInputImage{
+			Path: path,
+			Name: filepath.Base(path),
+			Size: info.Size(),
+		}
+		if cfg, cfgErr := imageConfig(path); cfgErr == nil {
+			item.Width = cfg.Width
+			item.Height = cfg.Height
+		}
+		if info.Size() > 0 && info.Size() <= maxDialogReadBytes {
+			if preview, previewErr := s.registerImportedPreview(path); previewErr == nil {
+				item.PreviewURL = preview.PreviewURL
+				item.PreviewWidth = preview.PreviewWidth
+				item.PreviewHeight = preview.PreviewHeight
+			}
+		}
+		files = append(files, item)
+	}
+	return SelectFilesResponse{Files: files}, nil
+}
+
 func (s *Service) ChooseBatchInputDir() (BatchInputDirectory, error) {
 	if s.ctx == nil {
 		return BatchInputDirectory{}, errors.New("服务未启动")
@@ -120,6 +164,10 @@ func (s *Service) ListBatchInputImages(directory string) (BatchInputDirectory, e
 			Path: path,
 			Name: entry.Name(),
 			Size: info.Size(),
+		}
+		if cfg, cfgErr := imageConfig(path); cfgErr == nil {
+			item.Width = cfg.Width
+			item.Height = cfg.Height
 		}
 		if info.Size() > 0 && info.Size() <= maxDialogReadBytes {
 			if preview, previewErr := s.registerImportedPreview(path); previewErr == nil {

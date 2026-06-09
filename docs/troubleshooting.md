@@ -27,6 +27,8 @@
   常见原因是 relay 只“接受字段”但没有真正透传，或目标模型本身就不支持这些能力。
 - `Responses API` 一直失败:
   常见原因是上游根本没实现 `/v1/responses`、会缓冲 SSE，或者 Key 只有 image-only 权限。
+- `Responses WebSocket mode` 握手失败:
+  如果 raw 日志或上游报错里出现 `WebSocket upgrade required (Upgrade: websocket)`，说明当前链路把 WebSocket 请求降成了普通 HTTP，请求没有真正完成 Upgrade。常见原因是中转站 / 反向代理 / 网关没有正确放行 `Upgrade: websocket`，这种情况应直接切回 `HTTP SSE` 或修上游代理配置。
 - Android 看不到“目录”或保存位置和桌面端不一样:
   常见原因是 Android 走 `MediaStore` / 系统相册，不会像桌面文件管理器那样直接暴露同一个物理目录。
 - 浏览器预览里看到 `memory://...`:
@@ -98,6 +100,46 @@ log/
 3. 降低质量或尺寸，缩短单次推理时间。
 4. 从历史项查看 raw 响应，确认是 Cloudflare 524/504、上游 JSON 5xx，还是模型权限错误。
 5. 如果上游本身不支持 SSE 或会缓冲 SSE，换上游或走 Images API。
+
+## Responses WebSocket 握手失败 / `Upgrade: websocket`
+
+如果你在 raw 日志里看到类似：
+
+```text
+websocket handshake failed: HTTP 400: WebSocket upgrade required (Upgrade: websocket)
+```
+
+或上游直接返回：
+
+```json
+{
+  "error": {
+    "message": "WebSocket upgrade required (Upgrade: websocket)",
+    "type": "invalid_request_error"
+  }
+}
+```
+
+这代表问题发生在 **握手阶段**，不是生图中途断流：
+
+1. 客户端已经尝试走 `Responses WebSocket mode`
+2. 但链路上的某一层把请求当成了普通 HTTP
+3. 上游没有收到正确的 `Upgrade: websocket`
+
+常见原因：
+
+- Nginx / 网关把 `Connection` 头清空了
+- `Upgrade` 头没有透传
+- 某些 HTTP/2 / H2C 转发链路不支持或没有正确桥接 WebSocket Upgrade
+- 上游只实现了普通 `/v1/responses`，没有真正实现 WS `/v1/responses`
+
+处理建议：
+
+1. 先把当前 profile 的传输切回 `HTTP SSE`
+2. 如果同一个 `BASE_URL + Key` 在 Codex 自己的 WS 能正常，而本应用不行，优先检查：
+   - 你在本应用里填的是不是站点根地址，而不是已经带 `/v1` 的地址
+   - 真实链路上是否存在额外的代理层
+3. 如果上游明说支持 WS，但仍返回这个错误，优先让服务商检查 `Upgrade: websocket` 是否真的到达了后端
 
 ## `model not found` / 401 / 403
 

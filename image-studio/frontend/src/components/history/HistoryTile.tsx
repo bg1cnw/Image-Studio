@@ -87,6 +87,7 @@ export function HistoryTile({
             alt={item.prompt}
             loading="eager"
             decoding="async"
+            draggable={false}
             className={imageClassName}
           />
         ) : (

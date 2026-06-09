@@ -295,3 +295,19 @@ test("auto aspect can resolve 2K/4K against a reference image ratio", () => {
     "3840x1920",
   );
 });
+
+test("reference resolution selection can use source image ratio directly", () => {
+  const input = {
+    apiMode: "responses",
+    requestPolicy: "openai",
+    imageModelID: "gpt-image-2",
+  };
+  assert.equal(
+    caps.buildReferenceResolutionSizeSelection("2k", { width: 1200, height: 1600 }, input, []),
+    "1448x1928",
+  );
+  assert.equal(
+    caps.buildReferenceResolutionSizeSelection("4k", { width: 1600, height: 1200 }, input, []),
+    "3312x2496",
+  );
+});

@@ -1,6 +1,7 @@
 import {
   ChooseBatchInputDir,
   ListBatchInputImages,
+  OpenImagesDialog,
   OpenImageDialog,
   ImportImageFromB64,
   RegisterImportedImageAsset,
@@ -68,6 +69,8 @@ export function createImageActions(store: StateAdapter) {
     path: string;
     name: string;
     size: number;
+    width?: number;
+    height?: number;
     previewUrl?: string;
     previewWidth?: number;
     previewHeight?: number;
@@ -76,6 +79,8 @@ export function createImageActions(store: StateAdapter) {
       path: source.path,
       name: source.name,
       size: source.size,
+      width: source.width,
+      height: source.height,
       previewUrl: source.previewUrl,
       previewWidth: source.previewWidth,
       previewHeight: source.previewHeight,
@@ -333,6 +338,33 @@ export function createImageActions(store: StateAdapter) {
         }));
       } catch (error: any) {
         store.setState({ errorMessage: `选择批处理目录失败:${error?.message ?? error}`, errorCanRetry: false, errorRawPath: null });
+      }
+    },
+
+    async chooseBatchInputFiles() {
+      try {
+        const result = await OpenImagesDialog();
+        if (!result?.files?.length) return;
+        store.setState((state) => {
+          const existing = new Map(state.batchProcess.discoveredSources.map((item) => [item.path, item]));
+          for (const file of result.files) {
+            existing.set(file.path, mapBatchSource(file));
+          }
+          return {
+            mode: "edit",
+            editSourceMode: "batch",
+            batchProcess: {
+              ...state.batchProcess,
+              enabled: true,
+              discoveredSources: Array.from(existing.values()),
+            },
+            errorMessage: null,
+            errorCanRetry: false,
+            errorRawPath: null,
+          };
+        });
+      } catch (error: any) {
+        store.setState({ errorMessage: `选择批处理图片失败:${error?.message ?? error}`, errorCanRetry: false, errorRawPath: null });
       }
     },
 

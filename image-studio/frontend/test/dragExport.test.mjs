@@ -113,6 +113,31 @@ test("buildHistoryItemDragExport rewrites wails asset URLs for drag export", asy
   }
 });
 
+test("buildHistoryItemDragExport still uses the full asset for persisted preview-only history items", async () => {
+  installWindow("http://wails.localhost/app/");
+  try {
+    const dragExport = await import(`../src/lib/dragExport.ts?drag-export-test=${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const spec = dragExport.buildHistoryItemDragExport({
+      id: "history-persisted-1",
+      mode: "generate",
+      outputFormat: "webp",
+      savedPath: "/tmp/image-generate-history.webp",
+      fullUrl: "/media/full/history-full-1",
+      imageId: "history-full-1",
+      imageB64: "",
+      previewOnly: true,
+    });
+    assert.deepEqual(spec, {
+      href: "http://wails.localhost/media/full/history-full-1",
+      fileName: "image-generate-history.webp",
+      mimeType: "image/webp",
+      downloadURL: "image/webp:image-generate-history.webp:http://wails.localhost/media/full/history-full-1",
+    });
+  } finally {
+    restoreWindow();
+  }
+});
+
 test("writeImageFileDragData writes the expected drag payload formats", async () => {
   const dragExport = await import(`../src/lib/dragExport.ts?drag-export-test=${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const writes = [];
