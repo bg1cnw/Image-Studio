@@ -95,6 +95,7 @@ export interface StudioState {
   imageModelID: string;
   reasoningEffort: import("../types/domain").ReasoningEffortValue;
   apiMode: APIMode;
+  responsesTransport: import("../types/domain").ResponsesTransport;
   requestPolicy: RequestPolicy;
   imagesNewAPICompat: boolean;
   noPromptRevision: boolean;
@@ -162,6 +163,7 @@ export interface StudioState {
   createProfile: (input: {
     name?: string;
     apiMode: APIMode;
+    responsesTransport?: import("../types/domain").ResponsesTransport;
     baseURL?: string;
     requestPolicy?: RequestPolicy;
     imagesNewAPICompat?: boolean;

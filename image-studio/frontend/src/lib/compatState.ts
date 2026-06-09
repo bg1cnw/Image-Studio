@@ -374,6 +374,7 @@ function toSerializableHistoryItem(raw: unknown): HistoryItem | null {
     moderation: moderationOrUndefined(item.moderation),
     styleTag: stringOrUndefined(item.styleTag),
     batchIndex: numberOrUndefined(item.batchIndex),
+    previewSlotIndex: numberOrUndefined(item.previewSlotIndex),
     elapsedSec: numberOrUndefined(item.elapsedSec),
     savedPath: stringOrUndefined(item.savedPath),
     rawPath: stringOrUndefined(item.rawPath),
@@ -403,6 +404,7 @@ function historyFingerprint(item: HistoryItem) {
     moderation: item.moderation,
     styleTag: item.styleTag,
     batchIndex: item.batchIndex,
+    previewSlotIndex: item.previewSlotIndex,
     elapsedSec: item.elapsedSec,
     imageB64: item.imageB64,
   };
@@ -574,6 +576,7 @@ export function normalizeBatchProcess(value: unknown): BatchProcessConfig {
     outputMode: source.outputMode === "custom_dir" ? "custom_dir" : "source_dir",
     outputDir: typeof source.outputDir === "string" ? source.outputDir.trim() : "",
     concurrency: Number.isFinite(Number(source.concurrency)) ? Math.max(1, Math.min(9, Math.floor(Number(source.concurrency)))) : 2,
+    retryOnFailure: source.retryOnFailure === true,
     fileNamePrefix: typeof source.fileNamePrefix === "string" && source.fileNamePrefix.trim() ? source.fileNamePrefix.trim() : "processed-",
     autoAspectResolution: source.autoAspectResolution === "256" || source.autoAspectResolution === "512" || source.autoAspectResolution === "1k" || source.autoAspectResolution === "2k" || source.autoAspectResolution === "4k"
       ? source.autoAspectResolution

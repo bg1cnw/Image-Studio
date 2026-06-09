@@ -97,6 +97,7 @@ export function defaultBatchProcessConfig(): BatchProcessConfig {
     outputMode: "source_dir",
     outputDir: "",
     concurrency: DEFAULT_BATCH_PROCESS_CONCURRENCY,
+    retryOnFailure: false,
     fileNamePrefix: "processed-",
     autoAspectResolution: "",
     discoveredSources: [],
@@ -154,6 +155,7 @@ export function normalizeBatchProcessConfig(value: unknown): BatchProcessConfig 
     outputMode: source.outputMode === "custom_dir" ? "custom_dir" : "source_dir",
     outputDir: typeof source.outputDir === "string" ? source.outputDir.trim() : "",
     concurrency: normalizeBatchProcessConcurrency(source.concurrency),
+    retryOnFailure: source.retryOnFailure === true,
     fileNamePrefix: typeof source.fileNamePrefix === "string" && source.fileNamePrefix.trim()
       ? source.fileNamePrefix.trim()
       : "processed-",

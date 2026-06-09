@@ -51,20 +51,21 @@ export function CanvasStage() {
   });
   const orderedBatchResults = sortHistoryItemsByCreatedAtAsc(batchResults);
   const navigationItems = orderedNavigationItemsForCurrent(currentImage?.id, history, batchResults);
-  const liveBatchSlotCount = Math.max(
-    runningJobs.length,
-    batchResults.length,
-    streamPreviewItems.length,
-    Math.min(runningJobs.length, batchResults.length + streamPreviewItems.length),
-  );
+  const liveBatchSlotCount = runningJobs.length;
   const liveBatchSlots: BatchGridSlot[] = Array.from({ length: liveBatchSlotCount }, (_, index) => ({ type: "pending", id: `pending-${index}` }));
-  for (const item of batchResults) {
-    const index = typeof item.batchIndex === "number" ? item.batchIndex : liveBatchSlots.findIndex((slot) => slot.type === "pending");
-    if (index >= 0 && index < liveBatchSlots.length) liveBatchSlots[index] = { type: "result", item };
+  for (const item of [...orderedBatchResults].reverse()) {
+    const index = typeof item.previewSlotIndex === "number"
+      ? item.previewSlotIndex
+      : liveBatchSlots.findIndex((slot) => slot.type === "pending");
+    if (index >= 0 && index < liveBatchSlots.length && liveBatchSlots[index].type === "pending") {
+      liveBatchSlots[index] = { type: "result", item };
+    }
   }
   for (const item of streamPreviewItems) {
-    const index = typeof item.batchIndex === "number" ? item.batchIndex : liveBatchSlots.findIndex((slot) => slot.type === "pending");
-    if (index >= 0 && index < liveBatchSlots.length && liveBatchSlots[index].type === "pending") {
+    const index = typeof item.previewSlotIndex === "number"
+      ? item.previewSlotIndex
+      : liveBatchSlots.findIndex((slot) => slot.type === "pending");
+    if (index >= 0 && index < liveBatchSlots.length) {
       liveBatchSlots[index] = { type: "preview", item };
     }
   }

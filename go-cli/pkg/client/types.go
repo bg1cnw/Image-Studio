@@ -114,6 +114,13 @@ const (
 	APIModeImages    APIMode = "images"
 )
 
+type ResponsesTransport string
+
+const (
+	ResponsesTransportSSE       ResponsesTransport = "sse"
+	ResponsesTransportWebSocket ResponsesTransport = "websocket"
+)
+
 type RequestPolicy string
 
 const (
@@ -152,6 +159,10 @@ type Options struct {
 	// APIMode selects between Responses API (default) and Images API.
 	// Empty string is treated as APIModeResponses for back-compat.
 	APIMode APIMode
+
+	// ResponsesTransport selects how Responses API requests are transported.
+	// Empty string is treated as ResponsesTransportSSE for back-compat.
+	ResponsesTransport ResponsesTransport
 
 	// RequestPolicy selects whether to send only OpenAI-documented fields
 	// ("openai", default) or also include relay-oriented extension fields

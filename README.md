@@ -5,7 +5,7 @@
 # Image Studio
 
 > 开源图像生成 / 编辑客户端 · Wails(Go + React/TS) 桌面端 + Android WebView 壳层 ·
-> 支持 Responses API SSE 保活与标准 Images API
+> 支持 Responses API SSE / WebSocket mode 与标准 Images API
 
 ![license](https://img.shields.io/badge/license-AGPLv3-b22222)
 ![go](https://img.shields.io/badge/go-%3E%3D1.25-00ADD8)
@@ -13,7 +13,7 @@
 ![wails](https://img.shields.io/badge/wails-v2.12-DF0000)
 ![platform](https://img.shields.io/badge/platform-windows%20%7C%20macos%20%7C%20linux%20%7C%20android-lightgrey)
 
-Image Studio 面向 OpenAI 兼容图像上游，重点解决长时间图像推理在 Cloudflare / Nginx 后面容易遇到的 524/504 断连问题。Responses API 模式通过 SSE 持续接收事件来保持连接活跃；Images API 模式则兼容标准 `/v1/images/generations` 与 `/v1/images/edits`。
+Image Studio 面向 OpenAI 兼容图像上游，重点解决长时间图像推理在 Cloudflare / Nginx 后面容易遇到的 524/504 断连问题。Responses API 模式支持 `HTTP SSE` 与 `WebSocket mode` 两种传输；Images API 模式则兼容标准 `/v1/images/generations` 与 `/v1/images/edits`。
 
 项目不内置任何默认上游。首次启动需要你自己填写 BASE_URL、API Key、文本模型与图像模型。
 

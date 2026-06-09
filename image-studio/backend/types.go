@@ -42,6 +42,7 @@ type GenerateOptions struct {
 	ImageModelID      string `json:"imageModelID"` // overrides the default image model
 	ReasoningEffort   string `json:"reasoningEffort"`
 	APIMode           string `json:"apiMode"`       // "responses" (default) | "images"
+	ResponsesTransport string `json:"responsesTransport,omitempty"`
 	RequestPolicy     string `json:"requestPolicy"` // "openai" (default) | "compat"
 	// ImagesNewAPICompat 开启后仅影响 Images API 请求:
 	// 强制使用 b64_json,并关闭 stream/partial_images,用于兼容部分 NewAPI 中转。
@@ -73,6 +74,7 @@ type FallbackProfileOptions struct {
 	ImageModelID       string `json:"imageModelID"`
 	ReasoningEffort    string `json:"reasoningEffort"`
 	APIMode            string `json:"apiMode"`
+	ResponsesTransport string `json:"responsesTransport,omitempty"`
 	RequestPolicy      string `json:"requestPolicy"`
 	ImagesNewAPICompat bool   `json:"imagesNewAPICompat,omitempty"`
 }
@@ -94,15 +96,20 @@ type PromptOptimizeOptions struct {
 // and the actual /v1/models request are intentionally host-side so browser and
 // WebView quirks do not decide whether a channel is alive.
 type ProbeUpstreamOptions struct {
-	APIKey    string `json:"apiKey"`
-	BaseURL   string `json:"baseURL"`
-	ProxyMode string `json:"proxyMode"`
-	ProxyURL  string `json:"proxyURL"`
+	APIKey             string `json:"apiKey"`
+	BaseURL            string `json:"baseURL"`
+	ProxyMode          string `json:"proxyMode"`
+	ProxyURL           string `json:"proxyURL"`
+	APIMode            string `json:"apiMode,omitempty"`
+	ResponsesTransport string `json:"responsesTransport,omitempty"`
 }
 
 type ProbeUpstreamResult struct {
-	ModelCount int                       `json:"modelCount"`
-	Models     []UpstreamModelDescriptor `json:"models,omitempty"`
+	ModelCount           int                       `json:"modelCount"`
+	Models               []UpstreamModelDescriptor `json:"models,omitempty"`
+	ResponsesTransport   string                    `json:"responsesTransport,omitempty"`
+	ResponsesTransportOK bool                      `json:"responsesTransportOK,omitempty"`
+	ResponsesTransportError string                 `json:"responsesTransportError,omitempty"`
 }
 
 type UpstreamModelDescriptor struct {

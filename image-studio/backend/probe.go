@@ -100,7 +100,26 @@ func probeUpstream(parent context.Context, opts ProbeUpstreamOptions) (ProbeUpst
 			DisplayName: strings.TrimSpace(item.DisplayName),
 		})
 	}
-	return ProbeUpstreamResult{ModelCount: len(parsed.Data), Models: models}, nil
+	result := ProbeUpstreamResult{
+		ModelCount: len(parsed.Data),
+		Models:     models,
+	}
+	if strings.TrimSpace(opts.APIMode) == string(client.APIModeResponses) &&
+		client.NormalizeProxyTransportValue(strings.TrimSpace(opts.ResponsesTransport)) == string(client.ResponsesTransportWebSocket) {
+		result.ResponsesTransport = string(client.ResponsesTransportWebSocket)
+		if wsErr := client.ProbeResponsesWebSocket(ctx, client.ProbeResponsesWebSocketOptions{
+			BaseURL:  baseURL,
+			APIKey:   apiKey,
+			Proxy:    client.ProxyConfig{Mode: opts.ProxyMode, URL: opts.ProxyURL},
+			Model:    client.TextModel,
+		}); wsErr != nil {
+			result.ResponsesTransportOK = false
+			result.ResponsesTransportError = wsErr.Error()
+			return result, nil
+		}
+		result.ResponsesTransportOK = true
+	}
+	return result, nil
 }
 
 func summarizeProbeBody(body []byte) string {

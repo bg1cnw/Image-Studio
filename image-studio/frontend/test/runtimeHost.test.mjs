@@ -652,7 +652,14 @@ test("runtimeHost probes upstream through Wails backend", async () => {
     const runtimeHost = await loadRuntimeHost();
     await runtimeHost.probeCurrentUpstream("https://relay.example.com", "sk-test");
     assert.deepEqual(globalThis.__probeCalls, [
-      { baseURL: "https://relay.example.com", apiKey: "sk-test", proxyMode: "system", proxyURL: "" },
+      {
+        baseURL: "https://relay.example.com",
+        apiKey: "sk-test",
+        proxyMode: "system",
+        proxyURL: "",
+        apiMode: "responses",
+        responsesTransport: "sse",
+      },
     ]);
   });
 });
@@ -682,7 +689,14 @@ test("runtimeHost probes upstream through Android backend", async () => {
     assert.deepEqual(globalThis.__probeCalls, [
       {
         method: "ProbeUpstream",
-        args: [{ baseURL: "https://relay.example.com", apiKey: "sk-android", proxyMode: "system", proxyURL: "" }],
+        args: [{
+          baseURL: "https://relay.example.com",
+          apiKey: "sk-android",
+          proxyMode: "system",
+          proxyURL: "",
+          apiMode: "responses",
+          responsesTransport: "sse",
+        }],
       },
     ]);
   });

@@ -13,6 +13,7 @@ export function MacComposeStyleAndSize({
   activeAspect,
   aspectOptions,
   activeResolution,
+  batchAutoAspectActive = false,
   exactSizeLabel,
   allowCustomAspectRatios,
   allowPreciseSizeControl,
@@ -35,6 +36,7 @@ export function MacComposeStyleAndSize({
   activeAspect: AspectPreset | null;
   aspectOptions: AspectPresetOption[];
   activeResolution: ResolutionPreset | null;
+  batchAutoAspectActive?: boolean;
   exactSizeLabel?: string | null;
   allowCustomAspectRatios: boolean;
   allowPreciseSizeControl: boolean;
@@ -81,81 +83,89 @@ export function MacComposeStyleAndSize({
         </div>
       </div>
 
-      <div>
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-[12px] text-zinc-500">比例</span>
-          {allowCustomAspectRatios ? (
-            <button
-              type="button"
-              onClick={onOpenCustomAspectRatioModal}
-              className="text-[12px] text-[var(--accent)] transition-opacity hover:opacity-80"
-            >
-              自定义比例
-            </button>
-          ) : null}
-        </div>
-        <div className="grid grid-cols-3 gap-2.5">
-          {aspectOptions.map((aspect) => {
-            const active = activeAspect === aspect.value;
-            return (
-              <button
-                key={aspect.value}
-                onClick={() => handleAspectSelect(aspect.value)}
-                title={aspect.auto ? "让上游决定尺寸 / 比例" : aspect.label}
-                className={`flex min-h-[64px] flex-col items-center justify-center gap-1.5 rounded-[14px] px-2 py-2 ring-1 transition-colors ${
-                  active
-                    ? "bg-[var(--accent-soft)] ring-[color:var(--accent)]/35"
-                    : "ring-black/[0.08] dark:ring-white/[0.08] hover:ring-[color:var(--accent)]/30"
-                }`}
-              >
-                <span
-                  className={`block rounded-sm border-2 ${aspect.auto ? "border-dashed" : ""} ${
-                    active ? "border-[var(--accent)]" : "border-zinc-400 dark:border-zinc-600"
-                  }`}
-                  style={{ width: aspect.w, height: aspect.h }}
-                />
-                <span className={`text-[10px] ${active ? "text-[var(--accent)]" : "text-zinc-500"}`}>{aspect.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      {!batchAutoAspectActive ? (
+        <>
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-[12px] text-zinc-500">比例</span>
+              {allowCustomAspectRatios ? (
+                <button
+                  type="button"
+                  onClick={onOpenCustomAspectRatioModal}
+                  className="text-[12px] text-[var(--accent)] transition-opacity hover:opacity-80"
+                >
+                  自定义比例
+                </button>
+              ) : null}
+            </div>
+            <div className="grid grid-cols-3 gap-2.5">
+              {aspectOptions.map((aspect) => {
+                const active = activeAspect === aspect.value;
+                return (
+                  <button
+                    key={aspect.value}
+                    onClick={() => handleAspectSelect(aspect.value)}
+                    title={aspect.auto ? "让上游决定尺寸 / 比例" : aspect.label}
+                    className={`flex min-h-[64px] flex-col items-center justify-center gap-1.5 rounded-[14px] px-2 py-2 ring-1 transition-colors ${
+                      active
+                        ? "bg-[var(--accent-soft)] ring-[color:var(--accent)]/35"
+                        : "ring-black/[0.08] dark:ring-white/[0.08] hover:ring-[color:var(--accent)]/30"
+                    }`}
+                  >
+                    <span
+                      className={`block rounded-sm border-2 ${aspect.auto ? "border-dashed" : ""} ${
+                        active ? "border-[var(--accent)]" : "border-zinc-400 dark:border-zinc-600"
+                      }`}
+                      style={{ width: aspect.w, height: aspect.h }}
+                    />
+                    <span className={`text-[10px] ${active ? "text-[var(--accent)]" : "text-zinc-500"}`}>{aspect.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-      <div>
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-[12px] text-zinc-500">分辨率</span>
-          {allowPreciseSizeControl ? (
-            <button
-              type="button"
-              onClick={onOpenCustomSizeModal}
-              className="text-[12px] text-[var(--accent)] transition-opacity hover:opacity-80"
-            >
-              {exactSizeLabel ? "修改精确尺寸" : "精确尺寸"}
-            </button>
-          ) : null}
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-[12px] text-zinc-500">分辨率</span>
+              {allowPreciseSizeControl ? (
+                <button
+                  type="button"
+                  onClick={onOpenCustomSizeModal}
+                  className="text-[12px] text-[var(--accent)] transition-opacity hover:opacity-80"
+                >
+                  {exactSizeLabel ? "修改精确尺寸" : "精确尺寸"}
+                </button>
+              ) : null}
+            </div>
+            <Seg>
+              {RESOLUTION_PRESETS.filter((item) => availableResolutions.includes(item.value)).map((item) => (
+                <SegItem
+                  key={item.value}
+                  active={activeResolution === item.value}
+                  onClick={() => handleResolutionSelect(item.value)}
+                >
+                  {item.label}
+                </SegItem>
+              ))}
+            </Seg>
+            {exactSizeLabel ? (
+              <p className="mt-1.5 text-[10px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+                当前精确尺寸 {exactSizeLabel}。点击比例或分辨率预设后会切回预设档位。
+              </p>
+            ) : null}
+            {sizeCapabilityHint({ apiMode, requestPolicy, imageModelID }) ? (
+              <p className="mt-1.5 text-[10px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+                {sizeCapabilityHint({ apiMode, requestPolicy, imageModelID })}
+              </p>
+            ) : null}
+          </div>
+        </>
+      ) : (
+        <div className="rounded-[14px] border border-[color:var(--accent)]/16 bg-[var(--accent-soft)]/55 px-3 py-2 text-[11px] leading-5 text-zinc-600 dark:text-zinc-300">
+          当前批处理已开启“按源图比例自动适配”，本批任务的比例与分辨率由“批处理图生图”区统一控制。这里的普通比例/分辨率预设已暂时隐藏，避免出现两套尺寸入口。
         </div>
-        <Seg>
-          {RESOLUTION_PRESETS.filter((item) => availableResolutions.includes(item.value)).map((item) => (
-            <SegItem
-              key={item.value}
-              active={activeResolution === item.value}
-              onClick={() => handleResolutionSelect(item.value)}
-            >
-              {item.label}
-            </SegItem>
-          ))}
-        </Seg>
-        {exactSizeLabel ? (
-          <p className="mt-1.5 text-[10px] leading-relaxed text-zinc-500 dark:text-zinc-400">
-            当前精确尺寸 {exactSizeLabel}。点击比例或分辨率预设后会切回预设档位。
-          </p>
-        ) : null}
-        {sizeCapabilityHint({ apiMode, requestPolicy, imageModelID }) ? (
-          <p className="mt-1.5 text-[10px] leading-relaxed text-zinc-500 dark:text-zinc-400">
-            {sizeCapabilityHint({ apiMode, requestPolicy, imageModelID })}
-          </p>
-        ) : null}
-      </div>
+      )}
 
       <div>
         <div className="mb-2 text-[12px] text-zinc-500">质量</div>

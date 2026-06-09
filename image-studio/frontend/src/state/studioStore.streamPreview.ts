@@ -23,6 +23,7 @@ export type StreamPreviewPayload = {
   previewHeight?: number;
   revisedPrompt?: string;
   partialImageIndex?: number;
+  previewSlotIndex?: number;
   mode?: string;
   prompt?: string;
 };
@@ -36,6 +37,7 @@ export type StreamPreviewSnapshot = {
   outputFormat: OutputFormatValue;
   currentImage: HistoryItem | null;
   batchIndex?: number;
+  previewSlotIndex?: number;
 };
 
 export function latestStreamPreview(previews: StreamPreviewMap | null | undefined): StreamPreview | null {
@@ -75,6 +77,7 @@ export function streamPreviewItemFromPayload(
     parentId: mode === "edit" ? snapshot.currentImage?.savedPath : undefined,
     createdAt: Date.now(),
     batchIndex: snapshot.batchIndex,
+    previewSlotIndex: snapshot.previewSlotIndex,
     previewOnly: true,
   };
 }
@@ -101,6 +104,7 @@ export function streamPreviewStatePatch(
     revisedPrompt: item.revisedPrompt,
     partialImageIndex: payload.partialImageIndex,
     batchIndex: snapshot.batchIndex,
+    previewSlotIndex: snapshot.previewSlotIndex,
     updatedAt: Date.now(),
   };
   const streamPreviews = { ...previousPreviews, [jobId]: nextPreview };
@@ -185,6 +189,7 @@ export function streamPreviewItemFromWorkspace(
     outputFormat: workspace.outputFormat,
     currentImage,
     batchIndex: preview.batchIndex,
+    previewSlotIndex: preview.previewSlotIndex,
   });
 }
 

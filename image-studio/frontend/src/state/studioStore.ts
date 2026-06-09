@@ -196,6 +196,7 @@ type JobSnapshot = {
   workspaceId: string;
   apiMode: APIModeValue;
   batchIndex: number;
+  previewSlotIndex?: number;
   size: SizeValue;
   quality: QualityValue;
   outputFormat: OutputFormatValue;
@@ -216,6 +217,7 @@ type LoopRunController = {
   totalJobs: number;
   maxConcurrent: number;
   launchedJobs: number;
+  nextPreviewSlotIndex: number;
   mode: Mode;
   payload: RuntimeGenerateOptions;
   snapshotBase: Omit<JobSnapshot, "batchIndex">;
@@ -268,6 +270,8 @@ function launchQueuedLoopJobs(controller: LoopRunController): void {
     if ((!batchQueueMode && latestRuntime.jobsTotal === 0) || latestRuntime.runningJobs.length >= controller.maxConcurrent) break;
     const batchIndex = controller.launchedJobs;
     controller.launchedJobs += 1;
+    const previewSlotIndex = controller.nextPreviewSlotIndex;
+    controller.nextPreviewSlotIndex = (controller.nextPreviewSlotIndex + 1) % Math.max(1, controller.maxConcurrent);
     const payloadSeed = controller.payload.seed ? controller.payload.seed + batchIndex : 0;
     const batchSource = controller.batchSources?.[batchIndex];
     const batchPayloadSize = batchSource
@@ -291,6 +295,7 @@ function launchQueuedLoopJobs(controller: LoopRunController): void {
     void launchOneJob(controller.mode, nextPayload, {
       ...controller.snapshotBase,
       batchIndex,
+      previewSlotIndex,
       sources: batchSource ? [batchSource as SourceImage] : controller.snapshotBase.sources,
       batchProcessLink: batchSource
         ? {
@@ -608,6 +613,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   proxyMode: "system",
   proxyURL: "",
   apiMode: "responses",
+  responsesTransport: "sse",
   requestPolicy: "openai",
   imagesNewAPICompat: false,
   noPromptRevision: true,
@@ -1125,6 +1131,15 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       }
     }
     const activeProfile = s.profiles.find((p) => p.id === s.activeProfileId);
+    const responsesTransport = activeProfile?.responsesTransport ?? s.responsesTransport;
+    if (s.apiMode === "responses" && responsesTransport === "websocket" && s.kernelRuntimeMode === "remote" && !runtimePlatform.isAndroid) {
+      set({
+        errorMessage: "当前远程内核模式暂不支持 Responses WebSocket mode，请切回本地内核或关闭该开关。",
+        errorCanRetry: false,
+        errorRawPath: null,
+      });
+      return;
+    }
     const concurrencyLimit = normalizeConcurrencyLimit(activeProfile?.concurrencyLimit ?? 0);
     const fallbackProfile = activeProfile?.fallbackProfileId
       ? s.profiles.find((profile) => profile.id === activeProfile.fallbackProfileId) ?? null
@@ -1255,6 +1270,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       reasoningEffort: s.reasoningEffort,
       proxyMode: s.proxyMode,
       proxyURL: s.proxyURL,
+      responsesTransport: s.responsesTransport,
       requestPolicy: s.requestPolicy,
       imagesNewAPICompat: s.imagesNewAPICompat,
       apiMode: s.apiMode,
@@ -1269,11 +1285,12 @@ export const useStudioStore = create<StudioState>((set, get) => ({
             imageModelID: fallbackProfile.imageModelID,
             reasoningEffort: fallbackProfile.reasoningEffort,
             apiMode: fallbackProfile.apiMode,
+            responsesTransport: fallbackProfile.responsesTransport ?? "sse",
             requestPolicy: fallbackProfile.requestPolicy,
             imagesNewAPICompat: fallbackProfile.imagesNewAPICompat === true,
           }
         : undefined,
-      autoRetryEnabled: s.autoRetryEnabled,
+      autoRetryEnabled: batchProcessEnabled ? batchProcess.retryOnFailure : s.autoRetryEnabled,
       disablePreview: s.partialImages === 0 || (loopEnabled && !loopGeneration.livePreview) || forceDisableStreamPreview,
     };
     const remotePayload: RuntimeGenerateOptions = {
@@ -1322,6 +1339,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         totalJobs: batchProcess.discoveredSources.length,
         maxConcurrent: requestedConcurrency,
         launchedJobs: 0,
+        nextPreviewSlotIndex: 0,
         mode: s.mode,
         payload: remotePayload,
         snapshotBase,
@@ -1348,6 +1366,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         totalJobs: requestedJobCount,
         maxConcurrent: requestedConcurrency,
         launchedJobs: 0,
+        nextPreviewSlotIndex: 0,
         mode: s.mode,
         payload: remotePayload,
         snapshotBase,
@@ -1364,6 +1383,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       void launchOneJob(s.mode, p, {
         ...snapshotBase,
         batchIndex: i,
+        previewSlotIndex: i,
       });
     }
   },
@@ -1438,6 +1458,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         proxyMode: "system",
         proxyURL: "",
         apiMode: preview.profile.apiMode,
+        responsesTransport: preview.profile.responsesTransport ?? "sse",
         requestPolicy: preview.profile.requestPolicy,
         noPromptRevision: true,
         profiles: [preview.profile],
@@ -1644,6 +1665,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
           id,
           name: "Responses · 默认",
           apiMode: "responses",
+          responsesTransport: "sse",
           requestPolicy: "openai",
           imagesNewAPICompat: false,
           baseURL: legacyResponses.baseURL,
@@ -1664,6 +1686,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
           id,
           name: "Images · 默认",
           apiMode: "images",
+          responsesTransport: "sse",
           requestPolicy: "openai",
           imagesNewAPICompat: false,
           baseURL: legacyImages.baseURL,
@@ -1700,6 +1723,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       persistActiveProfileId(activeProfileId);
     }
     const apiMode: APIMode = activeProfile?.apiMode ?? "responses";
+    const responsesTransport = activeProfile?.responsesTransport ?? "sse";
     const requestPolicy: RequestPolicy = activeProfile?.requestPolicy ?? "openai";
     const imagesNewAPICompat = activeProfile?.imagesNewAPICompat === true;
     const baseURL = activeProfile?.baseURL ?? "";
@@ -1775,7 +1799,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       historyHasMore,
       historyLoading: false,
       historyCursorBeforeDayStart: initialHistoryPage.nextCursor?.beforeDayStart ?? null,
-      apiMode, requestPolicy, imagesNewAPICompat, baseURL, textModelID, imageModelID, reasoningEffort, kernelRuntimeMode, noPromptRevision,
+      apiMode, responsesTransport, requestPolicy, imagesNewAPICompat, baseURL, textModelID, imageModelID, reasoningEffort, kernelRuntimeMode, noPromptRevision,
       proxyMode: proxyConfig.mode,
       proxyURL: proxyConfig.url,
       outputFormat,
@@ -2028,9 +2052,22 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     set({ isTestingKey: true });
     s.pushToast("正在测试连接...", "info", 8000);
     try {
-      await probeCurrentUpstream(cleanedBaseURL, s.apiKey.trim(), s.proxyMode, s.proxyURL);
+      const result = await probeCurrentUpstream(
+        cleanedBaseURL,
+        s.apiKey.trim(),
+        s.proxyMode,
+        s.proxyURL,
+        s.apiMode,
+        s.responsesTransport,
+      );
       set({ isTestingKey: false });
-      s.pushToast("连接 OK · 上游 models 列表可访问", "success");
+      if (result.responsesTransport === "websocket" && result.responsesTransportOK === false) {
+        s.pushToast(`基础连接 OK，但 Responses WebSocket 不可用:${result.responsesTransportError || "未返回具体原因"}`, "warn", 7000);
+      } else if (result.responsesTransport === "websocket") {
+        s.pushToast("连接 OK · /v1/models 可访问，Responses WebSocket 可用", "success");
+      } else {
+        s.pushToast("连接 OK · 上游 models 列表可访问", "success");
+      }
     } catch (e: any) {
       set({ isTestingKey: false });
       s.pushToast(`连接失败:${e?.message ?? e}`, "error", 6000);
@@ -2261,6 +2298,7 @@ async function launchOneJob(
             outputFormat: snapshot.outputFormat,
             currentImage: snapshot.currentImage,
             batchIndex: snapshot.batchIndex,
+            previewSlotIndex: snapshot.previewSlotIndex,
           }) ?? {}
         ));
       });
@@ -2305,6 +2343,7 @@ async function launchOneJob(
             moderation: payload.moderation === "auto" ? "auto" : "low",
             styleTag: snapshot.styleTag || undefined,
             batchIndex: snapshot.batchIndex,
+            previewSlotIndex: snapshot.previewSlotIndex,
             elapsedSec: Number(elapsedSec.toFixed(1)),
             savedPath: r.savedPath,
             rawPath: r.rawPath,

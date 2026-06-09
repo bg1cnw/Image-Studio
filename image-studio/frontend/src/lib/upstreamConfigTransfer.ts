@@ -1,9 +1,10 @@
-import type { APIMode, RequestPolicy, ReasoningEffortValue, UpstreamProfile } from "../types/domain";
+import type { APIMode, RequestPolicy, ReasoningEffortValue, ResponsesTransport, UpstreamProfile } from "../types/domain";
 
 export type UpstreamConfigExportProfile = {
   id: string;
   name: string;
   apiMode: APIMode;
+  responsesTransport: ResponsesTransport;
   requestPolicy: RequestPolicy;
   imagesNewAPICompat: boolean;
   baseURL: string;
@@ -37,6 +38,10 @@ function normalizeRequestPolicy(value: unknown): RequestPolicy {
   return value === "compat" ? "compat" : "openai";
 }
 
+function normalizeResponsesTransport(value: unknown): ResponsesTransport {
+  return value === "websocket" ? "websocket" : "sse";
+}
+
 function normalizeReasoningEffort(value: unknown): ReasoningEffortValue {
   return value === "low" || value === "medium" || value === "high" || value === "xhigh"
     ? value
@@ -58,6 +63,7 @@ function parseExportProfile(raw: unknown): UpstreamConfigExportProfile | null {
     id,
     name,
     apiMode: normalizeAPIMode(source.apiMode),
+    responsesTransport: normalizeResponsesTransport(source.responsesTransport),
     requestPolicy: normalizeRequestPolicy(source.requestPolicy),
     imagesNewAPICompat: source.imagesNewAPICompat === true,
     baseURL: typeof source.baseURL === "string" ? source.baseURL.trim() : "",
@@ -83,6 +89,7 @@ export function buildUpstreamConfigExportFile(
     activeProfileId,
     profiles: profiles.map((profile) => ({
       ...profile,
+      responsesTransport: profile.responsesTransport === "websocket" ? "websocket" : "sse",
       imagesNewAPICompat: profile.imagesNewAPICompat === true,
       apiKey: (apiKeysById[profile.id] ?? "").trim(),
     })),

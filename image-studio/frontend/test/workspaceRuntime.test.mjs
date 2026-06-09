@@ -53,6 +53,7 @@ test("normalizes batch process config and keeps scanned image dimensions", () =>
     outputMode: "custom_dir",
     outputDir: " /tmp/out ",
     concurrency: 3.8,
+    retryOnFailure: true,
     fileNamePrefix: "processed-",
     autoAspectResolution: "4k",
     discoveredSources: [
@@ -64,6 +65,7 @@ test("normalizes batch process config and keeps scanned image dimensions", () =>
   assert.equal(value.inputDir, "/tmp/src");
   assert.equal(value.outputDir, "/tmp/out");
   assert.equal(value.concurrency, 3);
+  assert.equal(value.retryOnFailure, true);
   assert.equal(value.autoAspectResolution, "4k");
   assert.deepEqual(value.discoveredSources, [
     { path: "/tmp/a.png", name: "a.png", size: 12, width: 1200, height: 800, previewUrl: undefined, previewWidth: undefined, previewHeight: undefined },

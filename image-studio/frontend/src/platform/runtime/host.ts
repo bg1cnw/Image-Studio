@@ -726,10 +726,19 @@ export async function probeCurrentUpstream(
   apiKey: string,
   proxyMode = "system",
   proxyURL = "",
+  apiMode = "responses",
+  responsesTransport = "sse",
   signal?: AbortSignal,
 ): Promise<ProbeUpstreamResultLike> {
   if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-  const options: ProbeUpstreamOptionsLike = { baseURL, apiKey, proxyMode, proxyURL };
+  const options: ProbeUpstreamOptionsLike = {
+    baseURL,
+    apiKey,
+    proxyMode,
+    proxyURL,
+    apiMode,
+    responsesTransport,
+  };
   if (hasServiceMethod("ProbeUpstream")) {
     return invokeService<ProbeUpstreamResultLike>(unsupportedMessage, "ProbeUpstream", options);
   }

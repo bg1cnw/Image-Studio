@@ -1,9 +1,13 @@
-import type { APIMode, ReasoningEffortValue, RequestPolicy, UpstreamProfile } from "../types/domain";
+import type { APIMode, ReasoningEffortValue, RequestPolicy, ResponsesTransport, UpstreamProfile } from "../types/domain";
 
 function normalizeReasoningEffort(value: unknown): ReasoningEffortValue {
   return value === "low" || value === "medium" || value === "high" || value === "xhigh"
     ? value
     : "xhigh";
+}
+
+export function normalizeResponsesTransport(value: unknown): ResponsesTransport {
+  return value === "websocket" ? "websocket" : "sse";
 }
 
 // localStorage 键名规范:
@@ -52,6 +56,7 @@ export function tryParseProfile(raw: unknown): UpstreamProfile | null {
   const id = typeof o.id === "string" ? o.id : "";
   const name = typeof o.name === "string" ? o.name : "";
   const apiMode = o.apiMode === "images" ? "images" : "responses";
+  const responsesTransport = normalizeResponsesTransport(o.responsesTransport);
   const requestPolicy = o.requestPolicy === "compat" ? "compat" : "openai";
   const imagesNewAPICompat = o.imagesNewAPICompat === true;
   const baseURL = typeof o.baseURL === "string" ? o.baseURL : "";
@@ -68,6 +73,7 @@ export function tryParseProfile(raw: unknown): UpstreamProfile | null {
     id,
     name,
     apiMode,
+    responsesTransport,
     requestPolicy,
     imagesNewAPICompat,
     baseURL,
@@ -113,6 +119,7 @@ export function makeBlankProfile(apiMode: APIMode = "responses", profiles: Upstr
     id: genProfileId(),
     name: nextDefaultProfileName(profiles),
     apiMode,
+    responsesTransport: "sse",
     requestPolicy: "openai",
     imagesNewAPICompat: false,
     baseURL: "",

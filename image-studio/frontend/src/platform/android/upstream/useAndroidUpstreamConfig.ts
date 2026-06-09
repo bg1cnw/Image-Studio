@@ -151,6 +151,7 @@ export function useAndroidUpstreamConfig(open: boolean) {
       const ok = await updateProfile(draft.id, {
         name: draft.name,
         apiMode: draft.apiMode,
+        responsesTransport: draft.responsesTransport ?? "sse",
         requestPolicy: draft.requestPolicy,
         imagesNewAPICompat: draft.imagesNewAPICompat === true,
         baseURL: draft.baseURL,
@@ -208,15 +209,33 @@ export function useAndroidUpstreamConfig(open: boolean) {
     setLoadingModels(true);
     setModelCatalogError(null);
     try {
-      const result = await probeCurrentUpstream(baseURL, apiKey);
+      const state = useStudioStore.getState();
+      const result = await probeCurrentUpstream(
+        baseURL,
+        apiKey,
+        state.proxyMode,
+        state.proxyURL,
+        draft.apiMode,
+        draft.responsesTransport ?? "sse",
+      );
       const catalog = buildUpstreamModelCatalog(result.models ?? []);
       setModelCatalog(catalog);
-      pushToast(
-        catalog.all.length > 0
-          ? `已加载 ${catalog.all.length} 个模型`
-          : `已连接上游，共返回 ${result.modelCount} 个条目，但没有可识别的模型 ID`,
-        catalog.all.length > 0 ? "success" : "warn",
-      );
+      if (result.responsesTransport === "websocket" && result.responsesTransportOK === false) {
+        pushToast(
+          `已拉取模型，但 Responses WebSocket 不可用:${result.responsesTransportError || "未返回具体原因"}`,
+          "warn",
+          7000,
+        );
+      } else {
+        pushToast(
+          result.responsesTransport === "websocket"
+            ? `已加载 ${catalog.all.length} 个模型，Responses WebSocket 可用`
+            : catalog.all.length > 0
+              ? `已加载 ${catalog.all.length} 个模型`
+              : `已连接上游，共返回 ${result.modelCount} 个条目，但没有可识别的模型 ID`,
+          catalog.all.length > 0 ? "success" : "warn",
+        );
+      }
     } catch (error: any) {
       const message = `加载模型失败:${error?.message ?? error}`;
       setModelCatalogError(message);

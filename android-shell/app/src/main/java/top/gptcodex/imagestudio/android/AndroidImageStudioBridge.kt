@@ -35,12 +35,20 @@ import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import java.util.Locale
 import kotlin.concurrent.thread
 import kotlin.math.max
 import kotlin.math.roundToInt
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
+import okhttp3.Response
 
 class AndroidImageStudioBridge(
     private val context: Context,
@@ -53,6 +61,7 @@ class AndroidImageStudioBridge(
     private var pendingOpenImageRequestId: String? = null
     private var pendingImportHistoryRequestId: String? = null
     private val httpRequests = ConcurrentHashMap<String, HttpURLConnection>()
+    private val webSocketRequests = ConcurrentHashMap<String, WebSocket>()
     @Volatile private var fullscreen = false
 
     companion object {
@@ -124,12 +133,20 @@ class AndroidImageStudioBridge(
                     val payload = args.optJSONObject(0) ?: throw IllegalArgumentException("缺少 HTTP 请求参数")
                     runHttpRequestText(requestId, payload)
                 }
+                "ResponsesWebSocketRequest" -> {
+                    val payload = args.optJSONObject(0) ?: throw IllegalArgumentException("缺少 WebSocket 请求参数")
+                    runResponsesWebSocketRequest(requestId, payload)
+                }
                 "ProbeUpstream" -> {
                     val payload = args.optJSONObject(0) ?: throw IllegalArgumentException("缺少测活参数")
                     runProbeUpstream(requestId, payload)
                 }
                 "CancelHttpRequest" -> {
                     cancelHttpRequest(args.optString(0))
+                    null
+                }
+                "CancelWebSocketRequest" -> {
+                    cancelWebSocketRequest(args.optString(0))
                     null
                 }
                 "Vibrate" -> {
@@ -514,6 +531,8 @@ class AndroidImageStudioBridge(
         val apiKey = payload.optString("apiKey").trim()
         val proxyMode = payload.optString("proxyMode", "system")
         val proxyUrl = payload.optString("proxyURL", "")
+        val apiMode = payload.optString("apiMode", "responses")
+        val responsesTransport = payload.optString("responsesTransport", "sse")
         if (apiKey.isBlank()) throw IllegalArgumentException("API Key 不能为空")
         thread(name = "image-studio-probe-${requestId.take(12)}") {
             try {
@@ -553,7 +572,36 @@ class AndroidImageStudioBridge(
                         "displayName" to item.optString("name").trim(),
                     )
                 }
-                resolve(requestId, mapOf("modelCount" to data.length(), "models" to models))
+                val result = mutableMapOf<String, Any>(
+                    "modelCount" to data.length(),
+                    "models" to models,
+                )
+                if (apiMode == "responses" && responsesTransport == "websocket") {
+                    result["responsesTransport"] = "websocket"
+                    val probePayload = JSONObject()
+                        .put("type", "response.create")
+                        .put("model", "gpt-5.5")
+                        .put("store", false)
+                        .put("generate", false)
+                        .put("input", JSONArray().put(
+                            JSONObject()
+                                .put("role", "user")
+                                .put("content", JSONArray().put(
+                                    JSONObject()
+                                        .put("type", "input_text")
+                                        .put("text", "health check")
+                                ))
+                        ))
+                        .put("tools", JSONArray())
+                    try {
+                        probeResponsesWebSocket(baseUrl, apiKey, probePayload.toString(), proxyMode, proxyUrl)
+                        result["responsesTransportOK"] = true
+                    } catch (wsError: Exception) {
+                        result["responsesTransportOK"] = false
+                        result["responsesTransportError"] = wsError.message ?: wsError.javaClass.simpleName
+                    }
+                }
+                resolve(requestId, result)
             } catch (error: Exception) {
                 reject(requestId, error.message ?: error.javaClass.simpleName)
             }
@@ -605,6 +653,192 @@ class AndroidImageStudioBridge(
 
     private fun cancelHttpRequest(requestKey: String) {
         httpRequests.remove(requestKey)?.disconnect()
+    }
+
+    private fun cancelWebSocketRequest(requestKey: String) {
+        webSocketRequests.remove(requestKey)?.cancel()
+    }
+
+    private fun runResponsesWebSocketRequest(requestId: String, payload: JSONObject): Nothing {
+        val requestKey = payload.optString("requestKey").ifBlank { requestId }
+        val baseUrl = validateProbeBaseUrl(payload.optString("baseURL"))
+        val apiKey = payload.optString("apiKey").trim()
+        val proxyMode = payload.optString("proxyMode", "system")
+        val proxyUrl = payload.optString("proxyURL", "")
+        val payloadText = payload.optString("payload")
+        if (apiKey.isBlank()) throw IllegalArgumentException("API Key 不能为空")
+        if (payloadText.isBlank()) throw IllegalArgumentException("WebSocket payload 不能为空")
+        val wsUrl = responsesWebSocketUrl(baseUrl)
+        val client = okHttpClientForWebSocket(proxyMode, proxyUrl)
+        val rawLines = mutableListOf<String>()
+        val streamResult = arrayOfNulls<NativeHttpStreamResultSnapshot>(1)
+        val settled = java.util.concurrent.atomic.AtomicBoolean(false)
+        val socket = client.newWebSocket(
+            Request.Builder()
+                .url(wsUrl)
+                .addHeader("Authorization", "Bearer $apiKey")
+                .addHeader("User-Agent", "image-studio-android")
+                .build(),
+            object : WebSocketListener() {
+                override fun onOpen(webSocket: WebSocket, response: Response) {
+                    webSocketRequests[requestKey] = webSocket
+                    webSocket.send(payloadText)
+                }
+
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    val line = text.trim()
+                    if (line.isBlank()) return
+                    rawLines += "data: $line"
+                    if (streamResult[0] == null) {
+                        streamResult[0] = extractNativeHttpStreamResult(line)
+                    }
+                    buildNativeHttpStreamProgressPayload(line)?.let { progressPayload ->
+                        emitNativeProgress(requestKey, progressPayload)
+                    }
+                    try {
+                        val parsed = JSONObject(line)
+                        when (parsed.optString("type")) {
+                            "response.completed" -> {
+                                if (settled.compareAndSet(false, true)) {
+                                    val rawBody = rawLines.joinToString("\n")
+                                    val rawPath = if (rawBody.isNotBlank()) writeNativeHttpRawBody(rawBody, "text/plain", requestKey) else ""
+                                    resolve(requestId, mapOf(
+                                        "status" to 200,
+                                        "body" to "",
+                                        "contentType" to "text/event-stream",
+                                        "rawPath" to rawPath,
+                                        "resultImageB64" to (streamResult[0]?.imageB64 ?: ""),
+                                        "revisedPrompt" to (streamResult[0]?.revisedPrompt ?: ""),
+                                        "sourceEvent" to (streamResult[0]?.sourceEvent ?: "final"),
+                                    ))
+                                    webSocket.close(1000, "completed")
+                                    webSocketRequests.remove(requestKey)
+                                }
+                            }
+                            "error" -> {
+                                if (settled.compareAndSet(false, true)) {
+                                    reject(requestId, line)
+                                    webSocket.cancel()
+                                    webSocketRequests.remove(requestKey)
+                                }
+                            }
+                        }
+                    } catch (_: Exception) {
+                    }
+                }
+
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                    webSocketRequests.remove(requestKey)
+                    if (settled.compareAndSet(false, true)) {
+                        reject(requestId, t.message ?: "websocket failure")
+                    }
+                }
+
+                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                    webSocketRequests.remove(requestKey)
+                    if (settled.compareAndSet(false, true)) {
+                        if (streamResult[0]?.imageB64?.isNotBlank() == true) {
+                            val rawBody = rawLines.joinToString("\n")
+                            val rawPath = if (rawBody.isNotBlank()) writeNativeHttpRawBody(rawBody, "text/plain", requestKey) else ""
+                            resolve(requestId, mapOf(
+                                "status" to 200,
+                                "body" to "",
+                                "contentType" to "text/event-stream",
+                                "rawPath" to rawPath,
+                                "resultImageB64" to (streamResult[0]?.imageB64 ?: ""),
+                                "revisedPrompt" to (streamResult[0]?.revisedPrompt ?: ""),
+                                "sourceEvent" to (streamResult[0]?.sourceEvent ?: "final"),
+                            ))
+                        } else {
+                            reject(requestId, if (reason.isNotBlank()) reason else "websocket closed before final image")
+                        }
+                    }
+                }
+            }
+        )
+        webSocketRequests[requestKey] = socket
+        throw EarlyResolve()
+    }
+
+    private fun responsesWebSocketUrl(baseUrl: String): String {
+        val uri = URI(baseUrl)
+        val scheme = when (uri.scheme?.lowercase(Locale.US)) {
+            "https" -> "wss"
+            "http" -> "ws"
+            else -> throw IllegalArgumentException("BASE_URL 仅支持 http:// 或 https://")
+        }
+        val path = (uri.path ?: "").trimEnd('/')
+        val normalizedPath = if (path.isBlank()) "/v1/responses" else "$path/v1/responses"
+        return URI(scheme, uri.userInfo, uri.host, uri.port, normalizedPath, null, null).toString()
+    }
+
+    private fun okHttpClientForWebSocket(proxyMode: String, proxyUrl: String): OkHttpClient {
+        val builder = OkHttpClient.Builder()
+            .connectTimeout(generationConnectTimeoutMs.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
+            .readTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS)
+            .pingInterval(25, java.util.concurrent.TimeUnit.SECONDS)
+        when (normalizeProxyMode(proxyMode)) {
+            "none" -> builder.proxy(Proxy.NO_PROXY)
+            "custom" -> builder.proxy(parseCustomProxy(proxyUrl))
+        }
+        return builder.build()
+    }
+
+    private fun probeResponsesWebSocket(
+        baseUrl: String,
+        apiKey: String,
+        payload: String,
+        proxyMode: String,
+        proxyUrl: String,
+    ) {
+        val wsUrl = responsesWebSocketUrl(baseUrl)
+        val client = okHttpClientForWebSocket(proxyMode, proxyUrl)
+        val done = CountDownLatch(1)
+        val errorRef = AtomicReference<String?>(null)
+        val socket = client.newWebSocket(
+            Request.Builder()
+                .url(wsUrl)
+                .addHeader("Authorization", "Bearer $apiKey")
+                .addHeader("User-Agent", "image-studio-android")
+                .build(),
+            object : WebSocketListener() {
+                override fun onOpen(webSocket: WebSocket, response: Response) {
+                    webSocket.send(payload)
+                }
+
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    try {
+                        val parsed = JSONObject(text)
+                        when (parsed.optString("type")) {
+                            "response.created", "response.completed" -> {
+                                webSocket.close(1000, "probe completed")
+                                done.countDown()
+                            }
+                            "error" -> {
+                                errorRef.set(text)
+                                webSocket.cancel()
+                                done.countDown()
+                            }
+                        }
+                    } catch (_: Exception) {
+                    }
+                }
+
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                    errorRef.set(t.message ?: "websocket failure")
+                    done.countDown()
+                }
+
+                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                    done.countDown()
+                }
+            }
+        )
+        if (!done.await(20, TimeUnit.SECONDS)) {
+            socket.cancel()
+            throw IllegalStateException("Responses WebSocket 探测超时")
+        }
+        errorRef.get()?.let { throw IllegalStateException(it) }
     }
 
     private fun validateProbeBaseUrl(raw: String): String {

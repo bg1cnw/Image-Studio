@@ -25,6 +25,7 @@ export type GenerateOptionsLike = {
   proxyMode?: string;
   proxyURL?: string;
   apiMode: string;
+  responsesTransport?: string;
   requestPolicy: string;
   imagesNewAPICompat?: boolean;
   noPromptRevision: boolean;
@@ -37,6 +38,7 @@ export type GenerateOptionsLike = {
     imageModelID: string;
     reasoningEffort?: string;
     apiMode: string;
+    responsesTransport?: string;
     requestPolicy: RequestPolicy;
     imagesNewAPICompat?: boolean;
   };
@@ -69,11 +71,16 @@ export type ProbeUpstreamOptionsLike = {
   baseURL: string;
   proxyMode?: string;
   proxyURL?: string;
+  apiMode?: string;
+  responsesTransport?: string;
 };
 
 export type ProbeUpstreamResultLike = {
   modelCount: number;
   models?: UpstreamModelDescriptorLike[];
+  responsesTransport?: string;
+  responsesTransportOK?: boolean;
+  responsesTransportError?: string;
 };
 
 export type UpstreamModelDescriptorLike = {

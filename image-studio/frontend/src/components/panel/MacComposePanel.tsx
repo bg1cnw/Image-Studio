@@ -111,6 +111,7 @@ export function MacComposePanel({
             activeAspect={activeAspect}
             aspectOptions={aspectOptions}
             activeResolution={activeResolution}
+            batchAutoAspectActive={mode === "edit" && editSourceMode === "batch" && batchProcess.autoAspectResolution !== ""}
             exactSizeLabel={exactSizeLabel}
             allowCustomAspectRatios={allowCustomAspectRatios}
             allowPreciseSizeControl={allowPreciseSizeControl}
