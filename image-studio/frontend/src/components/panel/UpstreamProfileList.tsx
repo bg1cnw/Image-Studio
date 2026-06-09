@@ -1,4 +1,4 @@
-import { Copy, Download, Plus, RefreshCw, Trash2, Upload } from "lucide-react";
+import { ClipboardPaste, Copy, Download, Plus, RefreshCw, Trash2, Upload } from "lucide-react";
 import type { UpstreamProfile } from "../../types/domain";
 import { usePlatform } from "../../platform/context";
 
@@ -16,6 +16,7 @@ export function UpstreamProfileList({
   onHandleDelete,
   onHandleExport,
   onHandleImport,
+  onHandleQuickImport,
   onHandleSetActive,
   onHandleSyncCodex,
 }: {
@@ -32,6 +33,7 @@ export function UpstreamProfileList({
   onHandleDelete: () => void | Promise<void>;
   onHandleExport: () => void | Promise<void>;
   onHandleImport: () => void | Promise<void>;
+  onHandleQuickImport: () => void | Promise<void>;
   onHandleSetActive: () => void | Promise<void>;
   onHandleSyncCodex: () => void | Promise<void>;
 }) {
@@ -107,6 +109,14 @@ export function UpstreamProfileList({
           className={`platform-action-btn inline-flex items-center justify-center gap-1 border border-black/[0.08] px-2.5 py-1.5 text-[11px] text-zinc-700 transition-colors hover:border-[color:var(--accent)]/35 hover:text-[var(--accent)] dark:border-white/[0.08] dark:text-zinc-300 ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
         >
           <Upload className="h-3 w-3" />
+        </button>
+        <button
+          type="button"
+          onClick={() => void onHandleQuickImport()}
+          title="粘贴 JSON 快捷导入"
+          className={`platform-action-btn inline-flex items-center justify-center gap-1 border border-black/[0.08] px-2.5 py-1.5 text-[11px] text-zinc-700 transition-colors hover:border-[color:var(--accent)]/35 hover:text-[var(--accent)] dark:border-white/[0.08] dark:text-zinc-300 ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
+        >
+          <ClipboardPaste className="h-3 w-3" />
         </button>
         <button
           type="button"

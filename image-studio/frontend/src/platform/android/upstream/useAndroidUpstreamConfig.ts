@@ -4,6 +4,10 @@ import { keyringUserFor } from "../../../lib/profiles";
 import { useStudioStore } from "../../../state/studioStore";
 import type { APIMode, ReasoningEffortValue, RequestPolicy, UpstreamProfile } from "../../../types/domain";
 import { buildUpstreamModelCatalog, type UpstreamModelCatalog } from "../../../lib/upstreamModels";
+import {
+  applyParsedUpstreamConfigImport,
+  parseUpstreamConfigImportFile,
+} from "../../../lib/upstreamConfigTransfer";
 
 export const ANDROID_API_MODE_OPTIONS: Array<{
   id: APIMode;
@@ -54,6 +58,8 @@ export function useAndroidUpstreamConfig(open: boolean) {
   const [showKey, setShowKey] = useState(false);
   const [savedKeyLoaded, setSavedKeyLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [quickImportOpen, setQuickImportOpen] = useState(false);
+  const [quickImportText, setQuickImportText] = useState("");
   const [loadingModels, setLoadingModels] = useState(false);
   const [modelCatalog, setModelCatalog] = useState<UpstreamModelCatalog | null>(null);
   const [modelCatalogError, setModelCatalogError] = useState<string | null>(null);
@@ -73,6 +79,8 @@ export function useAndroidUpstreamConfig(open: boolean) {
     setDraft(selected ? { ...selected } : null);
     setDraftKey("");
     setShowKey(false);
+    setQuickImportOpen(false);
+    setQuickImportText("");
     setSavedKeyLoaded(false);
     setLoadingModels(false);
     setModelCatalog(null);
@@ -245,6 +253,42 @@ export function useAndroidUpstreamConfig(open: boolean) {
     }
   }
 
+  async function handleImportFromRawJSON(raw: string, successPrefix = "已导入") {
+    const parsed = parseUpstreamConfigImportFile(raw);
+    const result = await applyParsedUpstreamConfigImport(parsed, {
+      getProfiles: () => useStudioStore.getState().profiles,
+      createProfile,
+      updateProfile,
+      setActiveProfile,
+    });
+    const targetId = result.activeProfileId || result.importedProfileIds[0] || selectedId;
+    const selectedProfile = useStudioStore.getState().profiles.find((profile) => profile.id === targetId)
+      ?? useStudioStore.getState().profiles[0]
+      ?? null;
+    if (selectedProfile) {
+      setSelectedId(selectedProfile.id);
+      setDraft(selectedProfile);
+      setDraftKey(await GetStoredAPIKey(keyringUserFor(selectedProfile.id)).catch(() => ""));
+      setSavedKeyLoaded(true);
+    }
+    pushToast(`${successPrefix} ${result.importedCount} 组上游配置`, "success");
+  }
+
+  async function handleQuickImport() {
+    const raw = quickImportText.trim();
+    if (!raw) {
+      pushToast("先粘贴 JSON 模板", "warn");
+      return;
+    }
+    try {
+      await handleImportFromRawJSON(raw, "已快捷导入");
+      setQuickImportOpen(false);
+      setQuickImportText("");
+    } catch (error: any) {
+      pushToast(`快捷导入失败:${error?.message ?? error}`, "error", 6000);
+    }
+  }
+
   return {
     activeProfile,
     activeProfileId,
@@ -254,6 +298,7 @@ export function useAndroidUpstreamConfig(open: boolean) {
     draftKey,
     handleDelete,
     handleDuplicate,
+    handleQuickImport,
     handleNew,
     handleSave,
     handleSaveAndSetActive,
@@ -265,11 +310,15 @@ export function useAndroidUpstreamConfig(open: boolean) {
     modelCatalogError,
     patchDraft,
     profiles,
+    quickImportOpen,
+    quickImportText,
     savedKeyLoaded,
     saving,
     selectedId,
     setDraftKey,
     handleLoadModels,
+    setQuickImportOpen,
+    setQuickImportText,
     setSelectedId,
     setShowKey,
     showKey,

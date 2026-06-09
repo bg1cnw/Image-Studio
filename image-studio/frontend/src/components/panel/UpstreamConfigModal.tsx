@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Eye, EyeOff, HelpCircle, Info, Plug, Plus, RefreshCw, Sparkles } from "lucide-react";
+import { ClipboardPaste, Eye, EyeOff, HelpCircle, Info, Plug, Plus, RefreshCw, Sparkles } from "lucide-react";
 import { Modal } from "../common/Modal";
 import { useStudioStore } from "../../state/studioStore";
 import {
@@ -19,6 +19,7 @@ import { UpstreamProfileList } from "./UpstreamProfileList";
 import { usePlatform } from "../../platform/context";
 import { buildUpstreamModelCatalog, type UpstreamModelCatalog } from "../../lib/upstreamModels";
 import {
+  applyParsedUpstreamConfigImport,
   buildUpstreamConfigExportFile,
   parseUpstreamConfigImportFile,
 } from "../../lib/upstreamConfigTransfer";
@@ -50,6 +51,8 @@ export function UpstreamConfigModal({
   const [savedKeyLoaded, setSavedKeyLoaded] = useState(false);
   const [faqOpen, setFaqOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [quickImportOpen, setQuickImportOpen] = useState(false);
+  const [quickImportText, setQuickImportText] = useState("");
   const [syncingCodexConfig, setSyncingCodexConfig] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
   const [modelCatalog, setModelCatalog] = useState<UpstreamModelCatalog | null>(null);
@@ -83,6 +86,8 @@ export function UpstreamConfigModal({
     if (open) return;
     setFaqOpen(false);
     setDeleteConfirmOpen(false);
+    setQuickImportOpen(false);
+    setQuickImportText("");
   }, [open]);
 
   // 列表切换 selected
@@ -176,75 +181,45 @@ export function UpstreamConfigModal({
     try {
       const raw = await ImportUpstreamConfigFromFile();
       if (!raw) return;
-      const parsed = parseUpstreamConfigImportFile(raw);
-      const existingByName = new Map(useStudioStore.getState().profiles.map((profile) => [profile.name, profile]));
-      let importedCount = 0;
-      let nextActiveId = "";
-
-      for (const incoming of parsed.profiles) {
-        const match = existingByName.get(incoming.name) ?? null;
-        if (match) {
-          await updateProfile(match.id, {
-            name: incoming.name,
-            apiMode: incoming.apiMode,
-            responsesTransport: incoming.responsesTransport ?? "sse",
-            requestPolicy: incoming.requestPolicy,
-            imagesNewAPICompat: incoming.imagesNewAPICompat,
-            baseURL: incoming.baseURL,
-            textModelID: incoming.textModelID,
-            imageModelID: incoming.imageModelID,
-            reasoningEffort: incoming.reasoningEffort,
-            concurrencyLimit: incoming.concurrencyLimit,
-            fallbackProfileId: incoming.fallbackProfileId,
-            lastUsedAt: incoming.lastUsedAt,
-            apiKey: incoming.apiKey ?? "",
-          });
-          if (incoming.apiKey?.trim()) {
-            await SetStoredAPIKey(keyringUserFor(match.id), incoming.apiKey.trim()).catch(() => undefined);
-          }
-          if (parsed.activeProfileId && parsed.activeProfileId === incoming.id) nextActiveId = match.id;
-        } else {
-          const newId = await createProfile({
-            name: incoming.name,
-            apiMode: incoming.apiMode,
-            responsesTransport: incoming.responsesTransport ?? "sse",
-            requestPolicy: incoming.requestPolicy,
-            imagesNewAPICompat: incoming.imagesNewAPICompat,
-            baseURL: incoming.baseURL,
-            textModelID: incoming.textModelID,
-            imageModelID: incoming.imageModelID,
-            reasoningEffort: incoming.reasoningEffort,
-            concurrencyLimit: incoming.concurrencyLimit,
-            apiKey: incoming.apiKey ?? "",
-            setActive: false,
-          });
-          if (incoming.fallbackProfileId) {
-            await updateProfile(newId, { fallbackProfileId: incoming.fallbackProfileId });
-          }
-          if (incoming.apiKey?.trim()) {
-            await SetStoredAPIKey(keyringUserFor(newId), incoming.apiKey.trim()).catch(() => undefined);
-          }
-          if (parsed.activeProfileId && parsed.activeProfileId === incoming.id) nextActiveId = newId;
-        }
-        importedCount += 1;
-      }
-
-      if (nextActiveId) {
-        await setActiveProfile(nextActiveId);
-        setSelectedId(nextActiveId);
-      }
-      const selectedProfile = useStudioStore.getState().profiles.find((profile) => profile.id === (nextActiveId || selectedId))
-        ?? useStudioStore.getState().profiles[0]
-        ?? null;
-      if (selectedProfile) {
-        setSelectedId(selectedProfile.id);
-        setDraft(selectedProfile);
-        setDraftKey(await GetStoredAPIKey(keyringUserFor(selectedProfile.id)).catch(() => ""));
-        setSavedKeyLoaded(true);
-      }
-      pushToast(`已导入 ${importedCount} 组上游配置`, "success");
+      await handleImportFromRawJSON(raw, "已导入");
     } catch (error: any) {
       pushToast(`导入上游配置失败:${error?.message ?? error}`, "error", 6000);
+    }
+  }
+
+  async function handleImportFromRawJSON(raw: string, successPrefix = "已导入") {
+    const parsed = parseUpstreamConfigImportFile(raw);
+    const result = await applyParsedUpstreamConfigImport(parsed, {
+      getProfiles: () => useStudioStore.getState().profiles,
+      createProfile,
+      updateProfile,
+      setActiveProfile,
+    });
+    const targetId = result.activeProfileId || result.importedProfileIds[0] || selectedId;
+    const selectedProfile = useStudioStore.getState().profiles.find((profile) => profile.id === targetId)
+      ?? useStudioStore.getState().profiles[0]
+      ?? null;
+    if (selectedProfile) {
+      setSelectedId(selectedProfile.id);
+      setDraft(selectedProfile);
+      setDraftKey(await GetStoredAPIKey(keyringUserFor(selectedProfile.id)).catch(() => ""));
+      setSavedKeyLoaded(true);
+    }
+    pushToast(`${successPrefix} ${result.importedCount} 组上游配置`, "success");
+  }
+
+  async function handleQuickImport() {
+    const raw = quickImportText.trim();
+    if (!raw) {
+      pushToast("先粘贴 JSON 模板", "warn");
+      return;
+    }
+    try {
+      await handleImportFromRawJSON(raw, "已快捷导入");
+      setQuickImportOpen(false);
+      setQuickImportText("");
+    } catch (error: any) {
+      pushToast(`快捷导入失败:${error?.message ?? error}`, "error", 6000);
     }
   }
 
@@ -391,12 +366,23 @@ export function UpstreamConfigModal({
                 className={`platform-card col-span-full flex items-center justify-between gap-3 border border-[color:var(--accent)]/25 bg-[var(--accent-soft)] px-4 py-3 text-left text-[13px] text-[var(--accent)] transition-colors hover:bg-[color:var(--accent)]/15 disabled:cursor-not-allowed disabled:opacity-60 ${usesFluentUI ? "rounded-[10px]" : "rounded-[18px]"}`}
               >
                 <span className="min-w-0">
-                  <span className="block font-semibold">同步 Codex 配置</span>
+                <span className="block font-semibold">同步 Codex 配置</span>
                   <span className="mt-1 block text-[11px] text-[var(--accent)]/80">自动读取当前电脑里的 Codex `base_url` 和 `OPENAI_API_KEY`。</span>
                 </span>
                 <RefreshCw className={`h-4 w-4 shrink-0 ${syncingCodexConfig ? "animate-spin" : ""}`} />
               </button>
             ) : null}
+            <button
+              type="button"
+              onClick={() => setQuickImportOpen(true)}
+              className={`platform-card col-span-full flex items-center justify-between gap-3 border border-black/[0.08] bg-white/70 px-4 py-3 text-left text-[13px] text-zinc-700 transition-colors hover:border-[color:var(--accent)]/35 hover:bg-[var(--accent-soft)]/60 dark:border-white/[0.06] dark:bg-white/[0.03] dark:text-zinc-200 ${usesFluentUI ? "rounded-[10px]" : "rounded-[18px]"}`}
+            >
+              <span className="min-w-0">
+                <span className="block font-semibold">粘贴 JSON 快捷导入</span>
+                <span className="mt-1 block text-[11px] text-zinc-500 dark:text-zinc-400">支持本应用导出文件、`newapi_channel_conn`、OpenCode `provider` 模板。</span>
+              </span>
+              <ClipboardPaste className="h-4 w-4 shrink-0 text-[var(--accent)]" />
+            </button>
             {([
               {
                 id: "responses" as APIMode,
@@ -466,6 +452,7 @@ export function UpstreamConfigModal({
           onHandleDelete={() => setDeleteConfirmOpen(true)}
           onHandleExport={handleExportConfigs}
           onHandleImport={handleImportConfigs}
+          onHandleQuickImport={() => setQuickImportOpen(true)}
           onHandleSetActive={handleSetActive}
           onHandleSyncCodex={handleSyncCodex}
         />
@@ -504,6 +491,45 @@ export function UpstreamConfigModal({
       </div>
     </Modal>
     <FAQModal open={faqOpen} onClose={() => setFaqOpen(false)} />
+    <Modal
+      open={quickImportOpen}
+      onClose={() => setQuickImportOpen(false)}
+      title="快捷导入上游配置"
+      width={620}
+    >
+      <section className="flex flex-col gap-3">
+        <p className="m-0 text-[13px] leading-6 text-zinc-600 dark:text-zinc-300">
+          直接粘贴对方提供的 JSON 模板。当前支持本应用导出文件、<code className="font-mono-token">newapi_channel_conn</code>、OpenCode <code className="font-mono-token">provider</code> 配置。
+        </p>
+        <textarea
+          value={quickImportText}
+          onChange={(event) => setQuickImportText(event.target.value)}
+          placeholder={"在这里粘贴 JSON...\n例如 {\"_type\":\"newapi_channel_conn\",...}"}
+          spellCheck={false}
+          className={`focus-ring min-h-[280px] w-full resize-y border border-black/[0.08] bg-[var(--surface)] px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 dark:border-white/[0.08] dark:text-zinc-100 dark:placeholder:text-zinc-500 font-mono-token ${usesFluentUI ? "rounded-[10px]" : "rounded-[14px]"}`}
+        />
+        <div className="flex items-start gap-2 border border-[color:var(--accent)]/18 bg-[var(--accent-soft)] px-3 py-2 text-[11px] leading-5 text-[var(--accent)] rounded-[14px]">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>导入后会直接生成可用 profile，并把 API Key 写入系统凭据存储。若模板里自带 `/v1`，会自动适配成站点根地址。</span>
+        </div>
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setQuickImportOpen(false)}
+            className={`platform-action-btn border border-black/[0.08] px-4 py-2 text-sm text-zinc-700 transition-colors hover:bg-black/[0.04] dark:border-white/[0.08] dark:text-zinc-300 dark:hover:bg-white/[0.06] ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleQuickImport()}
+            className={`liquid-primary-button bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--accent-2)] ${usesFluentUI ? "rounded-[8px]" : "rounded-full"}`}
+          >
+            立即导入
+          </button>
+        </div>
+      </section>
+    </Modal>
     <Modal
       open={deleteConfirmOpen}
       onClose={() => setDeleteConfirmOpen(false)}

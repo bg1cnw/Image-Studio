@@ -1,12 +1,14 @@
-import { CheckCircle2, PlugZap, ShieldCheck } from "lucide-react";
+import { CheckCircle2, ClipboardPaste, PlugZap, ShieldCheck } from "lucide-react";
 import type { UpstreamProfile } from "../../../types/domain";
 
 export function AndroidUpstreamHeader({
   activeProfile,
   profileCount,
+  onQuickImport,
 }: {
   activeProfile: UpstreamProfile | null;
   profileCount: number;
+  onQuickImport: () => void;
 }) {
   return (
     <section className="android-upstream-header">
@@ -31,6 +33,10 @@ export function AndroidUpstreamHeader({
           <ShieldCheck className="h-3.5 w-3.5" />
           {profileCount} 组
         </span>
+        <button type="button" className="android-upstream-quick-import" onClick={onQuickImport}>
+          <ClipboardPaste className="h-3.5 w-3.5" />
+          快捷导入
+        </button>
       </div>
     </section>
   );
