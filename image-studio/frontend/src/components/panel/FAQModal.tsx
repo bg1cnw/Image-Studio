@@ -54,6 +54,9 @@ export function FAQModal({ open, onClose }: { open: boolean; onClose: () => void
             <p>
               如果在 Responses API 配置里把传输切到 <strong>WebSocket mode</strong>，应用会在连接中断时快速重连一次；若仍然失败，通常说明上游或代理不兼容，建议切回 <strong>HTTP SSE</strong> 再试。
             </p>
+            <p>
+              如果错误里直接出现 <code>WebSocket upgrade required (Upgrade: websocket)</code>，说明失败发生在握手阶段：当前链路没有把 WebSocket Upgrade 正确转发到上游，这种情况不是“生成到一半断了”，而是上游 / 代理当前不支持这个 WS 路径。
+            </p>
           </div>
         </details>
 

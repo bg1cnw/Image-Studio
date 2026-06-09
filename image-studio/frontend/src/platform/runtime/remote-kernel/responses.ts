@@ -218,6 +218,14 @@ function buildWebSocketCreatePayload(body: string): string {
   return JSON.stringify(parsed);
 }
 
+function isWebSocketHandshakeFailure(error: unknown): boolean {
+  const message = String((error as any)?.message || error || "").toLowerCase();
+  return message.includes("bad handshake")
+    || message.includes("upgrade: websocket")
+    || message.includes("websocket upgrade required")
+    || message.includes("websocket handshake failed");
+}
+
 export async function requestResponsesOnce(
   request: RemoteJobRequest,
   attempt: number,
@@ -297,7 +305,22 @@ export async function requestResponsesOnce(
       try {
         response = await requestOnce(1);
       } catch (error) {
-        if (responsesTransport === "websocket" && !runState.hasFinalImage) {
+        if (responsesTransport === "websocket" && isWebSocketHandshakeFailure(error)) {
+          callbacks.onLog?.("Responses WebSocket 握手失败，当前上游不兼容该 WS 路径，自动切回 HTTP SSE...");
+          response = await nativeHttpRequestText(
+            url,
+            "POST",
+            {
+              Authorization: `Bearer ${request.payload.apiKey}`,
+              "Content-Type": "application/json",
+              Accept: "text/event-stream, application/json",
+            },
+            body,
+            callbacks.signal,
+            consumeNativePayload,
+            { proxyMode, proxyURL: request.payload.proxyURL || "" },
+          );
+        } else if (responsesTransport === "websocket" && !runState.hasFinalImage) {
           callbacks.onLog?.("WebSocket 连接中断，正在重新连接并重放本次生成...");
           try {
             response = await requestOnce(2);

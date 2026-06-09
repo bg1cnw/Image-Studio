@@ -1007,3 +1007,67 @@ test("Android shell remote kernel wraps Responses websocket requests as response
     assert.equal(payload.stream, undefined);
   });
 });
+
+test("Android shell remote kernel falls back to native HTTP when Responses websocket handshake fails", async () => {
+  const calls = [];
+  await withPatchedGlobals(async () => {
+    globalThis.window.AndroidImageStudio = {
+      invoke(requestId, method, payloadJson) {
+        const args = JSON.parse(payloadJson);
+        calls.push(method);
+        queueMicrotask(() => {
+          if (method === "ResponsesWebSocketRequest") {
+            window.__imageStudioNativeReject?.(requestId, "websocket handshake failed: HTTP 426: WebSocket upgrade required (Upgrade: websocket)");
+            return;
+          }
+          if (method === "HttpRequestText") {
+            const payload = args[0];
+            assert.equal(payload.url, "https://upstream.example/v1/responses");
+            window.__imageStudioNativeResolve?.(requestId, {
+              status: 200,
+              body: "",
+              contentType: "text/event-stream",
+              resultImageB64: "ZmFsbGJhY2s=",
+              revisedPrompt: "fallback",
+              sourceEvent: "final",
+            });
+            return;
+          }
+          window.__imageStudioNativeReject?.(requestId, `unsupported ${method}`);
+        });
+      },
+    };
+    globalThis.fetch = async () => {
+      throw new Error("fallback path should stay on Android native transport");
+    };
+  }, async () => {
+    const kernel = await loadRemoteKernel();
+    const result = await kernel.runRemoteImageJob(
+      {
+        payload: {
+          apiKey: "key",
+          mode: "generate",
+          prompt: "cat",
+          size: "1024x1024",
+          quality: "low",
+          outputFormat: "png",
+          imagePaths: [],
+          imagePath: "",
+          maskB64: "",
+          seed: 0,
+          negativePrompt: "",
+          baseURL: "https://upstream.example",
+          textModelID: "gpt-5.5",
+          imageModelID: "gpt-image-2",
+          apiMode: "responses",
+          responsesTransport: "websocket",
+          requestPolicy: "openai",
+          noPromptRevision: false,
+        },
+      },
+      { signal: new AbortController().signal },
+    );
+    assert.equal(result.imageB64, "ZmFsbGJhY2s=");
+    assert.deepEqual(calls.slice(0, 2), ["ResponsesWebSocketRequest", "HttpRequestText"]);
+  });
+});

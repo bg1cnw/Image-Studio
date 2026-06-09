@@ -17,6 +17,24 @@ import (
 
 const websocketQuickReconnectAttempts = 1
 
+type responsesWebSocketFallbackError struct {
+	err error
+}
+
+func (e *responsesWebSocketFallbackError) Error() string {
+	if e == nil || e.err == nil {
+		return "responses websocket fallback"
+	}
+	return e.err.Error()
+}
+
+func (e *responsesWebSocketFallbackError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.err
+}
+
 type ResponsesWSRunStateSnapshot struct {
 	AttemptIndex       int
 	SocketEpoch        int
@@ -100,6 +118,17 @@ func requestResponsesWithWebSocketReplay(
 		onLog("使用 Responses WebSocket mode 发起请求...")
 	}
 	result, err := requestResponsesOverWebSocket(ctx, baseURL, opts.APIKey, opts.Proxy, payload, rawSink, onPartial, snapshot)
+	var fallbackErr *responsesWebSocketFallbackError
+	if errors.As(err, &fallbackErr) {
+		if onLog != nil {
+			onLog("Responses WebSocket 握手失败，当前上游不兼容该 WS 路径，自动切回 HTTP SSE...")
+		}
+		transport, terr := PickTransportWithProxy(opts.Proxy)
+		if terr != nil {
+			return ImageResult{}, terr
+		}
+		return RequestAndExtractWithPartial(ctx, transport, opts, rawSink, onProgress, onPartial)
+	}
 	if err != nil && !snapshot.HasFinalImage && onLog != nil {
 		onLog("WebSocket 连接中断，正在重新连接并重放本次生成...")
 	}
@@ -172,6 +201,9 @@ func requestResponsesOverWebSocket(
 		}
 		if rawSink != nil {
 			_, _ = io.WriteString(rawSink, fmt.Sprintf("--- websocket-error-%d: %v ---\n", snapshot.SocketEpoch, err))
+		}
+		if isResponsesWebSocketFallbackError(err) {
+			return ImageResult{}, &responsesWebSocketFallbackError{err: err}
 		}
 		lastErr = err
 		if snapshot.HasFinalImage {
@@ -455,8 +487,20 @@ func summarizeWebSocketHandshakeBody(body []byte) string {
 			text = msg
 		}
 	}
+	lower := strings.ToLower(text)
+	if strings.Contains(lower, "websocket upgrade required") || strings.Contains(lower, "upgrade: websocket") {
+		return "上游要求 WebSocket Upgrade,但当前链路没有正确转发 Upgrade: websocket。通常是中转站 / 反向代理 / 网关不支持或没放行 Responses WebSocket,建议切回 HTTP SSE。"
+	}
 	if len(text) > 160 {
 		return text[:160]
 	}
 	return text
+}
+
+func isResponsesWebSocketFallbackError(err error) bool {
+	if err == nil {
+		return false
+	}
+	text := strings.ToLower(err.Error())
+	return strings.Contains(text, "websocket handshake failed")
 }

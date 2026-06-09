@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -474,5 +475,49 @@ func TestRequestResponsesOverWebSocketSucceedsWhenFinalArrivesBeforeDisconnect(t
 	}
 	if result.ImageB64 != pngB64 {
 		t.Fatalf("result image mismatch")
+	}
+}
+
+func TestRequestResponsesWithWebSocketReplayFallsBackToSSEOnHandshakeFailure(t *testing.T) {
+	pngB64 := base64.StdEncoding.EncodeToString([]byte("\x89PNG\r\n\x1a\nfallback"))
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/v1/responses" && strings.EqualFold(r.Header.Get("Upgrade"), "websocket"):
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUpgradeRequired)
+			_, _ = w.Write([]byte(`{"error":{"message":"WebSocket upgrade required (Upgrade: websocket)"}}`))
+		case r.URL.Path == "/v1/responses":
+			w.Header().Set("Content-Type", "text/event-stream")
+			fmt.Fprintln(w, `data: {"type":"response.created"}`)
+			fmt.Fprintln(w, `data: {"type":"response.output_item.done","item":{"type":"image_generation_call","result":"`+pngB64+`"}}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	var raw bytes.Buffer
+	result, err := requestResponsesWithWebSocketReplay(
+		context.Background(),
+		Options{
+			APIKey:             "sk-test",
+			Prompt:             "hello",
+			BaseURL:            srv.URL,
+			ResponsesTransport: ResponsesTransportWebSocket,
+		},
+		&raw,
+		nil,
+		nil,
+		1,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("requestResponsesWithWebSocketReplay: %v", err)
+	}
+	if result.ImageB64 != pngB64 {
+		t.Fatalf("result image mismatch")
+	}
+	if !strings.Contains(raw.String(), "websocket-error-1") {
+		t.Fatalf("expected raw log to record websocket handshake failure, got %q", raw.String())
 	}
 }

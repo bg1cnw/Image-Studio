@@ -15,6 +15,11 @@ func ValidateBaseURL(raw string) (string, error) {
 	if cleaned == "" {
 		return "", fmt.Errorf("未配置上游 BASE_URL")
 	}
+	cleaned = strings.TrimSuffix(cleaned, "/v1")
+	cleaned = strings.TrimRight(cleaned, "/")
+	if cleaned == "" {
+		return "", fmt.Errorf("未配置上游 BASE_URL")
+	}
 	u, err := url.Parse(cleaned)
 	if err != nil {
 		return "", fmt.Errorf("BASE_URL 无效: %w", err)
