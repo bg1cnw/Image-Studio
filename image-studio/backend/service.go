@@ -44,6 +44,10 @@ type Service struct {
 
 	trustedOutputRoots map[string]struct{}
 	mediaAssets        map[string]mediaAsset
+
+	promptImportListenerReady       bool
+	pendingPromptImportTokens       []string
+	pendingPromptImportInvalidCount int
 }
 
 type job struct {
@@ -67,6 +71,7 @@ func NewService() *Service {
 func (s *Service) Startup(ctx context.Context) {
 	s.ctx = ctx
 	s.loadCompatibilitySettings()
+	s.HandlePromptImportArgs(os.Args[1:])
 	if strings.TrimSpace(os.Getenv(appUpdateProbePathEnv)) != "" || commandLineArgValue(os.Args[1:], appUpdateProbePathArg) != "" {
 		go s.captureAppUpdateProbe()
 	}

@@ -59,6 +59,14 @@ test("findMatchingPresetId requires current parameters to fully match new preset
   );
 });
 
+test("normalizeSelectedPresetId keeps explicit selection separate from passive parameter match", () => {
+  const current = makeState();
+  const preset = presets.buildPresetFromSnapshot("插画", "match", current);
+  assert.equal(presets.normalizeSelectedPresetId([preset], null), null);
+  assert.equal(presets.normalizeSelectedPresetId([preset], "match"), "match");
+  assert.equal(presets.normalizeSelectedPresetId([preset], "missing"), null);
+});
+
 test("nextDefaultPresetName fills the first available 配置序号", () => {
   assert.equal(presets.nextDefaultPresetName([]), "配置1");
   assert.equal(

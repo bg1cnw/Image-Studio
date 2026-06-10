@@ -28,22 +28,22 @@ type GenerateOptions struct {
 	// frontend builds. Folded into ImagePaths when present.
 	ImagePath string `json:"imagePath"`
 
-	MaskB64           string `json:"maskB64"`        // optional, phase 3 reservation
-	Seed              int64  `json:"seed"`           // 0 = random
-	NegativePrompt    string `json:"negativePrompt"` // optional
-	Background        string `json:"background"`     // "auto" | "opaque" | "transparent"
-	OutputCompression int    `json:"outputCompression"`
-	InputFidelity     string `json:"inputFidelity"` // "auto" | "low" | "high"
-	ImageStyle        string `json:"imageStyle"`    // "default" | "vivid" | "natural"
-	Moderation        string `json:"moderation"`    // "low" | "auto"
-	UserIdentifier    string `json:"userIdentifier"`
-	BaseURL           string `json:"baseURL"`      // overrides the default upstream URL
-	TextModelID       string `json:"textModelID"`  // overrides the default text model
-	ImageModelID      string `json:"imageModelID"` // overrides the default image model
-	ReasoningEffort   string `json:"reasoningEffort"`
-	APIMode           string `json:"apiMode"`       // "responses" (default) | "images"
+	MaskB64            string `json:"maskB64"`        // optional, phase 3 reservation
+	Seed               int64  `json:"seed"`           // 0 = random
+	NegativePrompt     string `json:"negativePrompt"` // optional
+	Background         string `json:"background"`     // "auto" | "opaque" | "transparent"
+	OutputCompression  int    `json:"outputCompression"`
+	InputFidelity      string `json:"inputFidelity"` // "auto" | "low" | "high"
+	ImageStyle         string `json:"imageStyle"`    // "default" | "vivid" | "natural"
+	Moderation         string `json:"moderation"`    // "low" | "auto"
+	UserIdentifier     string `json:"userIdentifier"`
+	BaseURL            string `json:"baseURL"`      // overrides the default upstream URL
+	TextModelID        string `json:"textModelID"`  // overrides the default text model
+	ImageModelID       string `json:"imageModelID"` // overrides the default image model
+	ReasoningEffort    string `json:"reasoningEffort"`
+	APIMode            string `json:"apiMode"` // "responses" (default) | "images"
 	ResponsesTransport string `json:"responsesTransport,omitempty"`
-	RequestPolicy     string `json:"requestPolicy"` // "openai" (default) | "compat"
+	RequestPolicy      string `json:"requestPolicy"` // "openai" (default) | "compat"
 	// ImagesNewAPICompat 开启后仅影响 Images API 请求:
 	// 强制使用 b64_json,并关闭 stream/partial_images,用于兼容部分 NewAPI 中转。
 	ImagesNewAPICompat bool   `json:"imagesNewAPICompat,omitempty"`
@@ -108,11 +108,11 @@ type ProbeUpstreamOptions struct {
 }
 
 type ProbeUpstreamResult struct {
-	ModelCount           int                       `json:"modelCount"`
-	Models               []UpstreamModelDescriptor `json:"models,omitempty"`
-	ResponsesTransport   string                    `json:"responsesTransport,omitempty"`
-	ResponsesTransportOK bool                      `json:"responsesTransportOK,omitempty"`
-	ResponsesTransportError string                 `json:"responsesTransportError,omitempty"`
+	ModelCount              int                       `json:"modelCount"`
+	Models                  []UpstreamModelDescriptor `json:"models,omitempty"`
+	ResponsesTransport      string                    `json:"responsesTransport,omitempty"`
+	ResponsesTransportOK    bool                      `json:"responsesTransportOK,omitempty"`
+	ResponsesTransportError string                    `json:"responsesTransportError,omitempty"`
 }
 
 type UpstreamModelDescriptor struct {
@@ -129,6 +129,23 @@ type CodexAPIConfig struct {
 	BaseURL  string `json:"baseURL"`
 	APIKey   string `json:"apiKey"`
 	WireAPI  string `json:"wireAPI"`
+}
+
+type PromptImportBilingualText struct {
+	Zh string `json:"zh,omitempty"`
+	En string `json:"en,omitempty"`
+}
+
+type PromptImportPayload struct {
+	Prompt         PromptImportBilingualText  `json:"prompt"`
+	NegativePrompt *PromptImportBilingualText `json:"negative_prompt,omitempty"`
+	AspectRatio    string                     `json:"aspect_ratio,omitempty"`
+	ResolvedSize   string                     `json:"resolvedSize,omitempty"`
+}
+
+type PromptImportActivation struct {
+	Tokens       []string `json:"tokens,omitempty"`
+	InvalidCount int      `json:"invalidCount,omitempty"`
 }
 
 func (o PromptOptimizeOptions) collectPaths() []string {

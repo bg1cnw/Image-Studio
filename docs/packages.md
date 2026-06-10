@@ -34,8 +34,8 @@ Windows 用户需要额外注意：Actions 里的 CI artifact 如果没有经过
 | Linux x64 | `image-studio-<version>-linux-amd64.tar.gz` | 标准 Wails 桌面版。 |
 | Linux ARM64 | `image-studio-<version>-linux-arm64.tar.gz` | 面向 ARM64 Linux 桌面环境。 |
 | Android | `image-studio-<version>-android-release.apk` | 单 APK，运行时自适应 phone / pad 布局。 |
-| Gio Windows | `image-studio-gio-<version>-windows-*.exe` | Gio 原生 GUI 测试版，不依赖 WebView2。 |
-| Gio Linux | `image-studio-gio-<version>-linux-*.tar.gz` | Gio 原生 GUI 测试版，不依赖 WebKitGTK。 |
+| Gio Windows | `image-studio-gio-<version>-windows-*.exe` | Gio 原生 GUI 版，不依赖 WebView2；Windows 下可作为 `image-studio://` 网页导入默认处理器。 |
+| Gio Linux | `image-studio-gio-<version>-linux-*.tar.gz` | Gio 原生 GUI 版，不依赖 WebKitGTK；Linux 下可通过 CLI / `.desktop` 注册网页导入协议。 |
 
 ## 各平台选择建议
 
@@ -43,8 +43,8 @@ Windows 用户需要额外注意：Actions 里的 CI artifact 如果没有经过
 |---|---|
 | 普通桌面用户 | 对应平台的 `image-studio-<version>-...` Wails 版。 |
 | Windows 用户会直接解压后双击 `exe`，且机器上可能没有可用 WebView2 | `image-studio-<version>-windows-*-portable-fixed-webview.zip`。 |
-| Windows 上没有稳定 WebView2 环境，或想验证 Gio 原生界面 | `image-studio-gio-<version>-windows-...`。 |
-| Linux 上只想试 Gio 原生渲染路径 | `image-studio-gio-<version>-linux-...`。 |
+| Windows 上没有稳定 WebView2 环境，或需要接收提示词网站的 `Send to Image-Studio` 深链 | `image-studio-gio-<version>-windows-...`。 |
+| Linux 上想用 Gio 原生渲染路径，或需要接收 `image-studio://import?...` 深链 | `image-studio-gio-<version>-linux-...`。 |
 | 手机与平板统一安装 | `image-studio-<version>-android-release.apk`。 |
 
 ## 平台注意事项
@@ -74,6 +74,7 @@ xattr -dr com.apple.quarantine "Image Studio.app"
 
 - 预编译包主要面向带 GTK / WebKitGTK 依赖的桌面环境。
 - 如果你更想避免 WebKitGTK 依赖，可以优先试 Gio 测试版。
+- Gio Linux 版支持通过 `go run ./cmd/image-studio-gio protocol register` 或 `bash scripts/register-gio-linux-scheme.sh /path/to/image-studio-gio` 注册 `image-studio://` 网页导入协议。
 
 ### Android
 

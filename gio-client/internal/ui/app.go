@@ -21,6 +21,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"github.com/yuanhua/image-gptcodex/pkg/promptimport"
 )
 
 type resultState struct {
@@ -73,6 +74,14 @@ type snapshot struct {
 	CompareSplit              float32
 	Result                    resultState
 	SavePromptVisible         bool
+	PromptImportVisible       bool
+	PromptImportLoading       bool
+	PromptImportToken         string
+	PromptImportPayload       *promptimport.ImportPayload
+	PromptImportResolvedSize  string
+	PromptImportRegisterOpen  bool
+	PromptImportRegisterBusy  bool
+	PromptImportRegisterNote  string
 }
 
 type cachedImage struct {
@@ -423,6 +432,10 @@ type App struct {
 	savePromptSaveButton                     widget.Clickable
 	savePromptSkipButton                     widget.Clickable
 	savePromptNeverAsk                       widget.Bool
+	promptImportConfirmButton                widget.Clickable
+	promptImportCloseButton                  widget.Clickable
+	promptImportRegisterNowButton            widget.Clickable
+	promptImportRegisterLaterButton          widget.Clickable
 
 	mu                           sync.Mutex
 	running                      bool
@@ -543,6 +556,15 @@ type App struct {
 	windowFocused                    bool
 	kernelRuntimeMode                string
 	savePromptSourcePath             string
+	promptImportOpen                 bool
+	promptImportLoading              bool
+	promptImportToken                string
+	promptImportPayload              *promptimport.ImportPayload
+	promptImportResolvedSize         string
+	promptImportQueue                []string
+	promptImportRegisterOpen         bool
+	promptImportRegisterBusy         bool
+	promptImportRegisterNote         string
 	composeOpen                      bool
 	advancedOpen                     bool
 	profilePickerOpen                bool
@@ -725,6 +747,7 @@ func New() *App {
 		customAspectRatios:                      append([]sharedCompat.CustomAspectRatio(nil), compatState.Settings.CustomAspectRatios...),
 		savePromptSuppressed:                    gioCompat.SavePromptSuppressed(compatState),
 		keepLogs:                                compatState.Settings.KeepLogs,
+		promptImportResolvedSize:                "auto",
 		imageCache:                              map[string]cachedImage{},
 		historyRev:                              1,
 		composeOpen:                             false,
@@ -790,6 +813,7 @@ func New() *App {
 	a.initWorkspaces()
 	a.scheduleHistoryThumbPrewarm(historyThumbPrewarmDelay)
 	a.scheduleHistoryThumbBackfill(historyBackfillStartupDelay)
+	a.schedulePromptImportRegistrationCheck()
 	return a
 }
 

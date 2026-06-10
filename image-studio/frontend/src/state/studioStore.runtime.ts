@@ -195,6 +195,7 @@ export function saveActiveWorkspaceSnapshot(s: StudioState): Workspace[] {
       userIdentifier: s.userIdentifier,
       partialImages: s.partialImages,
       batchCount: s.batchCount,
+      selectedPresetId: s.selectedPresetId,
       editSourceMode: s.editSourceMode,
       batchProcess: normalizeBatchProcessConfig(s.batchProcess),
       loopGeneration: normalizeLoopGenerationConfig(s.loopGeneration),

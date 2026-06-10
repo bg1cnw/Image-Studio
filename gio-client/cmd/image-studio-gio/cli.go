@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -8,9 +9,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yuanhua/image-gptcodex/pkg/promptimport"
 	gioCompat "image-studio/gio-client/internal/compat"
 	"image-studio/gio-client/internal/diagnostics"
 	"image-studio/gio-client/internal/historymedia"
+	"image-studio/gio-client/internal/promptipc"
+	"image-studio/gio-client/internal/promptscheme"
 	"image-studio/gio-client/internal/ui"
 )
 
@@ -25,9 +29,97 @@ func runCLICommand(args []string, stdout io.Writer, stderr io.Writer) (bool, int
 	case "perf":
 		code, err := runPerfCommand(args[1:], stdout, stderr)
 		return true, code, err
+	case "protocol":
+		code, err := runProtocolCommand(args[1:], stdout, stderr)
+		return true, code, err
+	case "import-token":
+		code, err := runImportTokenCommand(args[1:], stdout, stderr)
+		return true, code, err
 	default:
 		return false, 0, nil
 	}
+}
+
+func runProtocolCommand(args []string, stdout io.Writer, stderr io.Writer) (int, error) {
+	if len(args) == 0 {
+		return 2, fmt.Errorf("usage: image-studio-gio protocol <register|unregister|status>")
+	}
+	switch args[0] {
+	case "register":
+		if err := promptscheme.RegisterCurrentExecutable(); err != nil {
+			return 1, err
+		}
+		_, err := io.WriteString(stdout, "protocol registered\n")
+		return 0, err
+	case "unregister":
+		if err := promptscheme.UnregisterCurrentExecutable(); err != nil {
+			return 1, err
+		}
+		_, err := io.WriteString(stdout, "protocol unregistered\n")
+		return 0, err
+	case "status":
+		status, err := promptscheme.StatusForCurrentExecutable()
+		if err != nil {
+			return 1, err
+		}
+		return 0, writeJSON(stdout, status)
+	default:
+		return 2, fmt.Errorf("unknown protocol command: %s", args[0])
+	}
+}
+
+func runImportTokenCommand(args []string, stdout io.Writer, stderr io.Writer) (int, error) {
+	if len(args) == 0 {
+		return 2, fmt.Errorf("usage: image-studio-gio import-token <token|image-studio://import?...>")
+	}
+	token, err := normalizePromptImportTokenArg(args[0])
+	if err != nil {
+		return 2, err
+	}
+	if err := promptipc.SendToken(token); err == nil {
+		_, writeErr := io.WriteString(stdout, "token sent to running instance\n")
+		return 0, writeErr
+	}
+	payload, fetchErr := promptimport.Fetch(context.Background(), token, promptimport.FetchOptions{})
+	if fetchErr != nil {
+		return 1, fetchErr
+	}
+	return 0, writeJSON(stdout, payload)
+}
+
+func promptImportMessageFromArgs(args []string) promptipc.Message {
+	for _, arg := range args {
+		trimmed := strings.TrimSpace(arg)
+		if trimmed == "" {
+			continue
+		}
+		if !strings.Contains(trimmed, "image-studio://") {
+			continue
+		}
+		token, err := promptimport.ParseTokenFromURL(trimmed)
+		if err != nil {
+			if promptimport.ErrorCode(err) == promptimport.TokenInvalid {
+				return promptipc.Message{Type: promptipc.MessageTypeInvalid}
+			}
+			continue
+		}
+		return promptipc.Message{Type: promptipc.MessageTypeToken, Token: token}
+	}
+	return promptipc.Message{}
+}
+
+func normalizePromptImportTokenArg(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", fmt.Errorf("token is empty")
+	}
+	if strings.Contains(trimmed, "image-studio://") {
+		return promptimport.ParseTokenFromURL(trimmed)
+	}
+	if !promptimport.IsValidToken(trimmed) {
+		return "", fmt.Errorf("invalid token")
+	}
+	return trimmed, nil
 }
 
 func runHistoryMediaCommand(args []string, stdout io.Writer, stderr io.Writer) (int, error) {

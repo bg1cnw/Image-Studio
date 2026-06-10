@@ -77,6 +77,12 @@ func (a *App) layout(gtx layout.Context) layout.Dimensions {
 	if snap.SavePromptVisible {
 		a.layoutSavePrompt(gtx, snap)
 	}
+	if snap.PromptImportRegisterOpen {
+		a.layoutPromptImportRegistrationPrompt(gtx, snap)
+	}
+	if snap.PromptImportVisible {
+		a.layoutPromptImportModal(gtx, snap)
+	}
 	if a.generalSettingsOpen {
 		a.layoutGeneralSettingsModal(gtx, snap)
 	}

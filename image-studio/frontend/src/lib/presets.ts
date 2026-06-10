@@ -86,6 +86,11 @@ export function findMatchingPresetId(presets: Preset[], current: PresetStateSnap
   return presets.find((preset) => presetMatchesSnapshot(preset, current))?.id ?? null;
 }
 
+export function normalizeSelectedPresetId(presets: Preset[], selectedPresetId: string | null): string | null {
+  if (!selectedPresetId) return null;
+  return presets.some((preset) => preset.id === selectedPresetId) ? selectedPresetId : null;
+}
+
 export function nextDefaultPresetName(presets: Preset[] = []): string {
   const usedNumbers = new Set<number>();
   for (const preset of presets) {

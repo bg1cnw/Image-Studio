@@ -285,6 +285,7 @@ export interface Workspace {
   userIdentifier: string;
   partialImages: number;
   batchCount: number;
+  selectedPresetId?: string | null;
   editSourceMode: EditSourceMode;
   batchProcess: BatchProcessConfig;
   loopGeneration: LoopGenerationConfig;

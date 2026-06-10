@@ -14,8 +14,10 @@ import { SavePromptGate } from "./gates/SavePromptGate";
 import { SettingsPanelGate } from "./gates/SettingsPanelGate";
 import { StarPromptGate } from "./gates/StarPromptGate";
 import { AppUpdateGate } from "./gates/AppUpdateGate";
+import { PromptImportGate } from "./gates/PromptImportGate";
 import { UpstreamConfigGate } from "./gates/UpstreamConfigGate";
 import { useAndroidView } from "./hooks/useAndroidView";
+import { useDesktopPromptImport } from "./hooks/useDesktopPromptImport";
 import { useGlobalImageImport } from "./hooks/useGlobalImageImport";
 import { useGlobalShortcuts } from "./hooks/useGlobalShortcuts";
 import { useStudioBootstrap } from "./hooks/useStudioBootstrap";
@@ -30,6 +32,7 @@ export default function App() {
   const { isMac } = usePlatform();
   const { androidView, setAndroidView } = useAndroidView();
   const { dragHover } = useGlobalImageImport(importImageFile, reuseAsSource);
+  const promptImportDialog = useDesktopPromptImport();
 
   useStudioBootstrap();
   useGlobalShortcuts({ isMac });
@@ -57,6 +60,7 @@ export default function App() {
       <SavePromptGate />
       <StarPromptGate />
       <AppUpdateGate />
+      <PromptImportGate dialog={promptImportDialog} />
     </div>
   );
 }

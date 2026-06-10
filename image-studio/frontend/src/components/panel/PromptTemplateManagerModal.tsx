@@ -8,6 +8,10 @@ import {
   resolvePromptTemplateManagerSelection,
 } from "../../lib/promptTemplates";
 import { usePlatform } from "../../platform/context";
+import { OpenExternalURL } from "../../platform/runtime/host";
+import { openExternalURLForPlatform } from "../../platform/android/bridge";
+
+const PROMPT_WEBSITE_URL = "https://prompts.sorry.ink/";
 
 export function PromptTemplateManagerModal({
   open,
@@ -34,6 +38,12 @@ export function PromptTemplateManagerModal({
     [promptTemplates, selectedId],
   );
   const selectedTemplate = selection.mode === "selected" ? selection.template : null;
+
+  function openPromptWebsite() {
+    void openExternalURLForPlatform(PROMPT_WEBSITE_URL, OpenExternalURL).catch(() => {
+      pushToast("无法打开提示词网站", "error");
+    });
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -92,7 +102,25 @@ export function PromptTemplateManagerModal({
 
   return (
     <Modal open={open} onClose={onClose} title="自定义提示词模板" width={isAndroidPhone ? 720 : 860}>
-      <div className={`grid gap-4 ${isAndroidPhone ? "grid-cols-1" : "grid-cols-[260px_minmax(0,1fr)]"}`}>
+      <div className="flex flex-col gap-4">
+        <div className={`rounded-[14px] border border-[color:var(--accent)]/16 bg-[var(--accent-soft)] px-3.5 py-2.5 text-[12px] leading-6 text-zinc-600 dark:text-zinc-300 ${usesFluentUI ? "rounded-[10px]" : "rounded-[14px]"}`}>
+          可以去
+          {" "}
+          <a
+            href={PROMPT_WEBSITE_URL}
+            onClick={(event) => {
+              event.preventDefault();
+              openPromptWebsite();
+            }}
+            className="font-medium text-[var(--accent)] underline decoration-[color:var(--accent)]/45 underline-offset-2 hover:opacity-80"
+          >
+            prompts.sorry.ink
+          </a>
+          {" "}
+          查找提示词，并通过网页一键导入到本软件。
+        </div>
+
+        <div className={`grid gap-4 ${isAndroidPhone ? "grid-cols-1" : "grid-cols-[260px_minmax(0,1fr)]"}`}>
         <section className={`platform-card border border-black/[0.08] bg-[var(--surface)] p-3 dark:border-white/[0.08] ${usesFluentUI ? "rounded-[12px]" : "rounded-[18px]"}`}>
           <div className="mb-3 flex gap-2">
             <button
@@ -172,6 +200,7 @@ export function PromptTemplateManagerModal({
             </button>
           </div>
         </section>
+        </div>
       </div>
     </Modal>
   );

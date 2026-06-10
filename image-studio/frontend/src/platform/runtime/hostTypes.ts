@@ -167,6 +167,23 @@ export type AppUpdateProbeResultLike = {
   shouldShowUpdate: boolean;
   appUpdateModalOpen: boolean;
 };
+
+export type PromptImportBilingualTextLike = {
+  zh?: string;
+  en?: string;
+};
+
+export type PromptImportPayloadLike = {
+  prompt: PromptImportBilingualTextLike;
+  negative_prompt?: PromptImportBilingualTextLike;
+  aspect_ratio?: string;
+  resolvedSize?: string;
+};
+
+export type PromptImportActivationLike = {
+  tokens?: string[];
+  invalidCount?: number;
+};
 export type HostKind = "wails-desktop" | "android-shell" | "browser";
 
 export type HostCapabilities = {

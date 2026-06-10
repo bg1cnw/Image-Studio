@@ -33,6 +33,12 @@ func main() {
 		BackgroundColour: &options.RGBA{R: 18, G: 20, B: 26, A: 1},
 		OnStartup:        svc.Startup,
 		OnShutdown:       svc.Shutdown,
+		SingleInstanceLock: &options.SingleInstanceLock{
+			UniqueId: "top.gptcodex.imagestudio",
+			OnSecondInstanceLaunch: func(secondInstanceData options.SecondInstanceData) {
+				svc.HandlePromptImportArgs(secondInstanceData.Args)
+			},
+		},
 		Bind: []interface{}{
 			svc,
 		},
@@ -47,6 +53,7 @@ func main() {
 			TitleBar:             wailsmac.TitleBarHiddenInset(),
 			WebviewIsTransparent: false,
 			WindowIsTranslucent:  false,
+			OnUrlOpen:            svc.HandlePromptImportURL,
 		}
 	}
 	if runtime.GOOS == "windows" {

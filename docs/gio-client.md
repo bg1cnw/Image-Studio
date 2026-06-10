@@ -1,6 +1,6 @@
 # Gio 高性能测试客户端
 
-Gio 客户端是 Windows / Linux 的独立测试版本，目录为 `gio-client/`。它的目标是验证不经过 WebView2/WebKitGTK 的原生 Gio 渲染路径，同时保持当前请求内核不变。
+Gio 客户端是 Windows / Linux 的独立桌面版本，目录为 `gio-client/`。它继续承担原生 Gio 渲染路径验证，但现在也负责 Windows / Linux 下的 `image-studio://import?...` 网页导入协议入口。
 
 ## 边界
 
@@ -9,6 +9,45 @@ Gio 客户端是 Windows / Linux 的独立测试版本，目录为 `gio-client/`
 - 复用 `go-cli/pkg/client` 的 Responses API、Images API、SSE、retry、proxy、模型默认值和请求字段策略。
 - Gio 前端为新的 immediate-mode 架构，UI 结构沿用桌面端的控制面板、画布、历史记录和运行日志布局。
 - GUI 入口仅面向 Windows / Linux；其他平台只编译 unsupported stub，避免误判为 macOS 支持。
+- 网页深链协议按平台分流：
+  - macOS 由 `image-studio/` Wails 客户端处理
+  - Windows / Linux 由 `gio-client/` 处理
+
+## 网页提示词导入协议
+
+Image-Prompts 站点通过以下深链拉起桌面端：
+
+```text
+image-studio://import?token=XXXXXXXX
+```
+
+Gio 端实现了：
+
+- 启动参数解析与运行中实例投递
+- `promptimport` 共享拉取逻辑
+- 独立导入确认弹层
+- 首启显式协议注册提示
+
+CLI:
+
+```bash
+go run ./cmd/image-studio-gio protocol register
+go run ./cmd/image-studio-gio protocol unregister
+go run ./cmd/image-studio-gio protocol status
+go run ./cmd/image-studio-gio import-token TESTTEST
+```
+
+Linux 也可直接用仓库脚本写入 `.desktop` 文件并调用 `xdg-mime`:
+
+```bash
+bash ../scripts/register-gio-linux-scheme.sh /absolute/path/to/image-studio-gio
+```
+
+模板文件位于：
+
+```text
+gio-client/assets/image-studio-gio.desktop.in
+```
 
 ## WebView2 兼容状态
 

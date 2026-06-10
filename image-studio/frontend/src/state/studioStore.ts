@@ -921,6 +921,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   },
   workspaces: [],
   activeWorkspaceId: "",
+  selectedPresetId: null,
   styleTag: "",
 
   setField: (key, value) => {
@@ -980,6 +981,12 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         workspaces: get().workspaces.map((w) => (
           w.id === get().activeWorkspaceId ? { ...w, batchCount: value } : w
         )),
+      });
+    } else if (key === "selectedPresetId") {
+      set({
+        workspaces: patchWorkspaceRuntime(get().workspaces, get().activeWorkspaceId, {
+          selectedPresetId: normalizedValue as string | null,
+        }),
       });
     } else if (key === "mode") {
       const value = normalizedValue as Mode;
@@ -1536,6 +1543,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         promptHistory: [],
         promptTemplates: preview.promptTemplates ?? [],
         batchCount: workspaceState.batchCount,
+        selectedPresetId: workspaceState.selectedPresetId ?? null,
         editSourceMode: workspaceState.editSourceMode,
         batchProcess: normalizeBatchProcessConfig(workspaceState.batchProcess),
         loopGeneration: normalizeLoopGenerationConfig(workspaceState.loopGeneration),
@@ -1804,6 +1812,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       userIdentifier,
       partialImages,
       batchCount: 1,
+      selectedPresetId: null,
       editSourceMode: "manual",
       batchProcess: defaultBatchProcessConfig(),
       loopGeneration: defaultLoopGenerationConfig(),
@@ -1849,6 +1858,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       activeProfileId,
       workspaces: [initialWorkspace],
       activeWorkspaceId: wsId,
+      selectedPresetId: initialWorkspace.selectedPresetId ?? null,
       editSourceMode: initialWorkspace.editSourceMode,
       batchProcess: normalizeBatchProcessConfig(initialWorkspace.batchProcess),
       loopGeneration: normalizeLoopGenerationConfig(initialWorkspace.loopGeneration),

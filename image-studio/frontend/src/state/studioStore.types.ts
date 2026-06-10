@@ -153,6 +153,7 @@ export interface StudioState {
   fontScale: number;
   workspaces: Workspace[];
   activeWorkspaceId: string;
+  selectedPresetId: string | null;
   styleTag: string;
   undoStack: UndoEntry[];
   redoStack: UndoEntry[];

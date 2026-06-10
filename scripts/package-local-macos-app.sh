@@ -16,12 +16,18 @@ node -e '
   const bundleId = `com.wails.${cfg.name || output}`;
   const comments = cfg.info?.comments || "";
   const copyright = cfg.info?.copyright || "";
+  const protocols = (cfg.info?.protocols || []).map((item) => ({
+    CFBundleURLName: `com.wails.${item.scheme || output}`,
+    CFBundleURLSchemes: [item.scheme],
+    CFBundleTypeRole: item.role || "Editor",
+  })).filter((item) => Array.isArray(item.CFBundleURLSchemes) && item.CFBundleURLSchemes[0]);
   console.log(appName);
   console.log(output);
   console.log(version);
   console.log(bundleId);
   console.log(comments);
   console.log(copyright);
+  console.log(JSON.stringify(protocols));
 ' "$WAILS_CONFIG" >"$WAILS_META_FILE"
 
 APP_NAME="$(sed -n '1p' "$WAILS_META_FILE")"
@@ -31,6 +37,7 @@ APP_VERSION="${VITE_APP_VERSION:-$APP_PRODUCT_VERSION}"
 BUNDLE_ID="top.gptcodex.imagestudio"
 APP_COMMENTS="$(sed -n '5p' "$WAILS_META_FILE")"
 APP_COPYRIGHT="$(sed -n '6p' "$WAILS_META_FILE")"
+APP_PROTOCOLS_JSON="$(sed -n '7p' "$WAILS_META_FILE")"
 CLIENT_VERSION_LDFLAG="${CLIENT_VERSION_LDFLAG:--X github.com/yuanhua/image-gptcodex/pkg/client.Version=${APP_VERSION}}"
 
 APP_BUNDLE="$PROJECT_DIR/build/bin/${APP_NAME}.app"
@@ -202,9 +209,13 @@ EOF
 /usr/bin/plutil -insert LSMinimumSystemVersion -string "10.13.0" "$PLIST_PATH"
 /usr/bin/plutil -insert NSHighResolutionCapable -bool YES "$PLIST_PATH"
 /usr/bin/plutil -insert NSHumanReadableCopyright -string "$APP_COPYRIGHT" "$PLIST_PATH"
+if [[ -n "$APP_PROTOCOLS_JSON" && "$APP_PROTOCOLS_JSON" != "[]" ]]; then
+  /usr/bin/plutil -insert CFBundleURLTypes -json "$APP_PROTOCOLS_JSON" "$PLIST_PATH"
+fi
 /usr/bin/plutil -lint "$PLIST_PATH" >/dev/null
 
 chmod +x "$EXECUTABLE_DST"
 /usr/bin/xattr -rc "$APP_BUNDLE"
 /usr/bin/codesign --force --deep --sign - "$APP_BUNDLE" >/dev/null
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP_BUNDLE" >/dev/null 2>&1 || true
 echo "$APP_BUNDLE"

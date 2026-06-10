@@ -55,6 +55,8 @@ import type {
   MediaAssetRefLike,
   ProbeUpstreamOptionsLike,
   ProbeUpstreamResultLike,
+  PromptImportActivationLike,
+  PromptImportPayloadLike,
   PromptOptimizeOptionsLike,
   SelectFileResponseLike,
   SelectFilesResponseLike,
@@ -397,6 +399,24 @@ export function LoadCodexAPIConfig(): Promise<CodexAPIConfigLike> {
     return invokeService<CodexAPIConfigLike>(unsupportedMessage, "LoadCodexAPIConfig");
   }
   return Promise.reject(new Error(unsupportedMessage("LoadCodexAPIConfig")));
+}
+
+export function canImportPromptByToken(): boolean {
+  return detectHostKind() === "wails-desktop" && hasServiceMethod("ImportPromptByToken");
+}
+
+export function ActivatePromptImportListener(): Promise<PromptImportActivationLike> {
+  if (hasServiceMethod("ActivatePromptImportListener")) {
+    return invokeService<PromptImportActivationLike>(unsupportedMessage, "ActivatePromptImportListener");
+  }
+  return Promise.resolve({ tokens: [], invalidCount: 0 });
+}
+
+export function ImportPromptByToken(token: string): Promise<PromptImportPayloadLike> {
+  if (hasServiceMethod("ImportPromptByToken")) {
+    return invokeService<PromptImportPayloadLike>(unsupportedMessage, "ImportPromptByToken", token);
+  }
+  return Promise.reject(new Error(unsupportedMessage("ImportPromptByToken")));
 }
 
 export function DeleteStoredAPIKey(user: string): Promise<void> {

@@ -15,6 +15,13 @@
     "productName": "Image Studio",
     "productVersion": "0.1.5",
     "copyright": "Copyright © 2026",
-    "comments": "Open-source image generation/editing GUI built with Wails (Go + React/TS)"
+    "comments": "Open-source image generation/editing GUI built with Wails (Go + React/TS)",
+    "protocols": [
+      {
+        "scheme": "image-studio",
+        "description": "Image-Prompts import",
+        "role": "Editor"
+      }
+    ]
   }
 }

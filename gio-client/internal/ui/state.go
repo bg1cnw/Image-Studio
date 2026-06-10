@@ -314,6 +314,14 @@ func (a *App) readSnapshot() snapshot {
 		CompareSplit:              a.compareSplitSlider.Value,
 		Result:                    a.result,
 		SavePromptVisible:         a.savePromptVisible,
+		PromptImportVisible:       a.promptImportOpen,
+		PromptImportLoading:       a.promptImportLoading,
+		PromptImportToken:         a.promptImportToken,
+		PromptImportPayload:       a.promptImportPayload,
+		PromptImportResolvedSize:  a.promptImportResolvedSize,
+		PromptImportRegisterOpen:  a.promptImportRegisterOpen,
+		PromptImportRegisterBusy:  a.promptImportRegisterBusy,
+		PromptImportRegisterNote:  a.promptImportRegisterNote,
 	}
 	a.snapshotCache = snap
 	a.snapshotReady = true

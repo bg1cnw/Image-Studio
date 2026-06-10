@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { FolderCog, Plus, Save } from "lucide-react";
-import { findMatchingPresetId, nextDefaultPresetName, pickPresetStateSnapshot } from "../../lib/presets";
+import { findMatchingPresetId, nextDefaultPresetName, normalizeSelectedPresetId, pickPresetStateSnapshot } from "../../lib/presets";
 import { usePlatform } from "../../platform/context";
 import { useStudioStore } from "../../state/studioStore";
 import type { Preset } from "../../types/domain";
@@ -26,6 +26,8 @@ export function ParameterPresetsSection({
   const state = useStudioStore();
   const {
     presets,
+    selectedPresetId,
+    setField,
     savePreset,
     overwritePreset,
     updatePreset,
@@ -33,12 +35,12 @@ export function ParameterPresetsSection({
     deletePreset,
   } = state;
   const { usesFluentUI } = usePlatform();
-  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [managerOpen, setManagerOpen] = useState(false);
   const [saveModalMode, setSaveModalMode] = useState<"save-current" | "new" | null>(null);
   const currentSnapshot = pickPresetStateSnapshot(state);
   const matchedPresetId = findMatchingPresetId(presets, currentSnapshot);
-  const selectedPreset = presets.find((preset) => preset.id === selectedPresetId) ?? null;
+  const normalizedSelectedPresetId = normalizeSelectedPresetId(presets, selectedPresetId);
+  const selectedPreset = presets.find((preset) => preset.id === normalizedSelectedPresetId) ?? null;
   const currentPreset = selectedPreset ?? presets.find((preset) => preset.id === matchedPresetId) ?? null;
   const isAndroid = variant === "android";
   const cardRadius = isAndroid ? "rounded-[18px]" : usesFluentUI ? "rounded-[10px]" : "rounded-[16px]";
@@ -46,19 +48,19 @@ export function ParameterPresetsSection({
   const suggestedName = useMemo(() => nextDefaultPresetName(presets), [presets]);
 
   useEffect(() => {
-    if (selectedPresetId && presets.some((preset) => preset.id === selectedPresetId)) return;
-    setSelectedPresetId(matchedPresetId);
-  }, [selectedPresetId, matchedPresetId, presets]);
+    if (normalizedSelectedPresetId === selectedPresetId) return;
+    setField("selectedPresetId", normalizedSelectedPresetId);
+  }, [normalizedSelectedPresetId, selectedPresetId, setField]);
 
   function handleApplyPreset(id: string) {
-    setSelectedPresetId(id);
+    setField("selectedPresetId", id);
     applyPreset(id);
   }
 
   function handleSaveAsNewPreset(name: string) {
     const id = savePreset(name);
     if (id) {
-      setSelectedPresetId(id);
+      setField("selectedPresetId", id);
     }
     return id;
   }
@@ -112,11 +114,11 @@ export function ParameterPresetsSection({
         {presets.length > 0 ? (
           <div className="mt-3">
             <select
-              value={selectedPresetId ?? ""}
+              value={normalizedSelectedPresetId ?? ""}
               onChange={(e) => {
                 const id = e.target.value;
                 if (!id) {
-                  setSelectedPresetId(null);
+                  setField("selectedPresetId", null);
                   return;
                 }
                 handleApplyPreset(id);
@@ -164,10 +166,10 @@ export function ParameterPresetsSection({
       <PresetManagerModal
         open={managerOpen}
         presets={presets}
-        selectedPresetId={selectedPresetId}
+        selectedPresetId={normalizedSelectedPresetId}
         onClose={() => setManagerOpen(false)}
         onDeletePreset={(id) => {
-          if (selectedPresetId === id) setSelectedPresetId(null);
+          if (normalizedSelectedPresetId === id) setField("selectedPresetId", null);
           deletePreset(id);
         }}
         onUpdatePreset={handleUpdatePreset}
